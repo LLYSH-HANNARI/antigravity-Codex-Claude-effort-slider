@@ -46,7 +46,20 @@ function findIdeJetskiMainPaths() {
     "D:\\Antigravity IDE\\resources\\app\\out\\jetskiAgent\\main.js",
     path.join(localAppData, "Programs", "antigravity IDE", "resources", "app", "out", "jetskiAgent", "main.js")
   ];
-  return candidates.filter((p) => fs.existsSync(p));
+  const seenRealPaths = new Set();
+  const out = [];
+  for (const p of candidates) {
+    if (!fs.existsSync(p)) continue;
+    try {
+      const real = fs.realpathSync(p).toLowerCase();
+      if (seenRealPaths.has(real)) continue;
+      seenRealPaths.add(real);
+      out.push(p);
+    } catch {
+      out.push(p);
+    }
+  }
+  return out;
 }
 
 function computeIntegrity(buffer, blockSize = 4194304) {
@@ -250,6 +263,51 @@ function tryWriteFileAtomically(targetPath, buffer) {
   }
 }
 
+function computeVsCodeChecksum(filePath) {
+  const bytes = fs.readFileSync(filePath);
+  return crypto.createHash("sha256").update(bytes).digest("base64").replace(/=+$/, "");
+}
+
+function syncIdeProductChecksums(mainJsPath, isUninstall) {
+  // mainJsPath: <IDE>/resources/app/out/jetskiAgent/main.js -> appRoot: <IDE>/resources/app
+  const appRoot = path.resolve(path.dirname(mainJsPath), "..", "..");
+  const productJsonPath = path.join(appRoot, "product.json");
+  if (!fs.existsSync(productJsonPath)) return;
+
+  const productBakPath = productJsonPath + ".codex.bak";
+  if (isUninstall && fs.existsSync(productBakPath)) {
+    fs.copyFileSync(productBakPath, productJsonPath);
+    console.log(`[CodexSlider IDE] 已还原 product.json 校验表: ${productJsonPath}`);
+    return;
+  }
+
+  const rawText = fs.readFileSync(productJsonPath, "utf8");
+  if (!isUninstall && !fs.existsSync(productBakPath)) {
+    fs.writeFileSync(productBakPath, rawText, "utf8");
+  }
+
+  const product = JSON.parse(rawText);
+  if (!product || !product.checksums || typeof product.checksums !== "object") return;
+
+  let updatedCount = 0;
+  for (const relKey of Object.keys(product.checksums)) {
+    const diskFile = path.join(appRoot, "out", ...relKey.split("/"));
+    if (!fs.existsSync(diskFile)) continue;
+    const actualHash = computeVsCodeChecksum(diskFile);
+    if (product.checksums[relKey] !== actualHash) {
+      product.checksums[relKey] = actualHash;
+      updatedCount += 1;
+    }
+  }
+
+  if (updatedCount > 0) {
+    fs.writeFileSync(productJsonPath, JSON.stringify(product, null, "\t") + "\n", "utf8");
+    console.log(
+      `[CodexSlider IDE] 已同步更新 product.json 中 ${updatedCount} 项 SHA-256 校验值（消除「安装似乎损坏」提示）: ${productJsonPath}`
+    );
+  }
+}
+
 function patchIdeJetskiFiles(clientCode, isUninstall) {
   const ideFiles = findIdeJetskiMainPaths();
   for (const mainJsPath of ideFiles) {
@@ -267,6 +325,7 @@ function patchIdeJetskiFiles(clientCode, isUninstall) {
             console.log(`[CodexSlider IDE] 已移除补丁: ${mainJsPath}`);
           }
         }
+        syncIdeProductChecksums(mainJsPath, true);
       } else {
         const cur = fs.readFileSync(mainJsPath, "utf8");
         const cleanBase = stripExistingPreloadPatch(cur);
@@ -284,6 +343,7 @@ function patchIdeJetskiFiles(clientCode, isUninstall) {
           "\n";
         fs.writeFileSync(mainJsPath, patched, "utf8");
         console.log(`[CodexSlider IDE] 已为 Antigravity IDE 写入补丁: ${mainJsPath}`);
+        syncIdeProductChecksums(mainJsPath, false);
       }
     } catch (err) {
       console.warn(`[CodexSlider IDE] 跳过 ${mainJsPath}: ${err.message}`);

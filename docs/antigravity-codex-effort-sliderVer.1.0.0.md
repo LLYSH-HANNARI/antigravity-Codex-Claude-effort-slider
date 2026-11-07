@@ -18,6 +18,7 @@
 - 新增离线多场景交互式预览生成器（`preview/make-preview.mjs` → `preview/panel.html`）与 5 组核心单元与拖拽跨界测试套件（`test/client.test.mjs`）
 
 ### Fixed
+- 修复 Antigravity IDE 修改 `jetskiAgent/main.js` 后弹出「Antigravity IDE 安装似乎损坏，请重新安装」提示的问题：在 `tools/patch-asar.cjs` 中新增 `syncIdeProductChecksums`，自动备份 `resources/app/product.json` 并重算 `checksums` 中文件的 SHA-256 Base64 校验值，卸载时同步还原
 - 修复拖动滑条切向其他档位时模型面板自动消失的问题：将 `readAntigravityFiberContext` 向上遍历深度从 45 层扩展至 500 层以命中位于约 170 层的全局 `ModelConfigProvider`（`setModelConfigByLabelForConversation`），并在 `unwrappedSetSelectedModel` 兜底路径增加同步 `focus` 抢夺屏蔽，防止 `getLexicalEditor()?.focus()` 将焦点移出菜单触发 `@base-ui/react` 失焦关闭动画
 - 修复 `detentTargetIndex` 在快速模式下跨越 1/3 边界进入相邻档位过渡区时，因锚点过早跳变导致的死区边界往复抖动问题
 - 修复从单档位模型（`GPT-OSS 120B (Medium)`）切回多档位模型时，底部触发器因 React 重新挂载 `<span class="opacity-70">` 导致的档位标签重复显示问题
