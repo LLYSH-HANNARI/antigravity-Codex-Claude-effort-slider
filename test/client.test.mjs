@@ -70,6 +70,17 @@ test("2. Antigravity 三档模型 (Low / Medium / High) 能量、色彩与 22 �
   const litAtHigh = slider.PARTICLES.filter((p) => slider.starBrightnessFor(p, 1.0) > 0).length;
   assert.equal(litAtHigh, 22);
 
+  // 验证右向左横穿星空速率与相位：Medium (1x ≈ 3.0s) 比 High (2x ≈ 1.5s) 慢一倍，且负相位落在 (-duration, 0]
+  assert.equal(slider.speedFor(0.5, stops3.start), 1);
+  assert.equal(slider.speedFor(1.0, stops3.start), 2);
+  assert.equal(slider.starLayerOpacityFor(0.5), 0.8);
+  assert.equal(slider.starLayerOpacityFor(1.0), 1);
+  const durMed0 = slider.starDurationFor(0, slider.speedFor(0.5, stops3.start));
+  const durHigh0 = slider.starDurationFor(0, slider.speedFor(1.0, stops3.start));
+  assert.ok(Math.abs(durMed0 / durHigh0 - 2) < 1e-6);
+  const delay0 = slider.starDelayFor(0, durHigh0);
+  assert.ok(delay0 <= 0 && delay0 > -durHigh0);
+
   // 兼容首档为 Off 的四档模型 (Off / Low / High / Max)
   const stops4 = slider.energyStopsFor(["off", "low", "high", "max"]);
   assert.ok(Math.abs(stops4.start - 1 / 3) < 1e-6);

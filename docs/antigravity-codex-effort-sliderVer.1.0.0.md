@@ -4,10 +4,10 @@
 - 新增针对 Google Antigravity 架构定制的 Codex 风格推理等级滑条核心引擎（`lib/client.js`）
 - 新增跨档位边界即时切换机制：按住滑条拖动越过 1/3 档位边界（`detentTargetIndex`）时，无需等待 `pointerup` 松手即可同步调用 Antigravity 底层会话模型状态接口（`setModelConfigByLabelForConversation`）即时切换官方真实档位
 - 新增 Antigravity 原生模型菜单（`[data-testid="model-selector-panel"]`）底部专属「推理等级」滑条区（`.ces-ag-section`），与上方模型列表双向联动
-- 新增 Antigravity 三档模型（`Low / Medium / High`）全行程色彩与 22 颗黄金分割低差异星尘映射：
-  - `Low (0%)`：纯蓝轨道（`#4d93f8`），0 能量，0 颗星尘点亮，档位文字纯蓝（`#4d93f8`）
-  - `Medium (50%)`：蓝紫渐变过渡（`#4d93f8 → #9333ea`），0.5 能量，11 颗星尘点亮（1× 闪烁基准速率），档位文字蓝紫（`#6c78f7`）
-  - `High (100%)`：深紫星云全满（`#4d93f8 → #9333ea → #4c1d95`）+ 流光扫掠 + 22 颗星尘全亮（2× 闪烁加速）+ 滑条外框紫光呼吸光晕（`data-ces-max="true"`），档位文字亮紫（`#8b5cf6`）
+- 新增 Antigravity 三档模型（`Low / Medium / High`）全行程色彩与 22 颗黄金分割低差异星尘映射（星尘圆点与流光均从右向左连续横穿已填充轨道）：
+  - `Low (0%)`：纯蓝轨道（`#4d93f8`），0 能量，0 颗星尘显示，粒子与扫光动画自动暂停（`animation-play-state: paused`），档位文字纯蓝（`#4d93f8`）
+  - `Medium (50%)`：蓝紫渐变过渡（`#4d93f8 → #9333ea`），0.5 能量，11 颗星尘从右向左横穿（1× 基准速率 ≈ 3.0s），档位文字蓝紫（`#6c78f7`）
+  - `High (100%)`：深紫星云全满（`#3b1178 → #6d28d9 → #9333ea → #c084fc`）+ 从右向左流光扫掠（`.ces-energy__sweep`）+ 22 颗星尘全开（2× 横穿加速 ≈ 1.5s）+ 轨道外框紫光光晕，档位文字亮紫（`#8b5cf6`）
 - 新增单档位模型（如 `GPT-OSS 120B (Medium)`）自动识别与锁定置灰状态（`.is-locked` / `aria-disabled="true"`）
 - 新增列表项防关菜单与右侧级联子菜单屏蔽：点击上方模型列表切换模型时保持菜单常驻不关闭，隐藏冗余的右侧悬停 `Low / Medium / High` 子菜单浮层，并为每个模型行右侧及底部触发器胶囊的当前档位文字实时着色
 - 新增 React Fiber 双缓冲（`HostRoot.stateNode.current` 与 `alternate`）自适应读取机制，确保连续切档重绘后始终读取最新 Fiber 状态树
@@ -16,6 +16,9 @@
   - 持久启动补丁（`tools/patch-asar.cjs`、`install.cmd`、`uninstall.cmd`）：支持自动重打包 Antigravity 桌面端 `resources/app.asar`（通过 `electron.webFrame.executeJavaScript` 注入渲染进程主世界并自动重算 PE Header SHA-256 哈希）与 Antigravity IDE（`jetskiAgent/main.js`），自动备份原包并支持一键卸载还原
   - CDP 实时热注入（`tools/inject-cdp.cjs`）：自动扫描 `%APPDATA%\Antigravity\DevToolsActivePort` 将滑条实时注入或卸载于正在运行的 Antigravity 窗口，无需重启客户端
 - 新增离线多场景交互式预览生成器（`preview/make-preview.mjs` → `preview/panel.html`）与 5 组核心单元与拖拽跨界测试套件（`test/client.test.mjs`）
+
+### Changed
+- 对齐参考预览页（`dsh-codex-effort-slider/preview/panel.html`）的星空粒子与能量层实现：将原本静态原地闪烁的星点替换为四层轨道结构（`.ces-fill` + `.ces-energy > .ces-energy__sweep` + `.ces-stars > .ces-star > .ces-star__dot` + `.ces-knob`），22 颗星尘圆点在旋钮右端（`left: 100%`）生成并通过 `@keyframes ces-star-sweep`（`translate3d(0,0,0) → translate3d(-100%,0,0)`）从右向左连续横穿已填充轨道，横穿速度随位置动态加速（`Medium` 约 3.0s、`High` 约 1.5s，星间浮动 ±8% 防成团），高度槽与黄金比相位排名解耦（相邻相位高度至少间隔 3 槽）
 
 ### Fixed
 - 修复选中某个模型（如 `Argon`）后鼠标移至其他多档位模型（如 `3.8 Flash`）时模型面板高频闪烁的问题：Antigravity 原生二级档位子菜单（含 `[data-testid="model-selector-effort-option"]`）并非 Portal 到外部根节点，而是内联挂载在主菜单 `<div role="menu">` 内部；此前隐藏二级子菜单的 CSS 选择器 `[role='menu']:has([data-testid='model-selector-effort-option'])` 在悬停 100ms 触发子菜单展开时会误命中外层主菜单容器本身，导致「主菜单 `display: none` → 鼠标移出 → 子菜单卸载 → 主菜单恢复显示 → 再次触发悬停」的死循环闪烁。现已通过 `:not(:has([data-testid='model-selector-panel']))` 精确限定仅隐藏内层二级子菜单，并对 DOM 装饰同步（`syncAntigravityDomDecorations` / `applyVisualPct`）做幂等化去重
