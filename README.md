@@ -23,6 +23,13 @@
    | **Medium** | `50%` | 蓝紫过渡 `#4d93f8 → #9333ea` | `0.5` | `11 / 22` | `1×` | 蓝紫 `#6c78f7` |
    | **High** | `100%` | 深紫星云 `#4d93f8 → #9333ea → #4c1d95` + 流光扫掠 + 外框紫光光晕 | `1.0` | `22 / 22` | `2×` | 亮紫 `#8b5cf6` |
 
+3. **双风格自适应引擎：Codex 星空流光 (Argon / Flash) 与 Claude Code 胶囊点阵 (Opus / Sonnet 5.5)**
+   - **Codex 风格**（`Gemini 4 Argon`、`Gemini 3.8 Flash`）：圆形光晕滑块，22 颗黄金分割星尘从右向左横穿已填充轨道，High 档深紫星云渐变与扫掠流光。
+   - **Claude Code 风格**（`Claude Opus 5.5`、`Claude Sonnet 5.5`，参照 [youqisibun/dsh-claude-effort-slider](https://github.com/youqisibun/dsh-claude-effort-slider)）：
+     - 矩形圆角 Capsule 胶囊滑块（24×30px）带中心垂直凹槽。
+     - 原生 3 档（`Low / Medium / High`），切到 `High` 时立即激活专属 **6×60 Canvas 像素点阵抖动扫掠波**（1600ms 从右向左入场波前 + 待机脉冲，离开 High 档或切换模型时自动挂起 RAF 节约性能）。
+     - 调色板自适应明暗模式：暗色采用紫罗兰底晕与亮紫点阵（`#c4b5fd` / `#a78bfa`）；浅色采用平滑底晕与马赛克方块。
+
 4. **右键 / 长按设置面板**
    - 在滑条区域 **右键单击**（或触屏长按 500ms）即可呼出设置面板（`.ces-set`），所有配置实时写入 `localStorage["antigravity-codex-effort-slider:v1"]` 并跨窗口同步：
      - **动画效果**：`快速动画`（默认，拨过 1/3 即切档 · ~70ms 快速吸附）/ `简洁动画`（无过渡直接跳档）/ `完整动画`（匀变速追赶 + 星尘渐亮）

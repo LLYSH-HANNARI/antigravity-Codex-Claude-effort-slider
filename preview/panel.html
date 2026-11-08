@@ -280,6 +280,19 @@
   };
   var AG_MODEL_LABEL_RE = /^(.*?)\s*\((off|low|medium|high|xhigh|max)(?:\s+thinking)?\)\s*$/i;
 
+  // Claude 专属主题常量（6×60 点阵、1.6s 从右至左扫掠、Capsule 胶囊滑块）
+  var CLAUDE_CELL = 28 / 6; // ≈ 4.67px
+  var CLAUDE_ROWS = 6;
+  var CLAUDE_SWEEP_MS = 1600;
+  var CLAUDE_KNOB_W = 24;
+  var CLAUDE_KNOB_H = 30;
+  var CLAUDE_KNOB_R = 7;
+
+  function isClaudeModel(name) {
+    if (!name || typeof name !== "string") return false;
+    return /claude/i.test(name);
+  }
+
   // ── 连续物理运动参数 ────────────────────────────────────────────────────────
   // full: 完整星云阻尼变速动画；fast: 快速 ~70ms 跟手吸附（默认）；quick: 0 动画直接跳格
   var MOTION = Object.freeze({
@@ -483,7 +496,7 @@
   function dumpTrace(win) {
     var w = win || (typeof window !== "undefined" ? window : globalRoot);
     return {
-      plugin: "antigravity-codex-effort-slider@1.0.0",
+      plugin: "antigravity-codex-effort-slider@1.1.2",
       time: new Date().toISOString(),
       ua: w && w.navigator ? w.navigator.userAgent : "node",
       settings: readSettings(w),
@@ -735,6 +748,235 @@
     );
   }
 
+  /* ── Claude Ultracode 像素点阵抖动引擎 ──────────────────────────────── */
+  function hash01(a, b, c) {
+    var h = (a | 0) * 374761393 + (b | 0) * 668265263 + (c | 0) * 1274126177;
+    h = (h ^ (h >>> 13)) * 1274126177;
+    h = h ^ (h >>> 16);
+    return ((h >>> 0) % 100000) / 100000;
+  }
+
+  function ditherAlphaAt(x, w, col, row) {
+    var t = clamp01(x / Math.max(1, w));
+    var ramp = 0.92 + 0.08 * t;
+    var jitter = 0.25 + 0.75 * hash01(col, row, 7);
+    return clamp01(ramp * jitter);
+  }
+
+  function fillRoundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function valueNoise(col, row, timeSec, speed, seed) {
+    var tt = timeSec * speed + hash01(col, row, seed) * 17;
+    var step = Math.floor(tt);
+    var f = tt - step;
+    var e = f * f * (3 - 2 * f);
+    var a = hash01(col, row, (step % 997) + seed * 11);
+    var b = hash01(col, row, ((step + 1) % 997) + seed * 11);
+    return a + (b - a) * e;
+  }
+
+  var mergeCache = null;
+  var mergeCacheKey = "";
+  function getMergeMap(cols, rows) {
+    var key = cols + "x" + rows;
+    if (mergeCache && mergeCacheKey === key) return mergeCache;
+    var map = new Uint8Array(cols * rows);
+    for (var r = 0; r < rows; r += 1) {
+      for (var c = 0; c < cols; c += 1) {
+        var i = r * cols + c;
+        if (map[i]) continue;
+        var h = hash01(c, r, 91);
+        if (h < 0.02 && c + 1 < cols && r + 1 < rows && !map[i + 1] && !map[i + cols] && !map[i + cols + 1]) {
+          map[i] = 1; map[i + 1] = 2; map[i + cols] = 2; map[i + cols + 1] = 2;
+        } else if (h < 0.06 && c + 1 < cols && !map[i + 1]) {
+          map[i] = 3; map[i + 1] = 2;
+        } else if (h < 0.08 && r + 1 < rows && !map[i + cols]) {
+          map[i] = 4; map[i + cols] = 2;
+        }
+      }
+    }
+    mergeCache = map;
+    mergeCacheKey = key;
+    return map;
+  }
+
+  function surfaceIsDark(win, doc) {
+    try {
+      var d = doc || (typeof document !== "undefined" ? document : null);
+      var w = win || (typeof window !== "undefined" ? window : globalRoot);
+      if (!d || !d.body || !w) return true;
+      if (d.documentElement && d.documentElement.classList.contains("dark")) return true;
+      if (d.body && d.body.classList.contains("dark")) return true;
+      var bg = (w.getComputedStyle && w.getComputedStyle(d.body).backgroundColor) || "";
+      var parts = bg.match(/[\d.]+/g);
+      if (!parts || parts.length < 3) return true;
+      if (parts.length > 3 && Number(parts[3]) < 0.5) return true;
+      var luminance = (0.2126 * Number(parts[0]) + 0.7152 * Number(parts[1]) + 0.0722 * Number(parts[2])) / 255;
+      return luminance < 0.5;
+    } catch (err) {
+      return true;
+    }
+  }
+
+  /**
+   * Claude 点阵绘制。intensity ∈ [0,1] 连续控制特效强度（中档约 0.35，最高档 1）：
+   * - 底晕 wash 透明度按 intensity 缩放；
+   * - 像素密度：按每格固定哈希做确定性稀疏剔除，intensity 越低保留越少（不会随帧闪烁）；
+   * - 像素亮度：整体 alpha 乘以 (0.45 + 0.55 * intensity)。
+   * intensity = 1 时三项系数均为 1，输出与旧版完全一致。
+   */
+  function paintDither(ctx, w, h, dark, progress, timeSec, intensity) {
+    if (!ctx) return;
+    var strength = typeof intensity === "number" ? clamp01(intensity) : 1;
+    ctx.clearRect(0, 0, w, h);
+    if (strength <= 0 || w <= 0) return;
+    // 密度阈值：strength=1 → 1.0（全保留）；strength=0.35 → ~0.51（约一半格子）
+    var keepRatio = strength >= 1 ? 1 : 0.25 + 0.75 * strength;
+    var alphaMul = 0.45 + 0.55 * strength;
+    var k = 1 - progress;
+    var s1 = Math.max(0, Math.min(1, k - 0.08));
+    var s2 = Math.max(s1, Math.min(1, k + 0.18));
+    var wash = ctx.createLinearGradient(0, 0, w, 0);
+    if (dark) {
+      wash.addColorStop(0, "rgba(112, 78, 162, 0)");
+      wash.addColorStop(s1, "rgba(112, 78, 162, 0)");
+      wash.addColorStop(s2, "rgba(118, 84, 169, 0.3)");
+      wash.addColorStop(1, "rgba(116, 84, 170, 0.75)");
+    } else {
+      wash.addColorStop(0, "rgba(142, 118, 192, 0)");
+      wash.addColorStop(s1, "rgba(142, 118, 192, 0)");
+      wash.addColorStop(s2, "rgba(142, 118, 192, 0.45)");
+      wash.addColorStop(1, "rgba(142, 118, 192, 1)");
+    }
+    ctx.globalAlpha = strength;
+    ctx.fillStyle = wash;
+    ctx.fillRect(0, 0, w, h);
+
+    var purple = dark ? [208, 192, 246] : [150, 130, 205];
+    var cell = h / 6 > 0 ? h / 6 : CLAUDE_CELL;
+    var cols = Math.ceil(w / cell);
+    var rows = 6;
+
+    for (var col = 0; col < cols; col += 1) {
+      var x = col * cell;
+      var t = clamp01(x / Math.max(1, w));
+      var fade = clamp01((t - 0.02) / 0.48);
+      for (var row = 0; row < rows; row += 1) {
+        // 确定性稀疏：同一格在同一强度下始终同样保留/剔除，避免拖动时整片闪烁
+        if (keepRatio < 1 && hash01(col, row, 101) > keepRatio) continue;
+        var base = ditherAlphaAt(x, w, col, row) * alphaMul;
+        if (base < 0.05) continue;
+        var front = 1 - progress;
+        var edgeJit = (hash01(col, row, 31) - 0.5) * 0.05;
+        if (t < front + edgeJit) continue;
+        var appear = (0.35 + 0.65 * clamp01((t - front - edgeJit) / 0.04)) * (dark ? 1 : alphaMul);
+
+        var rowWaves = 3 + Math.floor(hash01(0, row, 47) * 5);
+        var rowSpeed = 5.0 + 10.0 * hash01(0, row, 43);
+        var rowPhase = hash01(0, row, 53) * Math.PI * 2;
+        var rowWaves2 = 2 + Math.floor(hash01(0, row, 61) * 4);
+        var rowSpeed2 = rowSpeed * (rowWaves2 / rowWaves);
+        var rowPhase2 = hash01(0, row, 71) * Math.PI * 2;
+
+        var u1 = ((t * rowWaves * Math.PI * 2 + timeSec * rowSpeed + rowPhase) / (Math.PI * 2)) % 1;
+        if (u1 < 0) u1 += 1;
+        var u2 = ((t * rowWaves2 * Math.PI * 2 + timeSec * rowSpeed2 + rowPhase2) / (Math.PI * 2)) % 1;
+        if (u2 < 0) u2 += 1;
+
+        var p1 = Math.pow(1 - u1, 2.6 + 3.4 * hash01(col, row, 17));
+        var p2 = Math.pow(1 - u2, 3.4);
+        var pulse = Math.max(p1, p2 * (0.55 + 0.45 * hash01(col, row, 19))) * 0.85;
+
+        if (!dark) {
+          var lt = clamp01((t - 0.05) / 0.2);
+          if (lt <= 0) continue;
+          var lmap = getMergeMap(cols, rows);
+          var mi = row * cols + col;
+          var mv = lmap[mi];
+          if (mv === 2) continue;
+          if (hash01(col, row, 95) < 0.03) continue;
+          var wide = mv === 3 || mv === 1;
+          var tall = mv === 4 || mv === 1;
+          var y2 = row * cell;
+          var u = hash01(col, row, 93);
+          var sp = 22 + 66 * t;
+          var off = (u - 0.42) * sp;
+          if (off > 0) off *= 1.1;
+          var br = 187 - 32 * t;
+          var bg = 184 - 46 * t;
+          var bb = 206 + 4 * t;
+          var lr = br + off;
+          var lg = bg + (off < 0 ? off : off * 1.05);
+          var lb = bb + (off < 0 ? off : off * 0.65);
+          lr = Math.max(124, Math.min(240, Math.round(lr + 12 * pulse)));
+          lg = Math.max(100, Math.min(232, Math.round(lg + 12 * pulse)));
+          lb = Math.max(180, Math.min(252, Math.round(lb + 8 * pulse)));
+          var lw = cell * (wide ? 2 : 1) * 0.88;
+          var lh = cell * (tall ? 2 : 1) * 0.88;
+          var flicker = valueNoise(col, row, timeSec, 0.9, 83);
+          var density = clamp01((t - 0.12) / 0.35);
+          var threshold = 0.2 + 0.8 * density;
+          var presence = density > 0.9 ? 1 : clamp01((threshold - flicker) / 0.2);
+          if (presence <= 0.01) continue;
+          var lAlpha = clamp01(lt * appear * presence * (0.7 + 0.3 * (1 - flicker)) * (0.85 + 0.15 * hash01(col, row, 29)));
+          ctx.globalAlpha = lAlpha;
+          ctx.fillStyle = "rgb(" + lr + "," + lg + "," + lb + ")";
+          fillRoundRect(ctx, x + 0.5, y2 + 0.5, lw, lh, 1);
+          var whiteAmt = clamp01(pulse * (0.35 + 0.65 * t)) * (0.55 + 0.45 * hash01(col, row, 71)) * strength;
+          if (progress < 0.999) {
+            var flash = clamp01(1 - (t - front) / 0.16) * (0.55 + 0.45 * hash01(col, row, 73));
+            whiteAmt = Math.max(whiteAmt, flash);
+          }
+          if (whiteAmt > 0.03) {
+            ctx.globalAlpha = Math.min(1, lAlpha * (0.12 + 0.88 * whiteAmt));
+            ctx.fillStyle = "rgb(247, 243, 255)";
+            var ins = lw * 0.14;
+            fillRoundRect(ctx, x + 0.5 + ins, y2 + 0.5 + ins, lw - ins * 2, lh - ins * 2, 0.7);
+          }
+          continue;
+        }
+
+        var flick = valueNoise(col, row, timeSec, 1.5, 5);
+        var gap = 0.6 + 0.4 * clamp01((flick - (1 - fade) * 0.5) / 0.3);
+        var vis = clamp01((t - 0.2) / 0.18);
+        var ghost = 0.06 * clamp01((flick - 0.5) / 0.5) * (1 - vis);
+        var baseAlpha = 0.04 + 0.96 * vis + ghost;
+        var gridAlpha = clamp01(base * baseAlpha * gap * appear * 1.15 * (0.9 + 0.1 * hash01(col, row, 29)));
+        if (gridAlpha < 0.008) continue;
+        var y = row * cell;
+        var size = cell * 0.72;
+        ctx.globalAlpha = Math.min(1, gridAlpha * 0.55);
+        ctx.fillStyle = "rgb(" + purple[0] + "," + purple[1] + "," + purple[2] + ")";
+        fillRoundRect(ctx, x + 0.5, y + 0.5, size, size, 1.1);
+
+        var whiteAmtDark = clamp01(pulse * (0.35 + 0.65 * t)) * (0.55 + 0.45 * hash01(col, row, 71)) * strength;
+        if (progress < 0.999) {
+          var flashDark = clamp01(1 - (t - front) / 0.16) * (0.55 + 0.45 * hash01(col, row, 73));
+          whiteAmtDark = Math.max(whiteAmtDark, flashDark);
+        }
+        if (whiteAmtDark > 0.03) {
+          ctx.globalAlpha = Math.min(1, gridAlpha * (0.1 + 0.72 * whiteAmtDark));
+          ctx.fillStyle = "rgb(220, 204, 255)";
+          fillRoundRect(ctx, x + 0.5, y + 0.5, size, size, 0.7);
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
   /**
    * 根据档位列表自动推导能量起点与中点：
    * - 若首档为 Off（如 4 档 Off / Low / High / Max），则第 1 档 (Low) 为纯蓝无星尘起点：
@@ -768,6 +1010,25 @@
   function speedFor(pct, startOverride) {
     var e = energyForPct(pct, startOverride);
     return Math.min(MAX_SPEED_FACTOR, Math.max(0.35, 2 * e));
+  }
+
+  /**
+   * Claude 点阵特效强度（随位置连续变化，与 Codex 能量曲线同源）：
+   * energy=0 (Low) → 0 无特效；energy=0.5 (Medium) → ≈0.35 少量点阵；energy=1 (High) → 1 全量。
+   * 采用 e^1.5 曲线：低端起势柔和，靠近 High 时加速饱和。
+   */
+  function claudeIntensityFor(pct, startOverride) {
+    var e = energyForPct(pct, startOverride);
+    if (e <= 0) return 0;
+    return Math.round(Math.pow(e, 1.5) * 1000) / 1000;
+  }
+
+  /**
+   * Claude 点阵流动速度倍率（以 High = 1 为基准）：Medium = 0.5（慢一倍），下限 0.175。
+   * 直接复用 Codex 的 speedFor（Medium 1× / High 2×）再除以 2 归一化。
+   */
+  function claudeSpeedFor(pct, startOverride) {
+    return speedFor(pct, startOverride) / MAX_SPEED_FACTOR;
   }
 
   /** 位置 → 可见粒子数量（随能量从 0 渐增至 22 颗） */
@@ -865,10 +1126,19 @@
    * - start < pct <= end    : #4d93f8 -> #9333ea (蓝紫过渡)
    * - end < pct <= 1        : #9333ea -> #4c1d95 (深紫星云)
    */
-  function fillColorFor(pct, startOverride, endOverride) {
+  function fillColorFor(pct, startOverride, endOverride, isClaude) {
     var p = clamp01(pct);
     var start = typeof startOverride === "number" && Number.isFinite(startOverride) ? startOverride : ENERGY_START;
     var end = typeof endOverride === "number" && Number.isFinite(endOverride) ? endOverride : ENERGY_END;
+    if (isClaude) {
+      if (p <= start + 1e-6) return "#71717a";
+      if (p <= end + 1e-6) {
+        var cspan1 = Math.max(1e-6, end - start);
+        return mixHex("#71717a", "#a78bfa", (p - start) / cspan1);
+      }
+      var cspan2 = Math.max(1e-6, 1 - end);
+      return mixHex("#a78bfa", "#704ea2", (p - end) / cspan2);
+    }
     if (p <= start + 1e-6) return "#4d93f8";
     if (p <= end + 1e-6) {
       var span1 = Math.max(1e-6, end - start);
@@ -882,12 +1152,17 @@
    * 填充区线性渐变背景：
    * 让轨道左侧始终保留蓝色起点，随滑块向右推进依次展开蓝紫过渡与深紫星云
    */
-  function fillBackgroundFor(pct, startOverride, endOverride) {
+  function fillBackgroundFor(pct, startOverride, endOverride, isClaude) {
     var p = clamp01(pct);
     var start = typeof startOverride === "number" && Number.isFinite(startOverride) ? startOverride : ENERGY_START;
     var end = typeof endOverride === "number" && Number.isFinite(endOverride) ? endOverride : ENERGY_END;
+    if (isClaude) {
+      if (p <= 0.05) return "rgba(142, 118, 192, 0.15)";
+      // 末端颜色随位置连续插值（#71717a → #a78bfa → #704ea2），避免过中点时整条填充色突变
+      return "linear-gradient(90deg, rgba(142, 118, 192, 0.25) 0%, " + fillColorFor(p, start, end, true) + " 100%)";
+    }
     if (p <= start + 1e-6) return "#4d93f8";
-    var endColor = fillColorFor(p, start, end);
+    var endColor = fillColorFor(p, start, end, false);
     if (p <= end + 1e-6) {
       var stopBlue = start > 0 ? Math.round((start / p) * 100) : 0;
       if (stopBlue <= 0) {
@@ -914,13 +1189,23 @@
   /**
    * 档位文字着色：
    * - 单档位锁定模型或 Off 档位保持官方默认灰（返回 ""）
-   * - 最高档（High / Max）返回亮紫 #8b5cf6
-   * - 首档有效档位（Low）返回亮蓝 #4d93f8，中间档位（Medium）按比例平滑插值 (#6c78f7)
+   * - Codex 风格：首档蓝 #4d93f8、中档蓝紫 #6c78f7、高档亮紫 #8b5cf6
+   * - Claude 风格：首档暖灰/柔紫 #94a3b8、中档紫罗兰 #a78bfa、高档亮淡紫 #c4b5fd
    */
-  function valueColorFor(label, index, count, isMax, hasOffFirst) {
+  function valueColorFor(label, index, count, isMax, hasOffFirst, isClaude) {
     if (isOffLevel(label)) return "";
     var n = Number(count) || 0;
     if (n <= 1) return "";
+    if (isClaude) {
+      if (isMax || index === n - 1) return "#c4b5fd";
+      var cIdx = typeof index === "number" && index >= 0 ? index : 0;
+      var cFirstActive = hasOffFirst ? 1 : 0;
+      if (cIdx <= cFirstActive) return "#94a3b8";
+      if (n === 3 && cIdx === 1) return "#a78bfa";
+      var cDenom = Math.max(1, n - 1 - cFirstActive);
+      var cT = clamp01((cIdx - cFirstActive) / cDenom);
+      return mixHex("#94a3b8", "#c4b5fd", cT);
+    }
     if (isMax || index === n - 1) return "#8b5cf6";
     var idx = typeof index === "number" && index >= 0 ? index : 0;
     var firstActive = hasOffFirst ? 1 : 0;
@@ -1086,6 +1371,71 @@
     "  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.34), 0 0 0 0.5px rgba(0, 0, 0, 0.06);",
     "  pointer-events: none;",
     "  will-change: left;",
+    "}",
+    "/* ── Claude 专属主题适配 (data-theme='claude') ── */",
+    ".ces-root[data-theme='claude'] .ces-stars,",
+    ".ces-root[data-theme='claude'] .ces-energy,",
+    ".ces-inline[data-theme='claude'] .ces-stars,",
+    ".ces-inline[data-theme='claude'] .ces-energy {",
+    "  display: none !important;",
+    "}",
+    ".ces-root[data-theme='claude'] .ces-track,",
+    ".ces-inline[data-theme='claude'] .ces-track {",
+    "  height: 28px;",
+    "  border-radius: 999px;",
+    "  background: rgba(128, 128, 145, 0.16);",
+    "  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.08);",
+    "}",
+    ".ces-root[data-theme='claude'][data-energy='1'] .ces-track,",
+    ".ces-inline[data-theme='claude'][data-energy='1'] .ces-track {",
+    "  box-shadow: 0 0 16px rgba(167, 139, 250, 0.45), inset 0 1px 2px rgba(0, 0, 0, 0.22);",
+    "}",
+    ".ces-root[data-theme='claude'] .ces-knob,",
+    ".ces-inline[data-theme='claude'] .ces-knob {",
+    "  width: 24px;",
+    "  height: 30px;",
+    "  margin: -15px 0 0 -12px;",
+    "  border-radius: 7px;",
+    "  background: #ffffff;",
+    "  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 0 0.5px rgba(0, 0, 0, 0.12);",
+    "  display: flex;",
+    "  align-items: center;",
+    "  justify-content: center;",
+    "}",
+    ".ces-knob-notch {",
+    "  display: none;",
+    "  width: 2px;",
+    "  height: 10px;",
+    "  border-radius: 999px;",
+    "  background: rgba(0, 0, 0, 0.28);",
+    "}",
+    ".ces-root[data-theme='claude'] .ces-knob-notch,",
+    ".ces-inline[data-theme='claude'] .ces-knob-notch {",
+    "  display: block;",
+    "}",
+    ".ces-claude-canvas {",
+    "  position: absolute;",
+    "  left: 0;",
+    "  top: 0;",
+    // 宽度由 JS 每帧同步为已填充宽度（与 .ces-stars 一致），只在圆钮左侧绘制点阵，杜绝右侧未填充区提前冒出特效
+    "  width: var(--ces-fill, 0px);",
+    "  height: 100%;",
+    "  border-radius: 999px;",
+    "  display: none;",
+    "  pointer-events: none;",
+    "}",
+    ".ces-root[data-theme='claude'][data-energy='1'] .ces-claude-canvas,",
+    ".ces-inline[data-theme='claude'][data-energy='1'] .ces-claude-canvas {",
+    "  display: block;",
+    "}",
+    "@keyframes ces-claude-rise {",
+    "  0% { transform: translateY(85%) scale(0.96); opacity: 0; }",
+    "  55% { opacity: 1; }",
+    "  80% { transform: translateY(-6%) scale(1.01); }",
+    "  100% { transform: translateY(0) scale(1); opacity: 1; }",
+    "}",
+    ".ces-ag-effort-value.is-claude-changing {",
+    "  animation: ces-claude-rise 0.3s cubic-bezier(0.2, 0.85, 0.25, 1);",
     "}",
     "/* Antigravity 原生模型菜单底部专属「推理等级」区域 */",
     "[data-testid='model-selector-panel'].ces-ag-panel-enhanced {",
@@ -1288,7 +1638,7 @@
     titleSpan.textContent = "推理等级滑条";
     var verSpan = doc.createElement("span");
     verSpan.className = "ces-set-ver";
-    verSpan.textContent = "v1.0.0";
+    verSpan.textContent = "v1.1.2";
     head.appendChild(titleSpan);
     head.appendChild(verSpan);
     panel.appendChild(head);
@@ -1626,10 +1976,12 @@
     return null;
   }
 
-  function syncTriggerColor(doc, label, index, count, isMax, hasOffFirst) {
+  function syncTriggerColor(doc, label, index, count, isMax, hasOffFirst, isClaude) {
     var d = doc || (typeof document !== "undefined" ? document : null);
     if (!d) return;
-    var color = valueColorFor(label, index, count, isMax, hasOffFirst);
+    var agTrigger = findAntigravityTrigger(d);
+    var claudeFlag = typeof isClaude === "boolean" ? isClaude : isClaudeModel(agTrigger ? agTrigger.textContent : "");
+    var color = valueColorFor(label, index, count, isMax, hasOffFirst, claudeFlag);
 
     // 1. Antigravity 原生触发按钮：只给档位后缀 span 着色，保持模型名称本身清晰易读
     var agTrigger = findAntigravityTrigger(d);
@@ -1884,8 +2236,12 @@
         };
       });
       var currentIndex = Math.max(0, sortedKeys.indexOf(activeEffort));
+      var isClaude = isClaudeModel(baseName);
+      var theme = isClaude ? "claude" : "codex";
       return {
         baseName: baseName,
+        isClaude: isClaude,
+        theme: theme,
         locked: false,
         levels: levels,
         currentIndex: currentIndex,
@@ -1899,8 +2255,11 @@
     var singleParsed = modelObj && parseModelLabel(modelObj.label);
     var singleEffort = singleParsed ? singleParsed.effort : "medium";
     var singleLabel = singleParsed ? singleParsed.effortLabel : "固定";
+    var isClaudeSingle = isClaudeModel(baseName || (modelObj && modelObj.label));
     return {
       baseName: baseName || (modelObj && modelObj.label) || "",
+      isClaude: isClaudeSingle,
+      theme: isClaudeSingle ? "claude" : "codex",
       locked: true,
       levels: [
         {
@@ -2047,9 +2406,19 @@
     ticksEl.setAttribute("data-ces-part", "ticks");
     trackEl.appendChild(ticksEl);
 
+    var claudeCanvasEl = doc.createElement("canvas");
+    claudeCanvasEl.className = "ces-claude-canvas";
+    claudeCanvasEl.setAttribute("data-ces-part", "claude-canvas");
+    claudeCanvasEl.width = 280;
+    claudeCanvasEl.height = 28;
+    trackEl.appendChild(claudeCanvasEl);
+
     var knobEl = doc.createElement("div");
     knobEl.className = "ces-knob";
     knobEl.setAttribute("data-ces-part", "knob");
+    var knobNotchEl = doc.createElement("div");
+    knobNotchEl.className = "ces-knob-notch";
+    knobEl.appendChild(knobNotchEl);
     trackEl.appendChild(knobEl);
 
     rootEl.appendChild(trackEl);
@@ -2059,6 +2428,16 @@
     var destroyed = false;
     var rafId = null;
     var lastFrameMs = 0;
+
+    var claudeRafId = null;
+    var claudeAnimStart = 0;
+    // 点阵流动相位（秒）：按「帧间隔 × 当前速度倍率」累加，而不是 elapsed × 倍率，
+    // 这样拖动中速度连续变化时波纹不会因倍率突变而跳帧/倒退
+    var claudeFlowTime = 0;
+    var claudeLastTs = 0;
+    // 当前位置对应的强度与速度（由 applyVisualPct 每次刷新，RAF 循环读取）
+    var claudeIntensity = 0;
+    var claudeSpeed = 0;
 
     var dragging = false;
     var buttonDown = false;
@@ -2106,7 +2485,13 @@
       }
       var locked = Boolean((seat && seat.locked) || count <= 1);
       var stops = energyStopsFor(levels);
+      var baseName = (seat && seat.baseName) || (seat && seat.modelName) || "";
+      var isClaude = Boolean((seat && seat.isClaude) || isClaudeModel(baseName));
+      var theme = (seat && seat.theme) || (isClaude ? "claude" : "codex");
       return {
+        baseName: baseName,
+        isClaude: isClaude,
+        theme: theme,
         levels: levels,
         count: count,
         officialIndex: officialIndex,
@@ -2165,15 +2550,20 @@
         if (valEl) {
           if (label && valEl.textContent !== label) {
             valEl.textContent = label;
+            if (snap.isClaude) {
+              valEl.classList.remove("is-claude-changing");
+              void valEl.offsetWidth;
+              valEl.classList.add("is-claude-changing");
+            }
           }
-          var vColor = snap.locked ? "" : valueColorFor(label, safeIdx, count, isMax, snap.hasOffFirst) || "";
+          var vColor = snap.locked ? "" : valueColorFor(label, safeIdx, count, isMax, snap.hasOffFirst, snap.isClaude) || "";
           if (valEl.style.color !== vColor) {
             valEl.style.color = vColor;
           }
         }
       }
 
-      syncTriggerColor(doc, label, safeIdx, count, isMax, snap.hasOffFirst);
+      syncTriggerColor(doc, label, safeIdx, count, isMax, snap.hasOffFirst, snap.isClaude);
       if (typeof opts.onVisualChange === "function") {
         try {
           opts.onVisualChange({
@@ -2230,12 +2620,69 @@
       }
     }
 
+    function stopClaudeCanvasAnimation() {
+      if (claudeRafId !== null && win && typeof win.cancelAnimationFrame === "function") {
+        win.cancelAnimationFrame(claudeRafId);
+      }
+      claudeRafId = null;
+    }
+
+    function stepClaudeCanvas(nowTs) {
+      claudeRafId = null;
+      if (destroyed) return;
+      var snap = readSeatSnapshot();
+      // 强度归零（回到 Low / 切走 Claude / 锁定）即停止循环，零冗余开销
+      if (!snap.isClaude || snap.locked || claudeIntensity <= 0) {
+        stopClaudeCanvasAnimation();
+        return;
+      }
+      var now = typeof nowTs === "number" && nowTs > 0 ? nowTs : nowMs();
+      var elapsed = Math.max(0, now - claudeAnimStart);
+      var progress = Math.min(1, elapsed / CLAUDE_SWEEP_MS);
+      // 相位按帧累加：dt 上限 50ms，防止切后台回来后一次性跳很远
+      var frameDt = claudeLastTs > 0 ? Math.min(0.05, Math.max(0, (now - claudeLastTs) / 1000)) : 0;
+      claudeLastTs = now;
+      claudeFlowTime += frameDt * claudeSpeed;
+      var isDark = surfaceIsDark(win, doc);
+      var rect = trackEl.getBoundingClientRect ? trackEl.getBoundingClientRect() : null;
+      var trackW = rect && rect.width > 0 ? rect.width : 280;
+      var th = rect && rect.height > 0 ? Math.round(rect.height) : (claudeCanvasEl.height || 28);
+      // 画布像素宽度 = 已填充宽度（圆钮中心），与 CSS width: var(--ces-fill) 对齐
+      var curPct = motionState ? clamp01(motionState.x) : 0;
+      var tw = Math.max(1, Math.round(KNOB_RADIUS + (trackW - KNOB_RADIUS * 2) * curPct));
+      if (claudeCanvasEl.width !== tw) claudeCanvasEl.width = tw;
+      if (claudeCanvasEl.height !== th) claudeCanvasEl.height = th;
+      var cctx = claudeCanvasEl.getContext && claudeCanvasEl.getContext("2d");
+      if (cctx) {
+        paintDither(cctx, tw, th, isDark, progress, claudeFlowTime, claudeIntensity);
+      }
+      if (win && typeof win.requestAnimationFrame === "function") {
+        claudeRafId = win.requestAnimationFrame(stepClaudeCanvas);
+      }
+    }
+
+    function startClaudeCanvasAnimation() {
+      if (destroyed || claudeRafId !== null) return;
+      if (win && typeof win.requestAnimationFrame === "function") {
+        claudeRafId = win.requestAnimationFrame(stepClaudeCanvas);
+      } else {
+        stepClaudeCanvas(nowMs());
+      }
+    }
+
     function applyVisualPct(snap, effectivePct, showIdx) {
       var p = clamp01(effectivePct);
       var count = snap.count;
       var safeIdx = Math.max(0, Math.min(Math.max(0, count - 1), showIdx));
       var levelItem = snap.levels[safeIdx];
       var label = levelItem ? levelItem.label : "";
+
+      var theme = snap.theme || "codex";
+      if (rootEl.getAttribute("data-theme") !== theme) rootEl.setAttribute("data-theme", theme);
+      if (trackEl.getAttribute("data-theme") !== theme) trackEl.setAttribute("data-theme", theme);
+      if (container && container.setAttribute && container.getAttribute("data-theme") !== theme) {
+        container.setAttribute("data-theme", theme);
+      }
 
       var nextTabIndex = snap.locked ? "-1" : "0";
       if (rootEl.getAttribute("tabindex") !== nextTabIndex) rootEl.setAttribute("tabindex", nextTabIndex);
@@ -2255,7 +2702,7 @@
       }
 
       var offsetCss = knobOffsetOf(p, KNOB_RADIUS);
-      var fillBg = fillBackgroundFor(p, snap.energyStart, snap.energyEnd);
+      var fillBg = fillBackgroundFor(p, snap.energyStart, snap.energyEnd, snap.isClaude);
       trackEl.style.setProperty("--ces-fill", offsetCss);
       trackEl.style.setProperty("--ces-fill-bg", fillBg);
       fillEl.style.width = offsetCss;
@@ -2263,6 +2710,24 @@
       energyEl.style.width = offsetCss;
       starsEl.style.width = offsetCss;
       knobEl.style.left = offsetCss;
+
+      // Claude 点阵：按圆钮实际位置连续计算强度/速度（Medium ≈0.35 强度、半速；High 全量、全速）
+      claudeIntensity = snap.isClaude && !snap.locked && count > 1 ? claudeIntensityFor(p, snap.energyStart) : 0;
+      claudeSpeed = claudeSpeedFor(p, snap.energyStart);
+      if (claudeIntensity > 0) {
+        if (claudeCanvasEl.style.display !== "block") {
+          // 仅「无特效 → 有特效」时重置入场扫掠；之后拖动只调强度/速度，不重播
+          claudeCanvasEl.style.display = "block";
+          claudeAnimStart = nowMs();
+          claudeLastTs = 0;
+        }
+        startClaudeCanvasAnimation();
+      } else {
+        if (claudeCanvasEl.style.display !== "none") {
+          claudeCanvasEl.style.display = "none";
+        }
+        stopClaudeCanvasAnimation();
+      }
 
       var energy = snap.locked ? 0 : energyForPct(p, snap.energyStart);
       var slowdown = motionMode(win) === "quick" ? REDUCED_MOTION_SLOWDOWN : 1;
@@ -2432,7 +2897,7 @@
         } else {
           detentIndex = Math.min(snap.count - 1, nowIndex + 1);
         }
-        targetPct = pctFromIndex(nowIndex, snap.count);
+        targetPct = ptrPct;
       } else {
         nowIndex = indexFromPct(ptrPct, snap.count);
         targetPct = ptrPct;
@@ -2449,16 +2914,13 @@
         commitAtIndex(nowIndex, isInitialDown ? "down" : "drag");
       }
 
-      if (mode === "quick") {
-        m.x = targetPct;
-        m.v = 0;
-        m.a = 0;
-        stopFrames();
-        applyVisualPct(readSeatSnapshot(), m.x, nowIndex);
-      } else {
-        applyVisualPct(readSeatSnapshot(), m.x, nowIndex);
-        startFrames();
-      }
+      // ★ 顺滑连续跟手：拖动中圆钮直接 1:1 跟随鼠标连续浮点位置，不卡顿、不硬吸附 ★
+      // 松手（endDrag）时再以 ~100ms 轻快阻尼磁吸至最终离散档位圆心
+      m.x = targetPct;
+      m.v = 0;
+      m.a = 0;
+      stopFrames();
+      applyVisualPct(readSeatSnapshot(), m.x, nowIndex);
     }
 
     function endDrag(clientX) {
@@ -2506,6 +2968,9 @@
         stopFrames();
         applyVisualPct(readSeatSnapshot(), m.x, finalIndex);
       } else {
+        m.x = ptrPct;
+        m.v = 0;
+        m.a = 0;
         applyVisualPct(readSeatSnapshot(), m.x, finalIndex);
         startFrames();
       }
@@ -2671,6 +3136,7 @@
       unmount: function () {
         destroyed = true;
         stopFrames();
+        stopClaudeCanvasAnimation();
         if (typeof offSeat === "function") offSeat();
         if (typeof offSettings === "function") offSettings();
         trackEl.removeEventListener("pointerdown", onPointerDown);
@@ -2981,6 +3447,21 @@
         var ctx = getLiveContext();
         var prof = getActiveProfile(ctx);
         return prof ? prof.locked : true;
+      },
+      get baseName() {
+        var ctx = getLiveContext();
+        var prof = getActiveProfile(ctx);
+        return prof ? prof.baseName : "";
+      },
+      get isClaude() {
+        var ctx = getLiveContext();
+        var prof = getActiveProfile(ctx);
+        return prof ? Boolean(prof.isClaude) : false;
+      },
+      get theme() {
+        var ctx = getLiveContext();
+        var prof = getActiveProfile(ctx);
+        return prof ? (prof.theme || "codex") : "codex";
       },
       selectEffort: function (levelItem) {
         var ctx = getLiveContext();
@@ -3438,7 +3919,22 @@
     motionStep: motionStep,
     motionSettled: motionSettled,
     decayPointerSpeed: decayPointerSpeed,
-    releaseIndexFor: releaseIndexFor
+    releaseIndexFor: releaseIndexFor,
+    isClaudeModel: isClaudeModel,
+    claudeIntensityFor: claudeIntensityFor,
+    claudeSpeedFor: claudeSpeedFor,
+    paintDither: paintDither,
+    ditherAlphaAt: ditherAlphaAt,
+    valueNoise: valueNoise,
+    hash01: hash01,
+    fillRoundRect: fillRoundRect,
+    surfaceIsDark: surfaceIsDark,
+    CLAUDE_CELL: CLAUDE_CELL,
+    CLAUDE_ROWS: CLAUDE_ROWS,
+    CLAUDE_SWEEP_MS: CLAUDE_SWEEP_MS,
+    CLAUDE_KNOB_W: CLAUDE_KNOB_W,
+    CLAUDE_KNOB_H: CLAUDE_KNOB_H,
+    CLAUDE_KNOB_R: CLAUDE_KNOB_R
   };
 });
 

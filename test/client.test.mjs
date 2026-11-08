@@ -350,17 +350,21 @@ test("5. 拖动滑条跨边界即时切档（pointerdown + pointermove 无需等
 
   // 2. 按住不松手（无 pointerup），向右拖动到 20% (clientX = 14 + 200 * 0.20 = 54)
   //    已越过 Low -> Medium 的 1/3 边界 (16.7%)，应当立即触发 selectEffort("medium", 1)！
+  //    同时视觉位置必须 100% 顺滑跟手在 20% (0.2)，不得生硬卡死在 0% 或跳跃到 50%
   trackEl.dispatch("pointermove", { clientX: 54 });
   assert.equal(dragCommits.length, 1);
   assert.deepEqual(dragCommits[0], { effort: "medium", index: 1 });
   assert.equal(currentEffort, "medium");
+  assert.equal(trackEl.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(0.2, 14));
 
   // 3. 继续按住不松手，向右拖动到 70% (clientX = 14 + 200 * 0.70 = 154)
   //    已越过 Medium -> High 的 1/3 边界 (66.7%)，应当立即触发 selectEffort("high", 2)！
+  //    视觉位置同样 1:1 跟手在 70% (0.7)
   trackEl.dispatch("pointermove", { clientX: 154 });
   assert.equal(dragCommits.length, 2);
   assert.deepEqual(dragCommits[1], { effort: "high", index: 2 });
   assert.equal(currentEffort, "high");
+  assert.equal(trackEl.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(0.7, 14));
 
   // 4. 依然按住不松手，向左回拖到 25% (clientX = 14 + 200 * 0.25 = 64)
   //    直接退回 Low 区间，立即触发 selectEffort("low", 0)！
@@ -368,10 +372,224 @@ test("5. 拖动滑条跨边界即时切档（pointerdown + pointermove 无需等
   assert.equal(dragCommits.length, 3);
   assert.deepEqual(dragCommits[2], { effort: "low", index: 0 });
   assert.equal(currentEffort, "low");
+  assert.equal(trackEl.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(0.25, 14));
 
   // 5. 最后在当前位置松手 pointerup，因为已经在拖动途中同步切到了 low，不会产生多余的重复提交
   trackEl.dispatch("pointerup", { clientX: 64 });
   assert.equal(dragCommits.length, 3);
+
+  mounted.unmount();
+});
+
+test("6. Claude 模型识别、原生三档映射、Ultracode 像素点阵抖动引擎与跨边界即切", () => {
+  // 1. 模型检测
+  assert.equal(slider.isClaudeModel("Claude Opus 5.5"), true);
+  assert.equal(slider.isClaudeModel("Claude Sonnet 5.5"), true);
+  assert.equal(slider.isClaudeModel("claude 3.7 sonnet"), true);
+  assert.equal(slider.isClaudeModel("Gemini 4 Argon"), false);
+  assert.equal(slider.isClaudeModel("Gemini 3.8 Flash"), false);
+  assert.equal(slider.isClaudeModel("GPT-OSS 120B"), false);
+
+  // 2. Claude 色彩体系与原生 3 档（Low / Medium / High）
+  assert.equal(slider.valueColorFor("High", 2, 3, true, false, true), "#c4b5fd");
+  assert.equal(slider.valueColorFor("Medium", 1, 3, false, false, true), "#a78bfa");
+  assert.equal(slider.valueColorFor("Low", 0, 3, false, false, true), "#94a3b8");
+  // 保持 Argon / Flash 的 Codex 色彩不变
+  assert.equal(slider.valueColorFor("High", 2, 3, true, false, false), "#8b5cf6");
+  assert.equal(slider.valueColorFor("Low", 0, 3, false, false, false), "#4d93f8");
+
+  // 3. Ultracode 6×60 点阵与噪声数学管道
+  assert.ok(slider.hash01(10, 20, 30) >= 0 && slider.hash01(10, 20, 30) < 1);
+  const a1 = slider.ditherAlphaAt(50, 280, 10, 2);
+  assert.ok(a1 >= 0 && a1 <= 1);
+  const n1 = slider.valueNoise(5, 3, 0.4, 1.5, 5);
+  assert.ok(n1 >= 0 && n1 <= 1);
+
+  // 4. Canvas paintDither 绘制流水线（深色模式 + 浅色模式）
+  const canvasOps = [];
+  const mockCtx = {
+    globalAlpha: 1,
+    fillStyle: "",
+    clearRect(x, y, w, h) { canvasOps.push({ op: "clearRect", w, h }); },
+    fillRect(x, y, w, h) { canvasOps.push({ op: "fillRect", w, h }); },
+    createLinearGradient() {
+      return { addColorStop() {} };
+    },
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    quadraticCurveTo() {},
+    closePath() {},
+    fill() { canvasOps.push({ op: "fill" }); }
+  };
+
+  // 深色：右至左 sweep 推进前沿 (progress = 0.5)
+  slider.paintDither(mockCtx, 280, 28, true, 0.5, 0.8, 1);
+  assert.ok(canvasOps.length > 20, "深色模式应产生底晕及点阵 fill 绘制指令");
+
+  // 浅色：完全铺满待机脉冲 (progress = 1.0)
+  canvasOps.length = 0;
+  slider.paintDither(mockCtx, 280, 28, false, 1.0, 1.6, 1);
+  assert.ok(canvasOps.length > 20, "浅色模式应产生马赛克网格及高光核心绘制指令");
+  const fullFills = canvasOps.filter((o) => o.op === "fill").length;
+
+  // 4b. 中档少量特效：强度 0.35 时点阵数明显少于最高档，但不为 0；强度 0 时只清屏不绘制
+  canvasOps.length = 0;
+  slider.paintDither(mockCtx, 280, 28, false, 1.0, 1.6, 0.35);
+  const midFills = canvasOps.filter((o) => o.op === "fill").length;
+  assert.ok(midFills > 0 && midFills < fullFills * 0.75, `中档点阵应为少量 (${midFills} vs ${fullFills})`);
+  canvasOps.length = 0;
+  slider.paintDither(mockCtx, 280, 28, true, 1.0, 1.6, 0);
+  assert.deepEqual(canvasOps.map((o) => o.op), ["clearRect"]);
+
+  // 4c. 强度 / 速度随位置连续变化：Low=0、Medium≈0.35 半速、High=1 全速，且单调递增无跳变
+  assert.equal(slider.claudeIntensityFor(0, 0), 0);
+  assert.ok(Math.abs(slider.claudeIntensityFor(0.5, 0) - 0.354) < 0.01);
+  assert.equal(slider.claudeIntensityFor(1, 0), 1);
+  assert.equal(slider.claudeSpeedFor(0.5, 0), 0.5);
+  assert.equal(slider.claudeSpeedFor(1, 0), 1);
+  let prevI = 0;
+  for (let i = 1; i <= 100; i += 1) {
+    const cur = slider.claudeIntensityFor(i / 100, 0);
+    assert.ok(cur >= prevI && cur - prevI < 0.03, "强度曲线必须连续单调");
+    prevI = cur;
+  }
+
+  // 5. DOM 挂载与跨边界即时切档测试（Claude 模式）
+  function makeMockDoc() {
+    function makeEl(tag) {
+      const listeners = new Map();
+      const styleProps = new Map();
+      const attrs = new Map();
+      const classes = new Set();
+      const el = {
+        tagName: String(tag || "div").toUpperCase(),
+        className: "",
+        children: [],
+        parentElement: null,
+        ownerDocument: null,
+        width: 280,
+        height: 28,
+        getContext() { return mockCtx; },
+        style: {
+          setProperty(k, v) { styleProps.set(k, String(v)); },
+          getPropertyValue(k) { return styleProps.get(k) || ""; },
+          display: ""
+        },
+        classList: {
+          add(c) { classes.add(c); },
+          remove(c) { classes.delete(c); },
+          contains(c) { return classes.has(c); }
+        },
+        setAttribute(k, v) { attrs.set(k, String(v)); },
+        getAttribute(k) { return attrs.has(k) ? attrs.get(k) : null; },
+        appendChild(child) {
+          child.parentElement = el;
+          el.children.push(child);
+          return child;
+        },
+        removeChild(child) {
+          const idx = el.children.indexOf(child);
+          if (idx >= 0) el.children.splice(idx, 1);
+          return child;
+        },
+        addEventListener(type, fn) {
+          if (!listeners.has(type)) listeners.set(type, []);
+          listeners.get(type).push(fn);
+        },
+        removeEventListener(type, fn) {
+          if (!listeners.has(type)) return;
+          const list = listeners.get(type);
+          const i = list.indexOf(fn);
+          if (i >= 0) list.splice(i, 1);
+        },
+        dispatch(type, ev) {
+          const list = listeners.get(type) || [];
+          for (let i = 0; i < list.length; i += 1) {
+            list[i]({
+              type,
+              target: el,
+              clientX: ev && typeof ev.clientX === "number" ? ev.clientX : 0,
+              clientY: ev && typeof ev.clientY === "number" ? ev.clientY : 0,
+              button: ev && typeof ev.button === "number" ? ev.button : 0,
+              preventDefault() {},
+              stopPropagation() {}
+            });
+          }
+        },
+        getBoundingClientRect() {
+          return { left: 0, top: 0, right: 228, bottom: 28, width: 228, height: 28 };
+        }
+      };
+      return el;
+    }
+    const doc = {
+      createElement: makeEl,
+      head: makeEl("head"),
+      body: makeEl("body"),
+      getElementById() { return null; },
+      querySelector() { return null; },
+      querySelectorAll() { return []; },
+      addEventListener() {},
+      removeEventListener() {}
+    };
+    doc.body.ownerDocument = doc;
+    doc.head.ownerDocument = doc;
+    return doc;
+  }
+
+  const mockDoc = makeMockDoc();
+  const mockWin = {
+    innerWidth: 800,
+    innerHeight: 600,
+    requestAnimationFrame() { return 1; },
+    cancelAnimationFrame() {},
+    performance: { now: () => 100 }
+  };
+
+  const claudeLevels = [
+    { effort: "low", label: "Low" },
+    { effort: "medium", label: "Medium" },
+    { effort: "high", label: "High" }
+  ];
+  let claudeEffort = "low";
+  const claudeCommits = [];
+  const claudeSeat = {
+    baseName: "Claude Opus 5.5",
+    isClaude: true,
+    theme: "claude",
+    effortLevels: claudeLevels,
+    get currentEffort() { return claudeEffort; },
+    selectEffort(item, idx) {
+      claudeEffort = item.effort || item;
+      claudeCommits.push({ effort: claudeEffort, index: idx });
+    }
+  };
+
+  const container = mockDoc.createElement("div");
+  const mounted = slider.mountCodexEffortSlider({
+    container,
+    seat: claudeSeat,
+    document: mockDoc,
+    window: mockWin
+  });
+
+  const rootEl = container.children[0];
+  const trackEl = rootEl.children[0];
+
+  assert.equal(rootEl.getAttribute("data-theme"), "claude");
+  assert.equal(trackEl.getAttribute("data-theme"), "claude");
+
+  // 在 Low 处拖动越过 1/3 边界到 Medium
+  trackEl.dispatch("pointerdown", { clientX: 14 });
+  trackEl.dispatch("pointermove", { clientX: 54 });
+  assert.equal(claudeCommits.length, 1);
+  assert.deepEqual(claudeCommits[0], { effort: "medium", index: 1 });
+
+  // 继续拖动到 High
+  trackEl.dispatch("pointermove", { clientX: 160 });
+  assert.equal(claudeCommits.length, 2);
+  assert.deepEqual(claudeCommits[1], { effort: "high", index: 2 });
 
   mounted.unmount();
 });
