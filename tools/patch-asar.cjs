@@ -42,10 +42,19 @@ function findDefaultAsarPath() {
 
 function findIdeJetskiMainPaths() {
   const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+  const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+  const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
   const candidates = [
+    process.env.ANTIGRAVITY_IDE_PATH
+      ? path.join(process.env.ANTIGRAVITY_IDE_PATH, "resources", "app", "out", "jetskiAgent", "main.js")
+      : null,
     "D:\\Antigravity IDE\\resources\\app\\out\\jetskiAgent\\main.js",
-    path.join(localAppData, "Programs", "antigravity IDE", "resources", "app", "out", "jetskiAgent", "main.js")
-  ];
+    path.join(localAppData, "Programs", "antigravity IDE", "resources", "app", "out", "jetskiAgent", "main.js"),
+    path.join(localAppData, "Programs", "Antigravity IDE", "resources", "app", "out", "jetskiAgent", "main.js"),
+    path.join(programFiles, "Antigravity IDE", "resources", "app", "out", "jetskiAgent", "main.js"),
+    path.join(programFilesX86, "Antigravity IDE", "resources", "app", "out", "jetskiAgent", "main.js"),
+    "/Applications/Antigravity IDE.app/Contents/Resources/app/out/jetskiAgent/main.js"
+  ].filter(Boolean);
   const seenRealPaths = new Set();
   const out = [];
   for (const p of candidates) {
