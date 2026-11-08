@@ -40,35 +40,52 @@ function findDefaultAsarPath() {
   return candidates[0];
 }
 
-function findIdeJetskiMainPaths() {
+function findIdeRoots() {
   const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
   const programFiles = process.env.ProgramFiles || "C:\\Program Files";
   const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
-  const candidates = [
-    process.env.ANTIGRAVITY_IDE_PATH
-      ? path.join(process.env.ANTIGRAVITY_IDE_PATH, "resources", "app", "out", "jetskiAgent", "main.js")
-      : null,
-    "D:\\Antigravity IDE\\resources\\app\\out\\jetskiAgent\\main.js",
-    path.join(localAppData, "Programs", "antigravity IDE", "resources", "app", "out", "jetskiAgent", "main.js"),
-    path.join(localAppData, "Programs", "Antigravity IDE", "resources", "app", "out", "jetskiAgent", "main.js"),
-    path.join(programFiles, "Antigravity IDE", "resources", "app", "out", "jetskiAgent", "main.js"),
-    path.join(programFilesX86, "Antigravity IDE", "resources", "app", "out", "jetskiAgent", "main.js"),
-    "/Applications/Antigravity IDE.app/Contents/Resources/app/out/jetskiAgent/main.js"
+  const candidateRoots = [
+    process.env.ANTIGRAVITY_IDE_PATH,
+    "D:\\Antigravity IDE",
+    path.join(localAppData, "Programs", "antigravity IDE"),
+    path.join(localAppData, "Programs", "Antigravity IDE"),
+    path.join(programFiles, "Antigravity IDE"),
+    path.join(programFilesX86, "Antigravity IDE"),
+    "/Applications/Antigravity IDE.app/Contents"
   ].filter(Boolean);
-  const seenRealPaths = new Set();
-  const out = [];
-  for (const p of candidates) {
-    if (!fs.existsSync(p)) continue;
-    try {
-      const real = fs.realpathSync(p).toLowerCase();
-      if (seenRealPaths.has(real)) continue;
-      seenRealPaths.add(real);
-      out.push(p);
-    } catch {
-      out.push(p);
+
+  const roots = [];
+  const seen = new Set();
+  for (const r of candidateRoots) {
+    const appDir = path.join(r, "resources", "app");
+    if (fs.existsSync(appDir) && fs.existsSync(path.join(appDir, "product.json"))) {
+      try {
+        const real = fs.realpathSync(appDir).toLowerCase();
+        if (seen.has(real)) continue;
+        seen.add(real);
+        roots.push(appDir);
+      } catch {
+        roots.push(appDir);
+      }
     }
   }
-  return out;
+  return roots;
+}
+
+function findIdeTargetFiles() {
+  const roots = findIdeRoots();
+  const targets = [];
+  for (const appDir of roots) {
+    const mainWorkbench = path.join(appDir, "out", "vs", "code", "electron-browser", "workbench", "workbench.js");
+    const jetskiMain = path.join(appDir, "out", "jetskiAgent", "main.js");
+    if (fs.existsSync(mainWorkbench)) targets.push(mainWorkbench);
+    if (fs.existsSync(jetskiMain)) targets.push(jetskiMain);
+  }
+  return targets;
+}
+
+function findIdeJetskiMainPaths() {
+  return findIdeTargetFiles();
 }
 
 function computeIntegrity(buffer, blockSize = 4194304) {
@@ -277,9 +294,34 @@ function computeVsCodeChecksum(filePath) {
   return crypto.createHash("sha256").update(bytes).digest("base64").replace(/=+$/, "");
 }
 
-function syncIdeProductChecksums(mainJsPath, isUninstall) {
-  // mainJsPath: <IDE>/resources/app/out/jetskiAgent/main.js -> appRoot: <IDE>/resources/app
-  const appRoot = path.resolve(path.dirname(mainJsPath), "..", "..");
+function findAppRoot(filePath) {
+  let cur = path.dirname(path.resolve(filePath));
+  while (cur && cur !== path.dirname(cur)) {
+    if (fs.existsSync(path.join(cur, "product.json")) && fs.existsSync(path.join(cur, "out"))) {
+      return cur;
+    }
+    cur = path.dirname(cur);
+  }
+  return null;
+}
+
+function clearIdeCodeCache() {
+  try {
+    const appData = process.env.APPDATA;
+    if (!appData) return;
+    const cachedDataDir = path.join(appData, "Antigravity IDE", "CachedData");
+    if (fs.existsSync(cachedDataDir)) {
+      fs.rmSync(cachedDataDir, { recursive: true, force: true });
+      console.log(`[CodexSlider IDE] 已清除 V8 缓存 (CachedData)，确保立即加载最新修改`);
+    }
+  } catch (err) {
+    // 忽略清除异常
+  }
+}
+
+function syncIdeProductChecksums(targetFilePath, isUninstall) {
+  const appRoot = findAppRoot(targetFilePath);
+  if (!appRoot) return;
   const productJsonPath = path.join(appRoot, "product.json");
   if (!fs.existsSync(productJsonPath)) return;
 
@@ -319,6 +361,7 @@ function syncIdeProductChecksums(mainJsPath, isUninstall) {
 
 function patchIdeJetskiFiles(clientCode, isUninstall) {
   const ideFiles = findIdeJetskiMainPaths();
+  const touchedRoots = new Set();
   for (const mainJsPath of ideFiles) {
     const bakPath = mainJsPath + ".codex.bak";
     try {
@@ -334,7 +377,6 @@ function patchIdeJetskiFiles(clientCode, isUninstall) {
             console.log(`[CodexSlider IDE] 已移除补丁: ${mainJsPath}`);
           }
         }
-        syncIdeProductChecksums(mainJsPath, true);
       } else {
         const cur = fs.readFileSync(mainJsPath, "utf8");
         const cleanBase = stripExistingPreloadPatch(cur);
@@ -352,12 +394,18 @@ function patchIdeJetskiFiles(clientCode, isUninstall) {
           "\n";
         fs.writeFileSync(mainJsPath, patched, "utf8");
         console.log(`[CodexSlider IDE] 已为 Antigravity IDE 写入补丁: ${mainJsPath}`);
-        syncIdeProductChecksums(mainJsPath, false);
       }
+      const appRoot = findAppRoot(mainJsPath);
+      if (appRoot) touchedRoots.add(appRoot);
     } catch (err) {
       console.warn(`[CodexSlider IDE] 跳过 ${mainJsPath}: ${err.message}`);
     }
   }
+
+  for (const root of touchedRoots) {
+    syncIdeProductChecksums(path.join(root, "product.json"), isUninstall);
+  }
+  clearIdeCodeCache();
 }
 
 function runCli() {
