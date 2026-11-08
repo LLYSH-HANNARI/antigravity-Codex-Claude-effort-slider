@@ -72,7 +72,19 @@ function findIdeRoots() {
   return roots;
 }
 
-function findIdeTargetFiles() {
+function findIdeExtensionFiles() {
+  const roots = findIdeRoots();
+  const targets = [];
+  for (const appDir of roots) {
+    const extVscode = path.join(appDir, "extensions", "agy", "vscode", "extension.js");
+    const extDist = path.join(appDir, "extensions", "agy", "dist", "extension.js");
+    if (fs.existsSync(extVscode)) targets.push(extVscode);
+    else if (fs.existsSync(extDist)) targets.push(extDist);
+  }
+  return targets;
+}
+
+function findIdeLegacyFiles() {
   const roots = findIdeRoots();
   const targets = [];
   for (const appDir of roots) {
@@ -82,10 +94,6 @@ function findIdeTargetFiles() {
     if (fs.existsSync(jetskiMain)) targets.push(jetskiMain);
   }
   return targets;
-}
-
-function findIdeJetskiMainPaths() {
-  return findIdeTargetFiles();
 }
 
 function computeIntegrity(buffer, blockSize = 4194304) {
@@ -359,50 +367,246 @@ function syncIdeProductChecksums(targetFilePath, isUninstall) {
   }
 }
 
-function patchIdeJetskiFiles(clientCode, isUninstall) {
-  const ideFiles = findIdeJetskiMainPaths();
-  const touchedRoots = new Set();
-  for (const mainJsPath of ideFiles) {
-    const bakPath = mainJsPath + ".codex.bak";
+function buildIdeExtensionPatch(clientCode) {
+  const inlinedClientLiteral = JSON.stringify(clientCode);
+  return [
+    PATCH_START_MARKER,
+    "(function () {",
+    "  try {",
+    "    const http = require('http');",
+    "    const net = require('net');",
+    "",
+    "    let activeProxy = null;",
+    "    const clientCode = " + inlinedClientLiteral + ";",
+    "",
+    "    function ensureProxy(targetUrlStr) {",
+    "      return new Promise((resolve, reject) => {",
+    "        try {",
+    "          const targetUrl = new URL(targetUrlStr);",
+    "          const targetPort = parseInt(targetUrl.port, 10);",
+    "          const targetHost = targetUrl.hostname || '127.0.0.1';",
+    "",
+    "          if (",
+    "            activeProxy &&",
+    "            activeProxy.targetPort === targetPort &&",
+    "            activeProxy.targetHost === targetHost &&",
+    "            activeProxy.server.listening",
+    "          ) {",
+    "            resolve(activeProxy.proxyUrl);",
+    "            return;",
+    "          }",
+    "",
+    "          if (activeProxy) {",
+    "            try {",
+    "              activeProxy.server.close();",
+    "            } catch (e) {}",
+    "            activeProxy = null;",
+    "          }",
+    "",
+    "          const server = http.createServer((req, res) => {",
+    "            if (req.url === '/__ag_codex_effort_slider.js') {",
+    "              res.writeHead(200, {",
+    "                'Content-Type': 'application/javascript; charset=utf-8',",
+    "                'Cache-Control': 'no-cache'",
+    "              });",
+    "              res.end(clientCode);",
+    "              return;",
+    "            }",
+    "",
+    "            const options = {",
+    "              hostname: targetHost,",
+    "              port: targetPort,",
+    "              path: req.url,",
+    "              method: req.method,",
+    "              headers: { ...req.headers, host: targetHost + ':' + targetPort },",
+    "              insecureHTTPParser: true",
+    "            };",
+    "            delete options.headers['accept-encoding'];",
+    "",
+    "            const proxyReq = http.request(options, (proxyRes) => {",
+    "              const contentType = (proxyRes.headers['content-type'] || '').toLowerCase();",
+    "              const isHtml = contentType.includes('text/html');",
+    "",
+    "              if (isHtml) {",
+    "                let body = '';",
+    "                proxyRes.on('data', (chunk) => (body += chunk));",
+    "                proxyRes.on('end', () => {",
+    "                  let modified = body;",
+    "                  const scriptTag = '<script src=\"/__ag_codex_effort_slider.js\"></script>';",
+    "                  if (body.includes('</body>')) {",
+    "                    modified = body.replace('</body>', scriptTag + '</body>');",
+    "                  } else {",
+    "                    modified = body + scriptTag;",
+    "                  }",
+    "",
+    "                  const headers = { ...proxyRes.headers };",
+    "                  delete headers['content-length'];",
+    "                  delete headers['transfer-encoding'];",
+    "                  headers['content-length'] = Buffer.byteLength(modified, 'utf8');",
+    "                  res.writeHead(proxyRes.statusCode, headers);",
+    "                  res.end(modified);",
+    "                });",
+    "              } else {",
+    "                res.writeHead(proxyRes.statusCode, proxyRes.headers);",
+    "                proxyRes.pipe(res);",
+    "              }",
+    "            });",
+    "",
+    "            proxyReq.on('error', (err) => {",
+    "              try {",
+    "                res.writeHead(502);",
+    "                res.end('CodexSlider Proxy Error: ' + err.message);",
+    "              } catch (e) {}",
+    "            });",
+    "",
+    "            req.pipe(proxyReq);",
+    "          });",
+    "",
+    "          server.on('upgrade', (req, clientSocket, head) => {",
+    "            const serverSocket = net.connect(targetPort, targetHost, () => {",
+    "              let rawReq = req.method + ' ' + req.url + ' HTTP/' + req.httpVersion + '\\r\\n';",
+    "              for (let i = 0; i < req.rawHeaders.length; i += 2) {",
+    "                let key = req.rawHeaders[i];",
+    "                let val = req.rawHeaders[i + 1];",
+    "                if (key.toLowerCase() === 'host') val = targetHost + ':' + targetPort;",
+    "                rawReq += key + ': ' + val + '\\r\\n';",
+    "              }",
+    "              rawReq += '\\r\\n';",
+    "              serverSocket.write(rawReq);",
+    "              if (head && head.length > 0) {",
+    "                serverSocket.write(head);",
+    "              }",
+    "              serverSocket.pipe(clientSocket);",
+    "              clientSocket.pipe(serverSocket);",
+    "            });",
+    "",
+    "            serverSocket.on('error', () => {",
+    "              try {",
+    "                clientSocket.destroy();",
+    "              } catch (e) {}",
+    "            });",
+    "            clientSocket.on('error', () => {",
+    "              try {",
+    "                serverSocket.destroy();",
+    "              } catch (e) {}",
+    "            });",
+    "          });",
+    "",
+    "          server.listen(0, '127.0.0.1', () => {",
+    "            const proxyPort = server.address().port;",
+    "            const proxyUrl = 'http://127.0.0.1:' + proxyPort + '/';",
+    "            activeProxy = {",
+    "              server,",
+    "              proxyUrl,",
+    "              targetPort,",
+    "              targetHost",
+    "            };",
+    "            console.log('[CodexSlider] Reverse proxy listening on port', proxyPort, '->', targetHost + ':' + targetPort);",
+    "            resolve(proxyUrl);",
+    "          });",
+    "",
+    "          server.on('error', (err) => {",
+    "            console.error('[CodexSlider] Proxy server error:', err);",
+    "            reject(err);",
+    "          });",
+    "        } catch (err) {",
+    "          reject(err);",
+    "        }",
+    "      });",
+    "    }",
+    "",
+    "    if (typeof sv !== 'undefined' && sv.BaseVsCodeWebviewDelegate) {",
+    "      const origRenderIframe = sv.BaseVsCodeWebviewDelegate.prototype.renderIframe;",
+    "      sv.BaseVsCodeWebviewDelegate.prototype.renderIframe = async function (a, b, c) {",
+    "        try {",
+    "          const proxiedUrl = await ensureProxy(b);",
+    "          const d = this.buildIframeUrl(proxiedUrl, c);",
+    "          this.renderWebviewHtml(a, proxiedUrl, d, c);",
+    "        } catch (err) {",
+    "          console.error('[CodexSlider] Failed to proxy iframe, falling back to original:', err);",
+    "          origRenderIframe.call(this, a, b, c);",
+    "        }",
+    "      };",
+    "      console.log('[CodexSlider] Antigravity IDE webview delegate successfully hooked!');",
+    "    } else {",
+    "      console.warn('[CodexSlider] sv.BaseVsCodeWebviewDelegate not found in extension scope.');",
+    "    }",
+    "  } catch (err) {",
+    "    console.error('[CodexSlider] Error initializing IDE extension patch:', err);",
+    "  }",
+    "})();",
+    PATCH_END_MARKER
+  ].join("\n");
+}
+
+function applyIdeExtensionPatch(source, clientCode) {
+  const cleanBase = stripExistingPreloadPatch(source);
+  const targetStr = "}.call(Object.assign(Object.create(globalThis)";
+  const insertIdx = cleanBase.lastIndexOf(targetStr);
+  const snippet = buildIdeExtensionPatch(clientCode);
+
+  if (insertIdx >= 0) {
+    return cleanBase.slice(0, insertIdx) + "\n" + snippet + "\n\n" + cleanBase.slice(insertIdx);
+  }
+  return cleanBase + "\n\n" + snippet + "\n";
+}
+
+function patchIdeFiles(clientCode, isUninstall) {
+  // 1. 清理并还原历史遗留的注入文件（workbench.js / jetskiAgent/main.js）
+  const legacyFiles = findIdeLegacyFiles();
+  for (const legacyPath of legacyFiles) {
+    const bakPath = legacyPath + ".codex.bak";
+    try {
+      if (fs.existsSync(bakPath)) {
+        fs.copyFileSync(bakPath, legacyPath);
+        console.log(`[CodexSlider IDE] 已清理并还原历史注入文件: ${legacyPath}`);
+      } else {
+        const cur = fs.readFileSync(legacyPath, "utf8");
+        const cleaned = stripExistingPreloadPatch(cur);
+        if (cleaned !== cur) {
+          fs.writeFileSync(legacyPath, cleaned, "utf8");
+          console.log(`[CodexSlider IDE] 已清除历史补丁标记: ${legacyPath}`);
+        }
+      }
+    } catch (err) {
+      // 忽略清理异常
+    }
+  }
+
+  // 2. 注入 Antigravity IDE 扩展端反向代理与 Webview 挂钩
+  const extFiles = findIdeExtensionFiles();
+  for (const extPath of extFiles) {
+    const bakPath = extPath + ".codex.bak";
     try {
       if (isUninstall) {
         if (fs.existsSync(bakPath)) {
-          fs.copyFileSync(bakPath, mainJsPath);
-          console.log(`[CodexSlider IDE] 已从备份还原: ${mainJsPath}`);
+          fs.copyFileSync(bakPath, extPath);
+          console.log(`[CodexSlider IDE] 已从备份还原扩展: ${extPath}`);
         } else {
-          const cur = fs.readFileSync(mainJsPath, "utf8");
+          const cur = fs.readFileSync(extPath, "utf8");
           const cleaned = stripExistingPreloadPatch(cur);
           if (cleaned !== cur) {
-            fs.writeFileSync(mainJsPath, cleaned, "utf8");
-            console.log(`[CodexSlider IDE] 已移除补丁: ${mainJsPath}`);
+            fs.writeFileSync(extPath, cleaned, "utf8");
+            console.log(`[CodexSlider IDE] 已移除扩展补丁: ${extPath}`);
           }
         }
       } else {
-        const cur = fs.readFileSync(mainJsPath, "utf8");
+        const cur = fs.readFileSync(extPath, "utf8");
         const cleanBase = stripExistingPreloadPatch(cur);
         if (!fs.existsSync(bakPath)) {
           fs.writeFileSync(bakPath, cleanBase, "utf8");
         }
-        const patched =
-          cleanBase.replace(/\s+$/, "") +
-          "\n" +
-          PATCH_START_MARKER +
-          "\n" +
-          clientCode +
-          "\n" +
-          PATCH_END_MARKER +
-          "\n";
-        fs.writeFileSync(mainJsPath, patched, "utf8");
-        console.log(`[CodexSlider IDE] 已为 Antigravity IDE 写入补丁: ${mainJsPath}`);
+        const patched = applyIdeExtensionPatch(cleanBase, clientCode);
+        fs.writeFileSync(extPath, patched, "utf8");
+        console.log(`[CodexSlider IDE] 已为 Antigravity IDE 写入代理注入补丁: ${extPath}`);
       }
-      const appRoot = findAppRoot(mainJsPath);
-      if (appRoot) touchedRoots.add(appRoot);
     } catch (err) {
-      console.warn(`[CodexSlider IDE] 跳过 ${mainJsPath}: ${err.message}`);
+      console.warn(`[CodexSlider IDE] 处理 ${extPath} 失败: ${err.message}`);
     }
   }
 
-  for (const root of touchedRoots) {
+  const roots = findIdeRoots();
+  for (const root of roots) {
     syncIdeProductChecksums(path.join(root, "product.json"), isUninstall);
   }
   clearIdeCodeCache();
@@ -419,7 +623,7 @@ function runCli() {
   const bakPath = asarPath + ".bak";
   const clientCode = fs.readFileSync(CLIENT_JS_PATH, "utf8");
 
-  patchIdeJetskiFiles(clientCode, isUninstall);
+  patchIdeFiles(clientCode, isUninstall);
 
   if (!fs.existsSync(asarPath)) {
     console.error(`[CodexSlider Asar] 未找到目标文件: ${asarPath}`);
