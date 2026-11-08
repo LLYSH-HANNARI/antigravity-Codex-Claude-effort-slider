@@ -367,6 +367,7 @@ test("5. 拖动滑条跨边界即时切档（pointerdown + pointermove 无需等
   assert.equal(trackEl.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(0.2, 14));
   assert.equal(mockPanel.classList.contains("ces-panel-shaking"), false);
   assert.equal(mockValueEl.classList.contains("is-glowing"), false);
+  assert.equal(mockValueEl.classList.contains("ces-text-rise"), true, "Codex/Argon 模型切换档位应触发文字向上翻转动效");
 
   // 3. 继续按住不松手，向右拖动到 70% (clientX = 14 + 200 * 0.70 = 154)
   //    已越过 Medium -> High 的 1/3 边界 (66.7%)，应当立即触发 selectEffort("high", 2)！
@@ -379,6 +380,7 @@ test("5. 拖动滑条跨边界即时切档（pointerdown + pointermove 无需等
   assert.equal(trackEl.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(0.7, 14));
   assert.equal(mockPanel.classList.contains("ces-panel-shaking"), true, "滑动至最高档面板应触发快速抖动");
   assert.equal(mockValueEl.classList.contains("is-glowing"), true, "滑动至最高档 High 应闪出模糊光斑");
+  assert.equal(mockValueEl.classList.contains("ces-text-rise"), true, "滑动至最高档 High 应触发文字向上翻转");
   assert.equal(mockValueEl.style.getPropertyValue("--ces-glow-color"), "rgba(168, 85, 247, 0.9)");
 
   // 3b. 在 High 区间继续向右微移到 85% (clientX = 14 + 200 * 0.85 = 184)：
@@ -648,6 +650,8 @@ test("6. Claude 模型识别、原生三档映射、Ultracode 像素点阵抖动
   assert.deepEqual(claudeCommits[0], { effort: "medium", index: 1 });
   assert.equal(claudePanel.classList.contains("ces-panel-shaking"), false);
   assert.equal(claudeValueEl.classList.contains("is-glowing"), false);
+  assert.equal(claudeValueEl.classList.contains("ces-text-rise"), true, "Claude 模型切换档位应触发文字向上翻转动效");
+  assert.equal(claudeValueEl.classList.contains("is-claude-changing"), true, "应保持向后兼容 is-claude-changing 类");
 
   // 继续拖动到 High
   trackEl.dispatch("pointermove", { clientX: 160 });
@@ -655,6 +659,7 @@ test("6. Claude 模型识别、原生三档映射、Ultracode 像素点阵抖动
   assert.deepEqual(claudeCommits[1], { effort: "high", index: 2 });
   assert.equal(claudePanel.classList.contains("ces-panel-shaking"), true, "Claude 模型滑到最高档面板应抖动");
   assert.equal(claudeValueEl.classList.contains("is-glowing"), true, "Claude 模型滑到最高档 High 应闪烁光斑");
+  assert.equal(claudeValueEl.classList.contains("ces-text-rise"), true, "Claude 模型滑到最高档 High 应触发文字向上翻转");
   assert.equal(claudeValueEl.style.getPropertyValue("--ces-glow-color"), "rgba(196, 181, 253, 0.9)");
 
   mounted.unmount();
