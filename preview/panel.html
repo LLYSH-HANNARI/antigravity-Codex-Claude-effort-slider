@@ -496,7 +496,7 @@
   function dumpTrace(win) {
     var w = win || (typeof window !== "undefined" ? window : globalRoot);
     return {
-      plugin: "antigravity-codex-effort-slider@1.1.2",
+      plugin: "antigravity-codex-effort-slider@1.2.0",
       time: new Date().toISOString(),
       ua: w && w.navigator ? w.navigator.userAgent : "node",
       settings: readSettings(w),
@@ -935,13 +935,15 @@
           ctx.globalAlpha = lAlpha;
           ctx.fillStyle = "rgb(" + lr + "," + lg + "," + lb + ")";
           fillRoundRect(ctx, x + 0.5, y2 + 0.5, lw, lh, 1);
-          var whiteAmt = clamp01(pulse * (0.35 + 0.65 * t)) * (0.55 + 0.45 * hash01(col, row, 71)) * strength;
+          // 流光脉冲是点阵“流动”的唯一来源：亮度不随强度衰减（中档只靠点更少、底色更淡、速度更慢来区分）
+          var whiteAmt = clamp01(pulse * (0.35 + 0.65 * t)) * (0.55 + 0.45 * hash01(col, row, 71));
           if (progress < 0.999) {
             var flash = clamp01(1 - (t - front) / 0.16) * (0.55 + 0.45 * hash01(col, row, 73));
             whiteAmt = Math.max(whiteAmt, flash);
           }
           if (whiteAmt > 0.03) {
-            ctx.globalAlpha = Math.min(1, lAlpha * (0.12 + 0.88 * whiteAmt));
+            // 除回 alphaMul，让高光核心亮度与 High 一致
+            ctx.globalAlpha = Math.min(1, (lAlpha / alphaMul) * (0.12 + 0.88 * whiteAmt));
             ctx.fillStyle = "rgb(247, 243, 255)";
             var ins = lw * 0.14;
             fillRoundRect(ctx, x + 0.5 + ins, y2 + 0.5 + ins, lw - ins * 2, lh - ins * 2, 0.7);
@@ -962,13 +964,14 @@
         ctx.fillStyle = "rgb(" + purple[0] + "," + purple[1] + "," + purple[2] + ")";
         fillRoundRect(ctx, x + 0.5, y + 0.5, size, size, 1.1);
 
-        var whiteAmtDark = clamp01(pulse * (0.35 + 0.65 * t)) * (0.55 + 0.45 * hash01(col, row, 71)) * strength;
+        // 同浅色模式：流光亮度不随强度衰减
+        var whiteAmtDark = clamp01(pulse * (0.35 + 0.65 * t)) * (0.55 + 0.45 * hash01(col, row, 71));
         if (progress < 0.999) {
           var flashDark = clamp01(1 - (t - front) / 0.16) * (0.55 + 0.45 * hash01(col, row, 73));
           whiteAmtDark = Math.max(whiteAmtDark, flashDark);
         }
         if (whiteAmtDark > 0.03) {
-          ctx.globalAlpha = Math.min(1, gridAlpha * (0.1 + 0.72 * whiteAmtDark));
+          ctx.globalAlpha = Math.min(1, (gridAlpha / alphaMul) * (0.1 + 0.72 * whiteAmtDark));
           ctx.fillStyle = "rgb(220, 204, 255)";
           fillRoundRect(ctx, x + 0.5, y + 0.5, size, size, 0.7);
         }
@@ -1480,10 +1483,74 @@
     "  font-weight: 500;",
     "  opacity: 0.9;",
     "}",
+    "/* ── 面板到达最高档时的物理微震颤 (0.18s 快速阻尼撞墙感) ── */",
+    "@keyframes ces-panel-shake {",
+    "  0% { transform: translateX(0); }",
+    "  20% { transform: translateX(2.5px); }",
+    "  40% { transform: translateX(-2px); }",
+    "  60% { transform: translateX(1.5px); }",
+    "  80% { transform: translateX(-0.8px); }",
+    "  100% { transform: translateX(0); }",
+    "}",
+    ".ces-panel-shaking {",
+    "  animation: ces-panel-shake 0.18s cubic-bezier(0.36, 0.07, 0.19, 0.97) both !important;",
+    "}",
+    "/* ── 'High' 档位文字到达最高档时的模糊光斑爆散 (约 0.4s 淡淡消失) ── */",
     ".ces-ag-effort-value {",
+    "  position: relative;",
+    "  z-index: 1;",
+    "  display: inline-block;",
     "  font-size: 12px;",
     "  font-weight: 600;",
     "  transition: color 0.15s ease;",
+    "}",
+    ".ces-ag-effort-value::after {",
+    "  content: '';",
+    "  position: absolute;",
+    "  top: 50%;",
+    "  left: 50%;",
+    "  width: 52px;",
+    "  height: 26px;",
+    "  border-radius: 999px;",
+    "  transform: translate(-50%, -50%) scale(0.6);",
+    "  background: radial-gradient(ellipse at center, var(--ces-glow-color, rgba(168, 85, 247, 0.85)) 0%, var(--ces-glow-color, rgba(168, 85, 247, 0.45)) 45%, rgba(168, 85, 247, 0) 75%);",
+    "  filter: blur(8px);",
+    "  pointer-events: none;",
+    "  opacity: 0;",
+    "  z-index: -1;",
+    "}",
+    "@keyframes ces-glow-flash {",
+    "  0% {",
+    "    opacity: 0.95;",
+    "    transform: translate(-50%, -50%) scale(0.65);",
+    "    filter: blur(6px);",
+    "  }",
+    "  25% {",
+    "    opacity: 1;",
+    "    transform: translate(-50%, -50%) scale(1.15);",
+    "    filter: blur(8px);",
+    "  }",
+    "  100% {",
+    "    opacity: 0;",
+    "    transform: translate(-50%, -50%) scale(1.5);",
+    "    filter: blur(14px);",
+    "  }",
+    "}",
+    "@keyframes ces-text-bloom {",
+    "  0% { text-shadow: 0 0 8px var(--ces-glow-color, #c084fc); }",
+    "  30% { text-shadow: 0 0 14px var(--ces-glow-color, #c084fc), 0 0 3px #ffffff; }",
+    "  100% { text-shadow: none; }",
+    "}",
+    ".ces-ag-effort-value.is-glowing {",
+    "  animation: ces-text-bloom 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;",
+    "}",
+    ".ces-ag-effort-value.is-glowing::after {",
+    "  animation: ces-glow-flash 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;",
+    "}",
+    "@media (prefers-reduced-motion: reduce) {",
+    "  .ces-panel-shaking { animation: none !important; }",
+    "  .ces-ag-effort-value.is-glowing { animation: none !important; }",
+    "  .ces-ag-effort-value.is-glowing::after { animation: none !important; }",
     "}",
     "/* 屏蔽模型行悬停弹出的冗余右侧二级档位子菜单（严格排除包含 model-selector-panel 的外层主菜单容器，防止悬停时主面板闪烁） */",
     "[role='menu']:has([data-testid='model-selector-effort-option']):not(:has([data-testid='model-selector-panel'])),",
@@ -1638,7 +1705,7 @@
     titleSpan.textContent = "推理等级滑条";
     var verSpan = doc.createElement("span");
     verSpan.className = "ces-set-ver";
-    verSpan.textContent = "v1.1.2";
+    verSpan.textContent = "v1.2.0";
     head.appendChild(titleSpan);
     head.appendChild(verSpan);
     panel.appendChild(head);
@@ -2812,6 +2879,73 @@
       }
     }
 
+    function clearMaxEffects() {
+      var rowEl =
+        opts.row ||
+        (container.closest &&
+          (container.closest(".ces-ag-effort-row") ||
+            container.closest('[data-ces-effort-row="true"]')));
+      var valEl = opts.valueElement || findValueElement(rowEl);
+      if (valEl && valEl.classList && valEl.classList.contains("is-glowing")) {
+        valEl.classList.remove("is-glowing");
+        if (valEl.__cesGlowTimer) {
+          clearTimeout(valEl.__cesGlowTimer);
+          valEl.__cesGlowTimer = null;
+        }
+      }
+    }
+
+    function triggerMaxEffects(isClaude) {
+      if (prefersReducedMotion(win)) return;
+
+      // 1. 整个模型选择面板整体微幅震颤 (左右 ±2.5px 约 0.18s 快速阻尼撞墙感)
+      var panelEl =
+        opts.panel ||
+        (container.closest &&
+          (container.closest('[data-testid="model-selector-panel"]') ||
+            container.closest('.ces-ag-panel-enhanced') ||
+            container.closest('.ag-menu-popup') ||
+            container.closest('[role="menu"]'))) ||
+        findAntigravityPanel(doc);
+
+      if (panelEl && panelEl.classList) {
+        panelEl.classList.remove("ces-panel-shaking");
+        void panelEl.offsetWidth;
+        panelEl.classList.add("ces-panel-shaking");
+        if (panelEl.__cesShakeTimer) {
+          clearTimeout(panelEl.__cesShakeTimer);
+        }
+        panelEl.__cesShakeTimer = setTimeout(function () {
+          if (panelEl && panelEl.classList) panelEl.classList.remove("ces-panel-shaking");
+          panelEl.__cesShakeTimer = null;
+        }, 220);
+      }
+
+      // 2. "High" 文字模糊光斑爆散后淡淡消失 (约 0.4s)
+      var rowEl =
+        opts.row ||
+        (container.closest &&
+          (container.closest(".ces-ag-effort-row") ||
+            container.closest('[data-ces-effort-row="true"]')));
+      var valEl = opts.valueElement || findValueElement(rowEl);
+      if (valEl && valEl.classList) {
+        var glowColor = isClaude ? "rgba(196, 181, 253, 0.9)" : "rgba(168, 85, 247, 0.9)";
+        if (valEl.style && typeof valEl.style.setProperty === "function") {
+          valEl.style.setProperty("--ces-glow-color", glowColor);
+        }
+        valEl.classList.remove("is-glowing");
+        void valEl.offsetWidth;
+        valEl.classList.add("is-glowing");
+        if (valEl.__cesGlowTimer) {
+          clearTimeout(valEl.__cesGlowTimer);
+        }
+        valEl.__cesGlowTimer = setTimeout(function () {
+          if (valEl && valEl.classList) valEl.classList.remove("is-glowing");
+          valEl.__cesGlowTimer = null;
+        }, 450);
+      }
+    }
+
     /**
      * 立即把目标档位写回宿主（Antigravity React Fiber 或 Seat）：
      * 拖过档位边界时同步触发，无需等待 pointerup 松手。
@@ -2823,6 +2957,9 @@
       var item = snap.levels[clampedIdx];
       if (!item) return;
 
+      var isNowMax = clampedIdx === snap.count - 1 && !isOffLevel(item.label);
+      var wasMax = lastCommittedIndex === snap.count - 1;
+
       lastCommittedIndex = clampedIdx;
       tracePush("commit", {
         reason: reason || "drag",
@@ -2830,6 +2967,12 @@
         effort: item.effort,
         label: item.label
       });
+
+      if (isNowMax && !wasMax) {
+        triggerMaxEffects(snap.isClaude);
+      } else if (!isNowMax && wasMax) {
+        clearMaxEffects();
+      }
 
       if (seat && typeof seat.selectEffort === "function") {
         try {
@@ -3137,6 +3280,20 @@
         destroyed = true;
         stopFrames();
         stopClaudeCanvasAnimation();
+        clearMaxEffects();
+        var pEl =
+          opts.panel ||
+          (container.closest &&
+            (container.closest('[data-testid="model-selector-panel"]') ||
+              container.closest('.ces-ag-panel-enhanced') ||
+              container.closest('.ag-menu-popup') ||
+              container.closest('[role="menu"]'))) ||
+          findAntigravityPanel(doc);
+        if (pEl && pEl.__cesShakeTimer) {
+          clearTimeout(pEl.__cesShakeTimer);
+          pEl.__cesShakeTimer = null;
+          if (pEl.classList) pEl.classList.remove("ces-panel-shaking");
+        }
         if (typeof offSeat === "function") offSeat();
         if (typeof offSettings === "function") offSettings();
         trackEl.removeEventListener("pointerdown", onPointerDown);
@@ -3661,6 +3818,7 @@
 
       activeMount = mountCodexEffortSlider({
         container: hostEl,
+        panel: panel,
         row: row,
         valueElement: valueEl,
         seat: agSeatAdapter,
