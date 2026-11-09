@@ -286,7 +286,7 @@ const html = `<!DOCTYPE html>
   <div class="ag-demo-wrapper">
     <header class="ag-header-toolbar">
       <div class="ag-toolbar-left">
-        <div class="ag-logo-tag">
+        <div class="ag-logo-tag" id="ag-app-title">
           Antigravity 推理滑条演示
         </div>
       </div>
@@ -294,17 +294,17 @@ const html = `<!DOCTYPE html>
         <button type="button" class="ag-action-btn" id="theme-toggle-btn" title="切换亮色/暗色主题">
           <span id="theme-icon">🌙</span> <span id="theme-text">切换暗色</span>
         </button>
-        <a href="https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider" target="_blank" rel="noopener noreferrer" class="ag-action-btn" title="查看 GitHub 开源仓库">
+        <a href="https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider" target="_blank" rel="noopener noreferrer" class="ag-action-btn" id="github-link" title="查看 GitHub 开源仓库">
           <span>GitHub</span> ↗
         </a>
       </div>
     </header>
 
     <div class="ag-style-pills">
-      <button type="button" class="ag-pill active" data-target-base="Gemini 4 Argon">
+      <button type="button" class="ag-pill active" id="pill-codex" data-target-base="Gemini 4 Argon">
         Codex 样式：Gemini 4 Argon
       </button>
-      <button type="button" class="ag-pill" data-target-base="Claude Sonnet 5.5">
+      <button type="button" class="ag-pill" id="pill-claude" data-target-base="Claude Sonnet 5.5">
         Claude 样式：Claude Sonnet 5.5
       </button>
     </div>
@@ -380,6 +380,134 @@ ${clientCode}
   </script>
   <script>
     (function () {
+      var I18N = {
+        "zh-CN": {
+          title: "Antigravity Codex & Claude 推理滑条 · 在线交互演示",
+          logo: "Antigravity 推理滑条演示",
+          themeDark: "切换暗色",
+          themeLight: "切换亮色",
+          themeTitle: "切换亮色/暗色主题",
+          githubTitle: "查看 GitHub 开源仓库",
+          codexPill: "Codex 样式：Gemini 4 Argon",
+          claudePill: "Claude 样式：Claude Sonnet 5.5"
+        },
+        "zh-TW": {
+          title: "Antigravity Codex & Claude 推理滑條 · 線上互動展示",
+          logo: "Antigravity 推理滑條展示",
+          themeDark: "切換暗色",
+          themeLight: "切換亮色",
+          themeTitle: "切換亮色/暗色主題",
+          githubTitle: "查看 GitHub 開源倉庫",
+          codexPill: "Codex 樣式：Gemini 4 Argon",
+          claudePill: "Claude 樣式：Claude Sonnet 5.5"
+        },
+        "en": {
+          title: "Antigravity Codex & Claude Effort Slider · Live Interactive Demo",
+          logo: "Antigravity Effort Slider Demo",
+          themeDark: "Dark Mode",
+          themeLight: "Light Mode",
+          themeTitle: "Toggle light/dark theme",
+          githubTitle: "View GitHub repository",
+          codexPill: "Codex Style: Gemini 4 Argon",
+          claudePill: "Claude Style: Claude Sonnet 5.5"
+        },
+        "ru": {
+          title: "Ползунок рассуждений Antigravity Codex и Claude · Демо",
+          logo: "Демо ползунка Antigravity",
+          themeDark: "Темная тема",
+          themeLight: "Светлая тема",
+          themeTitle: "Переключить тему",
+          githubTitle: "Открыть репозиторий GitHub",
+          codexPill: "Стиль Codex: Gemini 4 Argon",
+          claudePill: "Стиль Claude: Claude Sonnet 5.5"
+        },
+        "ja": {
+          title: "Antigravity Codex & Claude 推論スライダー · オンラインデモ",
+          logo: "Antigravity 推論スライダー デモ",
+          themeDark: "ダークモード",
+          themeLight: "ライトモード",
+          themeTitle: "ライト/ダークテーマ切り替え",
+          githubTitle: "GitHub リポジトリを表示",
+          codexPill: "Codex スタイル：Gemini 4 Argon",
+          claudePill: "Claude スタイル：Claude Sonnet 5.5"
+        },
+        "ko": {
+          title: "Antigravity Codex & Claude 추론 슬라이더 · 온라인 데모",
+          logo: "Antigravity 추론 슬라이더 데모",
+          themeDark: "다크 모드",
+          themeLight: "라이트 모드",
+          themeTitle: "라이트/다크 테마 전환",
+          githubTitle: "GitHub 저장소 보기",
+          codexPill: "Codex 스타일: Gemini 4 Argon",
+          claudePill: "Claude 스타일: Claude Sonnet 5.5"
+        },
+        "fr": {
+          title: "Curseur de raisonnement Antigravity Codex & Claude · Démo",
+          logo: "Démo du curseur Antigravity",
+          themeDark: "Mode sombre",
+          themeLight: "Mode clair",
+          themeTitle: "Basculer entre thème clair et sombre",
+          githubTitle: "Voir le dépôt GitHub",
+          codexPill: "Style Codex : Gemini 4 Argon",
+          claudePill: "Style Claude : Claude Sonnet 5.5"
+        }
+      };
+
+      function detectLocale() {
+        var langs = (navigator.languages && navigator.languages.length)
+          ? navigator.languages
+          : [navigator.language || navigator.userLanguage || "en"];
+
+        for (var i = 0; i < langs.length; i += 1) {
+          var lang = String(langs[i] || "").toLowerCase().trim();
+          if (lang.indexOf("zh-tw") === 0 || lang.indexOf("zh-hk") === 0 || lang.indexOf("zh-mo") === 0 || lang.indexOf("zh-hant") === 0) {
+            return "zh-TW";
+          }
+          if (lang.indexOf("zh") === 0) {
+            return "zh-CN";
+          }
+          if (lang.indexOf("ru") === 0) {
+            return "ru";
+          }
+          if (lang.indexOf("ja") === 0) {
+            return "ja";
+          }
+          if (lang.indexOf("ko") === 0) {
+            return "ko";
+          }
+          if (lang.indexOf("fr") === 0) {
+            return "fr";
+          }
+          if (lang.indexOf("en") === 0) {
+            return "en";
+          }
+        }
+        return "en";
+      }
+
+      var currentLocale = detectLocale();
+      var t = I18N[currentLocale] || I18N["en"];
+      document.documentElement.lang = currentLocale;
+      document.title = t.title;
+
+      var logoEl = document.getElementById("ag-app-title");
+      if (logoEl) logoEl.textContent = t.logo;
+
+      var ghLink = document.getElementById("github-link");
+      if (ghLink) ghLink.setAttribute("title", t.githubTitle);
+
+      var pillCodexEl = document.getElementById("pill-codex");
+      if (pillCodexEl) pillCodexEl.textContent = t.codexPill;
+
+      var pillClaudeEl = document.getElementById("pill-claude");
+      if (pillClaudeEl) pillClaudeEl.textContent = t.claudePill;
+
+      var themeToggleBtn = document.getElementById("theme-toggle-btn");
+      var themeIcon = document.getElementById("theme-icon");
+      var themeText = document.getElementById("theme-text");
+      if (themeToggleBtn) themeToggleBtn.setAttribute("title", t.themeTitle);
+      if (themeText) themeText.textContent = t.themeDark;
+
       var modelOptions = [
         { label: "Gemini 4 Argon (Low)", value: 1419 },
         { label: "Gemini 4 Argon (Medium)", value: 1418 },
@@ -398,9 +526,6 @@ ${clientCode}
 
       var triggerEl = document.getElementById("ag-trigger");
       var panelEl = document.getElementById("ag-panel");
-      var themeToggleBtn = document.getElementById("theme-toggle-btn");
-      var themeIcon = document.getElementById("theme-icon");
-      var themeText = document.getElementById("theme-text");
       var pills = document.querySelectorAll(".ag-pill");
 
       function updateActivePills(modelLabel) {
@@ -472,13 +597,13 @@ ${clientCode}
           htmlEl.classList.remove("light");
           htmlEl.classList.add("dark");
           themeIcon.textContent = "☀️";
-          themeText.textContent = "切换亮色";
+          themeText.textContent = t.themeLight;
           document.body.style.backgroundColor = "#111114";
         } else {
           htmlEl.classList.remove("dark");
           htmlEl.classList.add("light");
           themeIcon.textContent = "🌙";
-          themeText.textContent = "切换暗色";
+          themeText.textContent = t.themeDark;
           document.body.style.backgroundColor = "#f7f7f9";
         }
         window.dispatchEvent(new Event("resize"));
