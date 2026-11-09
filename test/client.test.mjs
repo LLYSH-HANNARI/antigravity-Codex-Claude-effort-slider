@@ -455,13 +455,13 @@ test("5. 拖动滑条跨边界即时切档（pointerdown + pointermove 无需等
   // 3. 继续按住不松手，向右拖动到 70% (clientX = 14 + 200 * 0.70 = 154)
   //    已越过 Medium -> High 的 1/3 边界 (66.7%)，应当立即触发 selectEffort("high", 2)！
   //    视觉位置同样 1:1 跟手在 70% (0.7)
-  //    ★ 触发最高档物理反馈：面板快速抖动 (ces-panel-shaking) + High 模糊光斑爆散 (is-glowing)
+  //    ★ 触发最高档物理反馈：安全无抖动（不注入 ces-panel-shaking）+ High 模糊光斑爆散 (is-glowing)
   trackEl.dispatch("pointermove", { clientX: 154 });
   assert.equal(dragCommits.length, 2);
   assert.deepEqual(dragCommits[1], { effort: "high", index: 2 });
   assert.equal(currentEffort, "high");
   assert.equal(trackEl.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(0.7, 14));
-  assert.equal(mockPanel.classList.contains("ces-panel-shaking"), true, "滑动至最高档面板应触发快速抖动");
+  assert.equal(mockPanel.classList.contains("ces-panel-shaking"), false, "滑动至最高档面板保持平稳无晃动抖动");
   assert.equal(mockValueEl.classList.contains("is-glowing"), true, "滑动至最高档 High 应闪出模糊光斑");
   assert.equal(mockValueEl.classList.contains("ces-text-rise"), true, "滑动至最高档 High 应触发文字向上翻转");
   assert.equal(mockValueEl.style.getPropertyValue("--ces-glow-color"), "rgba(168, 85, 247, 0.9)");
@@ -740,7 +740,7 @@ test("6. Claude 模型识别、原生三档映射、Ultracode 像素点阵抖动
   trackEl.dispatch("pointermove", { clientX: 160 });
   assert.equal(claudeCommits.length, 2);
   assert.deepEqual(claudeCommits[1], { effort: "high", index: 2 });
-  assert.equal(claudePanel.classList.contains("ces-panel-shaking"), true, "Claude 模型滑到最高档面板应抖动");
+  assert.equal(claudePanel.classList.contains("ces-panel-shaking"), false, "Claude 模型滑到最高档面板保持平稳无晃动抖动");
   assert.equal(claudeValueEl.classList.contains("is-glowing"), true, "Claude 模型滑到最高档 High 应闪烁光斑");
   assert.equal(claudeValueEl.classList.contains("ces-text-rise"), true, "Claude 模型滑到最高档 High 应触发文字向上翻转");
   assert.equal(claudeValueEl.style.getPropertyValue("--ces-glow-color"), "rgba(196, 181, 253, 0.9)");

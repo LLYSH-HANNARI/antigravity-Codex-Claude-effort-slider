@@ -1,11 +1,65 @@
-# Antigravity Codex 风格推理等级滑条 (`antigravity-codex-effort-slider`)
-
-[![Version](https://img.shields.io/badge/version-1.2.5-blue.svg)](./package.json)
+# Antigravity Codex&Claude风格推理等级滑条 (`antigravity-codex&Claude-effort-slider`)
+[![Version](https://img.shields.io/badge/version-1.2.6-blue.svg)](./package.json)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-8%20passed-success.svg)](./test/client.test.mjs)
 [![Platform](https://img.shields.io/badge/platform-Antigravity%20Desktop%20%7C%20Antigravity%20IDE-purple.svg)](https://antigravity.google/)
+[![Demo](https://img.shields.io/badge/demo-online%20preview-orange.svg)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
 
-专为 **Google Antigravity** 量身打造的 Codex 风格物理推理等级（Reasoning Effort）交互滑条扩展。深度适配 **Antigravity 桌面客户端** 与 **Antigravity IDE (VSCode 编辑器)** 双环境，实现免松手跨边界即时切档、22 颗黄金分割星尘与深紫星云、Claude 胶囊点阵抖动引擎、View Usage 0.3 秒停留防误触与无焦点框选纯净体验。
+![Preview](assets/Gemini.png)
+
+> [!IMPORTANT]
+> ### 免责声明
+> 1. **Gemini 形象来源声明**：本项目中引用的 Gemini 视觉形象与 Google 官方无关，未获得 Google 官方认可或授权，仅为作者个人喜好；该形象原案出自哔哩哔哩（Bilibili）UP主：**ZipZipPipe**，相关美术版权归原作者所有。
+> 2. **第三方非官方属性**：本项目为个人及社区开源的第三方定制增强插件，与 **Google / Google Antigravity**、**Anthropic**、**OpenAI** 及其附属机构无任何官方合作、代理、关联或商业从属关系；本项目未获得上述机构的任何官方授权、背书、认证或许可，亦未接受任何第三方或官方机构的赞助。
+> 3. **设计来源与致敬声明**：本项目中出现的 OpenAI Codex 风格物理推理滑条、Anthropic Claude Code 风格胶囊点阵滑条等视觉交互、物理动力学概念与样式设计，灵感均来源于公开产品界面交互设计。相关商标、品牌名称、专有设计风格与视觉资产的知识产权均归其各自所有者独立所有。
+> 4. **无官方专有源码**：本项目所有客户端逻辑、逆向拦截中间件与物理动画引擎均由作者自主独立设计与编写，不包含上述公司的任何官方闭源商业代码、受保护源码或专有二进制资产。
+> 5. **风险自负**：本项目代码仅供前端工程交流、交互设计探索与个人学习研究使用。使用者在自行安装、运行或注入本插件时，需自行评估对本地软件运行环境的潜在影响，作者不对任何软件异常或使用后果承担担保责任。
+> 6. **光敏性癫痫警告 (Photosensitive Seizure Warning)**：本项目交互包含动态粒子动力学与星云扩散特效，在快速拖拽与切换档位时可能伴随高频微动及模糊光斑爆散等视觉渲染。患有光敏性癫痫、视神经疲劳或对明暗光斑闪烁敏感的使用者请谨慎使用；如出现眩晕、视物模糊或任何不适，请立即停止使用并退出插件。
+
+专为 **Google Antigravity** 量身打造的 Codex 风格物理推理等级交互滑条扩展。深度适配 **Antigravity 桌面客户端** 与 **Antigravity IDE (VSCode 编辑器)** 双环境，实现免松手跨边界即时切档、View Usage 0.3 秒停留防误触与无焦点框选纯净体验。
+
+---
+
+| 模型 | 亮色 | 暗色 |
+| :--- | :--- | :--- |
+| Gemini High | ![亮色High](assets/GeminiLightHigh.png) | ![暗色High](assets/GeminiDarkHigh.png) |
+| Gemini Medium | ![亮色Medium](assets/GeminiLightMedium.png) | ![暗色Medium](assets/GeminiDarkMedium.png) |
+| Gemini Low | ![亮色Low](assets/GeminiLightLow.png) | ![暗色Low](assets/GeminiDarkLow.png) |
+| Claude High | ![亮色High](assets/ClaudeLightHigh.png) | ![暗色High](assets/ClaudeDarkHigh.png) |
+| Claude Medium | ![亮色Medium](assets/ClaudeLightMedium.png) | ![暗色Medium](assets/ClaudeDarkMedium.png) |
+| Claude Low | ![亮色Low](assets/ClaudeLightLow.png) | ![暗色Low](assets/ClaudeDarkLow.png) |
+
+---
+
+> [!TIP]
+> ### 🎮 在线交互演示 (Live Interactive Demo)
+> 无需安装任何环境，直接在浏览器中体验两种推理条风格的真实交互：
+> 👉 **[点击打开 GitHub Pages 在线交互演示](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)**
+> 🔗 **[访问 GitHub 官方开源仓库](https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider)**
+> - **双样式交互**：选择 Gemini 体验 Codex 风格物理星尘粒子；选择 Claude 体验胶囊点阵波。
+> - **免松手即切**：拖拽滑条跨越边界即可即刻换挡，支持 0.3s 防误触。
+> - **亮暗双主题**：默认亮色呈现，支持从按钮处向全屏圆形扩散切换。
+> - **平稳舒适**：已移除最高档微震颤抖动，保证视觉舒适度。
+
+---
+## 快速安装与使用
+
+### 方式一：双击一键持久安装（推荐）
+直接双击项目根目录下的 **[`install.cmd`](./install.cmd)**（或在终端运行 `npm run install-patch`）：
+1. **持久启动补丁**：自动备份并修补 Antigravity 桌面端 `resources/app.asar`（通过 `electron.webFrame.executeJavaScript` 将滑条注入渲染进程 Main World，并自动更新 PE Integrity SHA-256 校验值）及 Antigravity IDE（`resources/app/out/jetskiAgent/main.js`），今后每次启动 Antigravity 自动生效。
+2. **运行中窗口实时热生效**：若当前 Antigravity 正在运行，安装脚本会同时通过本地 CDP 端口自动热注入到所有已打开窗口，无需重启即可立即体验。
+
+> 如需卸载并恢复官方原版文件，双击 **[`uninstall.cmd`](./uninstall.cmd)**（或运行 `npm run uninstall-patch`）即可一键还原备份并清理运行中窗口的滑条实例。
+
+### 方式二：仅运行期 CDP 热注入（零文件修改）
+如果不希望修改磁盘上的 `app.asar`，可在 Antigravity 运行时执行：
+```bash
+npm run inject
+```
+卸载运行期注入：
+```bash
+npm run eject
+```
 
 ---
 
@@ -32,14 +86,13 @@
 - **卸载主动脱焦**：在面板卸载（`unmountActiveSection`）时主动清理活动聚焦元素（`blur()`），确保下次开窗时状态完全干净。
 
 ### 5. 双风格物理自适应渲染引擎
-- **Codex 宇宙星空风格**（`Gemini 4 Argon`、`Gemini 3.8 Flash`）：
+- **Codex风格**（`Gemini 4 Argon`、`Gemini 3.8 Flash`）：
   - 圆纽光晕滑块，22 颗黄金分割星尘从右向左横穿已填充轨道。
   - High 档激活深紫星云渐变与扫掠流光，外框呈现紫色霓虹微光。
-- **Claude Code 风格**（`Claude Opus 5.5`、`Claude Sonnet 5.5`）：
+- **Claude Code风格**（`Claude Opus 5.5`、`Claude Sonnet 5.5`）：
   - 24×30px Capsule 胶囊滑块带中心垂直凹槽。
   - 原生 3 档（`Low / Medium / High`），切到 `High` 档时立即激活专属 **6×60 Canvas 像素点阵抖动扫掠波**（1600ms 从右向左入场波前 + 待机脉冲，离开 High 档或切换模型时自动挂起 RAF 节约性能）。
   - 调色板自适应明暗模式：暗色采用紫罗兰底晕与亮紫点阵（`#c4b5fd` / `#a78bfa`）；浅色采用平滑底晕与马赛克方块。
-- **滑至最右面板抖动反馈**：滑条拖动至最右侧 High 档边界时，模型面板产生细腻的物理轻微抖动反馈。
 - **High 档微光光斑淡出**：滑动至最高档后，档位文字闪烁出一个柔和的半透明紫色微光光斑并平滑淡出（约 0.4 秒）。
 - **全模型立体文字翻转动效**：Argon / Flash / Claude 在档位切换时均具备统一的向上翻转立体文字动效，视觉体验丝滑一致。
 
@@ -61,55 +114,6 @@
 
 ---
 
-## 适配环境与安装使用
-
-本项目针对两种不同的 Antigravity 运行载体提供完善的原生支持：
-
-```
-                    ┌────────────────────────────────────────────────────────┐
-                    │      Antigravity Codex 推理等级滑条 (Ver.1.2.5)         │
-                    └────────────────────────────────────────────────────────┘
-                                      │                      │
-                   ┌──────────────────┴──┐                ┌──┴──────────────────┐
-                   ▼                     ▼                ▼                     ▼
-          【Antigravity IDE 编辑器】              【Antigravity 桌面客户端】
-          (VSCode 分支环境，如 D:\...)            (Electron 架构环境，如 AppData)
-                   │                                         │
-                   ▼                                         ▼
-         tools/patch-asar.cjs                      tools/patch-asar.cjs / CDP
-         注入 agy/vscode/extension.js               修补 resources/app.asar (SHA-256)
-         建立 Webview 反向代理注入                   或通过 inject-cdp.cjs 实时热注入
-```
-
-### 1. Antigravity IDE (VSCode 编辑器) 适配安装
-在 Antigravity IDE 环境下，由于 Chat 界面运行于沙箱 Webview（由 `agy.exe` 动态分发），无需篡改核心 workbench 文件，直接运行补丁器：
-```bash
-node tools/patch-asar.cjs
-```
-- 脚本会自动检测 `resources/app/extensions/agy/vscode/extension.js` 并注入内置反向代理补丁；
-- 启动 IDE 后，代理服务器会自动将客户端代码注入到 Chat Webview，并同步生效 View Usage 0.3s 停留防误触机制；
-- 脚本同时自动清理历史遗留注入文件并刷新 V8 字节码缓存（CachedData），确保修改即刻生效。
-
-### 2. Antigravity 桌面应用安装
-#### 方式 A：双击一键持久安装（推荐）
-直接双击项目根目录下的 **[`install.cmd`](./install.cmd)**（或执行 `npm run install-patch`）：
-1. **持久启动补丁**：自动备份并修补 `resources/app.asar`（通过 `electron.webFrame.executeJavaScript` 注入渲染进程，并自动更新 PE Integrity SHA-256 校验值杜绝“安装似乎损坏”提示），今后每次启动 Antigravity 自动生效。
-2. **运行中窗口实时热生效**：若当前客户端正在运行，安装脚本会同时通过本地 CDP 端口自动热注入到所有已打开窗口，无需重启即可立即体验。
-
-> 如需卸载并还原官方纯净文件，双击 **[`uninstall.cmd`](./uninstall.cmd)**（或执行 `npm run uninstall-patch`）即可一键还原备份并清理所有热注入实例。
-
-#### 方式 B：仅运行期 CDP 热注入（零文件修改）
-如果不希望修改磁盘上的任何 `.asar` 或 `.js` 文件，可在 Antigravity 运行时执行：
-```bash
-npm run inject
-```
-卸载运行期注入：
-```bash
-npm run eject
-```
-
----
-
 ## 本地开发、离线预览与单元测试
 
 ### 1. 运行自动化测试套件
@@ -127,37 +131,13 @@ npm test
 - `✓ 7.` 推理条无焦点框选（`outline: none !important` / `tabindex='-1'`）与 View Usage 0.3s 停留展开延迟
 - `✓ 8.` View Usage 0.3s (300ms) 停留展开防误触及移出后再次移入重新计时验证
 
-### 2. 生成并查看独立离线预览页面
-无需打开 Antigravity，即可在任意现代浏览器中体验与真实客户端完全一致的交互与特效：
+### 2. 生成离线预览与演示站点构建
+无需打开 Antigravity，即可在任意现代浏览器中体验与真实客户端完全一致的双样式交互与特效：
 ```bash
-npm run preview
+npm run preview     # 生成独立离线预览页面 preview/panel.html
+npm run build:demo  # 构建输出 GitHub Pages 静态演示产物至 dist/index.html
 ```
-执行后在浏览器中直接打开 **`preview/panel.html`** 即可。
-
----
-
-## 目录结构说明
-
-```text
-antigravity-codex-effort-slider/
-├─ lib/
-│  └─ client.js              # 核心实现（物理引擎 + 22 颗星尘 + Claude 点阵波 + Fiber 桥接 + 0.3s 防误触）
-├─ tools/
-│  ├─ patch-asar.cjs         # app.asar 解包/重打包、PE SHA-256 完整性重算与 Antigravity IDE 扩展代理注入器
-│  ├─ inject-cdp.cjs         # 基于 DevToolsActivePort 的运行期 WebSocket CDP 实时热注入与卸载工具
-│  └─ cli-install.cjs        # 统一命令行安装/卸载入口
-├─ preview/
-│  ├─ make-preview.mjs       # 离线预览页生成脚本
-│  └─ panel.html             # 生成的独立可交互预览页面
-├─ test/
-│  └─ client.test.mjs        # 8 套核心算法、Fiber 双缓冲、防误触与免松手切档自动化测试套件
-├─ .gitignore                # Git 忽略配置（忽略 docs/、docx/ 及系统临时文件）
-├─ install.cmd               # Windows 双击一键安装脚本
-├─ uninstall.cmd             # Windows 双击一键卸载还原脚本
-├─ install-asar.ps1          # PowerShell 安装引导脚本
-├─ package.json              # 项目配置与 NPM 指令入口
-└─ README.md                 # 项目完整使用与架构文档
-```
+执行后在浏览器中直接打开 **`preview/panel.html`** 或 **`dist/index.html`** 即可。
 
 ---
 

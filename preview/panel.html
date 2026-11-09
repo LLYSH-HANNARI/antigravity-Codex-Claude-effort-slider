@@ -1,61 +1,170 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="dark">
+<html lang="zh-CN" class="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Antigravity Codex 推理等级滑条 · 交互预览</title>
+  <title>Antigravity Codex & Claude 推理滑条 · 在线交互演示</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
   <style>
-    :root {
-      --background: #131316;
+    :root, html.light {
+      --background: #f7f7f9;
+      --bg-gradient: radial-gradient(circle at 50% 20%, #ebe6f9 0%, #f4f4f7 68%);
+      --foreground: #18181b;
+      --card: #ffffff;
+      --card-border: rgba(0, 0, 0, 0.08);
+      --secondary: #f4f4f6;
+      --secondary-foreground: #52525c;
+      --muted-foreground: #9ca3af;
+      --border: rgba(0, 0, 0, 0.08);
+      --header-bg: rgba(255, 255, 255, 0.82);
+      --badge-bg: #e5e7eb;
+      --log-bg: rgba(255, 255, 255, 0.85);
+      --btn-bg: #e5e7eb;
+      --btn-hover: #d1d5db;
+      --btn-text: #18181b;
+      --btn-active-border: #7c3aed;
+    }
+    html.dark {
+      --background: #111114;
+      --bg-gradient: radial-gradient(circle at 50% 20%, #241d3b 0%, #111115 68%);
       --foreground: #f4f4f6;
-      --card: #1c1c21;
-      --secondary: #2a2a32;
-      --secondary-foreground: #b8b8c4;
-      --muted-foreground: #7e7e8c;
+      --card: #1c1c22;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --secondary: #282832;
+      --secondary-foreground: #b8b8c6;
+      --muted-foreground: #7e7e8e;
       --border: rgba(255, 255, 255, 0.09);
+      --header-bg: rgba(28, 28, 34, 0.75);
+      --badge-bg: #282834;
+      --log-bg: rgba(18, 18, 23, 0.75);
+      --btn-bg: #2a2a36;
+      --btn-hover: #353544;
+      --btn-text: #f4f4f6;
+      --btn-active-border: #8b5cf6;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
-      background: radial-gradient(circle at 50% 18%, #231d38 0%, #111115 65%);
+      min-height: 100dvh;
+      background: var(--bg-gradient);
+      background-color: var(--background);
       color: var(--foreground);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 24px;
-      gap: 20px;
+      padding: 24px 16px;
+      overflow-x: hidden;
+      transition: background-color 0.25s ease, color 0.25s ease;
     }
-    .preview-banner {
-      max-width: 520px;
-      text-align: center;
-    }
-    .preview-banner h1 {
-      margin: 0 0 6px;
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-    }
-    .preview-banner p {
-      margin: 0;
-      font-size: 12.5px;
-      color: var(--secondary-foreground);
-      line-height: 1.5;
-    }
-    .ag-stage {
-      width: 310px;
+    .ag-demo-wrapper {
+      width: 100%;
+      max-width: 580px;
       display: flex;
       flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      margin: auto 0;
+    }
+    .ag-header-toolbar {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
       gap: 10px;
+      background: var(--header-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 14px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+    .ag-toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ag-logo-tag {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--foreground);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ag-toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ag-action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+    .ag-action-btn:hover {
+      background: var(--btn-hover);
+      transform: translateY(-1px);
+    }
+    .ag-action-btn:active {
+      transform: translateY(0);
+    }
+    .ag-style-pills {
+      display: flex;
+      gap: 6px;
+      width: 100%;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .ag-pill {
+      font-size: 11.5px;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--secondary-foreground);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ag-pill:hover, .ag-pill.active {
+      color: var(--foreground);
+      border-color: var(--btn-active-border);
+      background: var(--secondary);
+    }
+    .ag-stage {
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
     .ag-menu-popup {
       background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
       padding: 4px;
-      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.55);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    html.dark .ag-menu-popup {
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
     }
     [data-testid="model-selector-panel"] {
       display: flex;
@@ -64,15 +173,16 @@
     }
     [data-testid="model-selector-header"] {
       font-size: 11.5px;
-      padding: 4px 8px;
+      padding: 6px 8px 4px;
       color: var(--muted-foreground);
       font-weight: 500;
+      user-select: none;
     }
     .ag-model-list {
       display: flex;
       flex-direction: column;
       gap: 1px;
-      padding-bottom: 4px;
+      padding-bottom: 2px;
     }
     [role="menuitem"] {
       display: flex;
@@ -89,7 +199,7 @@
       background: var(--secondary);
       color: var(--foreground);
     }
-    .text-foreground { color: var(--foreground); font-weight: 500; }
+    .text-foreground { color: var(--foreground) !important; font-weight: 500; }
     .text-secondary-foreground { color: var(--secondary-foreground); }
     .ag-row-left {
       display: flex;
@@ -102,7 +212,7 @@
       background: var(--secondary);
       border-radius: 9999px;
       padding: 1px 6px;
-      font-size: 10.5px;
+      font-size: 10px;
       color: var(--secondary-foreground);
     }
     .h-px { height: 1px; }
@@ -119,8 +229,11 @@
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 9999px;
-      padding: 5px 10px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      padding: 5px 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+    html.dark .ag-composer-bar {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
     }
     [data-testid="model-selector-trigger"] {
       display: inline-flex;
@@ -139,87 +252,107 @@
       background: var(--secondary);
       color: var(--foreground);
     }
-    .ag-log-box {
-      width: 310px;
-      padding: 8px 10px;
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.32);
-      border: 1px solid var(--border);
-      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-      font-size: 11px;
-      color: #a1a1aa;
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation: none;
+      mix-blend-mode: normal;
+    }
+    ::view-transition-old(root) {
+      z-index: 1;
+    }
+    ::view-transition-new(root) {
+      z-index: 9999;
     }
   </style>
 </head>
 <body>
-  <div class="preview-banner">
-    <h1>Antigravity Codex 风格推理等级滑条</h1>
-    <p>点击上方模型行切换模型（菜单保持不关），拖动底部滑条跨过档位边界即刻切换真实档位；右键滑条打开设置面板。</p>
-  </div>
+  <div class="ag-demo-wrapper">
+    <header class="ag-header-toolbar">
+      <div class="ag-toolbar-left">
+        <div class="ag-logo-tag">
+          Antigravity 推理滑条演示
+        </div>
+      </div>
+      <div class="ag-toolbar-actions">
+        <button type="button" class="ag-action-btn" id="theme-toggle-btn" title="切换亮色/暗色主题">
+          <span id="theme-icon">🌙</span> <span id="theme-text">切换暗色</span>
+        </button>
+        <a href="https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider" target="_blank" rel="noopener noreferrer" class="ag-action-btn" title="查看 GitHub 开源仓库">
+          <span>GitHub</span> ↗
+        </a>
+      </div>
+    </header>
 
-  <div class="ag-stage">
-    <div class="ag-menu-popup">
-      <div data-testid="model-selector-panel" id="ag-panel">
-        <div class="relative flex flex-col flex-grow min-h-0">
-          <div data-testid="model-selector-header">Model</div>
-          <div class="ag-model-list">
-            <div role="menuitem" class="text-foreground">
-              <span class="ag-row-left">
-                <span data-testid="model-selector-effort-group" data-model-base="Gemini 4 Argon">Gemini 4 Argon</span>
-                <span class="shrink-0 opacity-70 text-xs">High</span>
-                <span class="ag-badge">New</span>
-              </span>
-              <span class="flex shrink-0 pl-1 opacity-50">›</span>
-            </div>
-            <div role="menuitem" class="text-secondary-foreground">
-              <span class="ag-row-left">
-                <span data-testid="model-selector-effort-group" data-model-base="Gemini 3.8 Flash">Gemini 3.8 Flash</span>
-                <span class="shrink-0 opacity-70 text-xs">Medium</span>
-              </span>
-              <span class="flex shrink-0 pl-1 opacity-50">›</span>
-            </div>
-            <div role="menuitem" class="text-secondary-foreground">
-              <span class="ag-row-left">
-                <span data-testid="model-selector-effort-group" data-model-base="Claude Opus 5.5">Claude Opus 5.5</span>
-                <span class="shrink-0 opacity-70 text-xs">Medium</span>
-                <span class="ag-badge">New</span>
-              </span>
-              <span class="flex shrink-0 pl-1 opacity-50">›</span>
-            </div>
-            <div role="menuitem" class="text-secondary-foreground">
-              <span class="ag-row-left">
-                <span data-testid="model-selector-effort-group" data-model-base="Claude Sonnet 5.5">Claude Sonnet 5.5</span>
-                <span class="shrink-0 opacity-70 text-xs">Medium</span>
-                <span class="ag-badge">New</span>
-              </span>
-              <span class="flex shrink-0 pl-1 opacity-50">›</span>
-            </div>
-            <div role="menuitem" data-testid="model-selector-item" data-model-label="GPT-OSS 120B (Medium)" class="text-secondary-foreground">
-              <span class="ag-row-left">
-                <span>GPT-OSS 120B (Medium)</span>
-                <span class="ag-badge">Locked</span>
-              </span>
+    <div class="ag-style-pills">
+      <button type="button" class="ag-pill active" data-target-base="Gemini 4 Argon">
+        Codex 样式：Gemini 4 Argon
+      </button>
+      <button type="button" class="ag-pill" data-target-base="Claude Sonnet 5.5">
+        Claude 样式：Claude Sonnet 5.5
+      </button>
+    </div>
+
+    <main class="ag-stage">
+      <div class="ag-menu-popup">
+        <div data-testid="model-selector-panel" id="ag-panel">
+          <div class="relative flex flex-col flex-grow min-h-0">
+            <div data-testid="model-selector-header">Model</div>
+            <div class="ag-model-list">
+              <div role="menuitem" class="text-foreground" data-model-row="Gemini 4 Argon">
+                <span class="ag-row-left">
+                  <span data-testid="model-selector-effort-group" data-model-base="Gemini 4 Argon">Gemini 4 Argon</span>
+                  <span class="shrink-0 opacity-70 text-xs">High</span>
+                  <span class="ag-badge">New</span>
+                </span>
+                <span class="flex shrink-0 pl-1 opacity-50">›</span>
+              </div>
+              <div role="menuitem" class="text-secondary-foreground" data-model-row="Gemini 3.8 Flash">
+                <span class="ag-row-left">
+                  <span data-testid="model-selector-effort-group" data-model-base="Gemini 3.8 Flash">Gemini 3.8 Flash</span>
+                  <span class="shrink-0 opacity-70 text-xs">Medium</span>
+                </span>
+                <span class="flex shrink-0 pl-1 opacity-50">›</span>
+              </div>
+              <div role="menuitem" class="text-secondary-foreground" data-model-row="Claude Opus 5.5">
+                <span class="ag-row-left">
+                  <span data-testid="model-selector-effort-group" data-model-base="Claude Opus 5.5">Claude Opus 5.5</span>
+                  <span class="shrink-0 opacity-70 text-xs">Medium</span>
+                  <span class="ag-badge">New</span>
+                </span>
+                <span class="flex shrink-0 pl-1 opacity-50">›</span>
+              </div>
+              <div role="menuitem" class="text-secondary-foreground" data-model-row="Claude Sonnet 5.5">
+                <span class="ag-row-left">
+                  <span data-testid="model-selector-effort-group" data-model-base="Claude Sonnet 5.5">Claude Sonnet 5.5</span>
+                  <span class="shrink-0 opacity-70 text-xs">Medium</span>
+                  <span class="ag-badge">New</span>
+                </span>
+                <span class="flex shrink-0 pl-1 opacity-50">›</span>
+              </div>
+              <div role="menuitem" data-testid="model-selector-item" data-model-label="GPT-OSS 120B (Medium)" class="text-secondary-foreground">
+                <span class="ag-row-left">
+                  <span>GPT-OSS 120B (Medium)</span>
+                  <span class="ag-badge">Locked</span>
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-        <div role="separator" aria-orientation="horizontal" class="h-px bg-border my-1 -mx-1"></div>
-        <div class="flex flex-col gap-0.5">
-          <div role="menuitem" class="text-secondary-foreground">
-            <span class="ag-row-left"><span>View Usage</span></span>
-            <span class="shrink-0 opacity-70 text-xs">›</span>
+          <div role="separator" aria-orientation="horizontal" class="h-px bg-border my-1 -mx-1"></div>
+          <div class="flex flex-col gap-0.5">
+            <div role="menuitem" class="text-secondary-foreground">
+              <span class="ag-row-left"><span>View Usage</span></span>
+              <span class="shrink-0 opacity-70 text-xs">›</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="ag-composer-bar">
-      <button type="button" data-testid="model-selector-trigger" id="ag-trigger" aria-label="Select model, current: Gemini 4 Argon High">
-        <span class="min-w-0">Gemini 4 Argon<span class="opacity-70"> High</span></span>
-      </button>
-      <span style="font-size:11px;color:var(--muted-foreground);">Composer 触发器实时同步</span>
-    </div>
-
-    <div class="ag-log-box" id="ag-log">官方当前模型: Gemini 4 Argon (High)</div>
+      <div class="ag-composer-bar">
+        <button type="button" data-testid="model-selector-trigger" id="ag-trigger" aria-label="Select model">
+          <span class="min-w-0">Gemini 4 Argon<span class="opacity-70"> High</span></span>
+        </button>
+      </div>
+    </main>
   </div>
 
   <script>
@@ -228,23 +361,6 @@
   <script>
 "use strict";
 
-/**
- * Antigravity Codex 风格推理等级滑条 (antigravity-codex-effort-slider)
- *
- * 设计目标与核心约束：
- * 1. 深度适配 Google Antigravity 原生架构（基于 @exa/agent-ui-toolkit 与 React Fiber 状态树），
- *    而非盲目照搬 DeepSeek Harness 的 DOM 假设。
- * 2. 在原生模型菜单 ([data-testid="model-selector-panel"]) 底部（模型列表与 View Usage 之间）
- *    挂载专属「推理等级」滑条行；屏蔽模型行冗余的右侧悬停档位子菜单，保留模型行右侧档位文字并随档位着色。
- * 3. 在菜单内点击上方模型行切换模型时不自动关闭菜单，下方滑条即时联动该模型的可用档位
- *    （单档位模型如 GPT-OSS 120B 自动置灰锁定）。
- * 4. 拖动滑条过程中，圆钮连续跟随指针；一旦滑过档位边界（无需等松手），立即通过 React Fiber
- *    调用官方 setModelConfigByLabelForConversation 切换真实档位，菜单保持常开。
- * 5. 针对 Antigravity 的三档模型 (Low / Medium / High) 采用 0 -> 0.5 -> 1.0 满配能量映射：
- *    - Low (0%)    : 纯蓝 (#4d93f8) 轨道 + 0 能量 + 0 星尘 + 蓝色文字
- *    - Medium (50%): 蓝紫过渡 (#9333ea) + 0.5 能量 + 11 颗星尘 (1x 闪烁速度) + 蓝紫文字
- *    - High (100%) : 深紫星云 (#4c1d95) + 流光扫掠 + 22 颗星尘全开 (2x 速度) + 紫色边框光晕 + 亮紫文字
- */
 (function (root, factory) {
   try {
     var exportsObj = factory(root);
@@ -255,24 +371,20 @@
       root.AntigravityCodexEffortSlider = exportsObj;
     }
   } catch (err) {
-    // Factory error handled silently
+
   }
 })(typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : this, function (globalRoot) {
 
-  // ── 常量与默认几何参数 ──────────────────────────────────────────────────────
   var STYLE_ELEMENT_ID = "ag-codex-effort-slider-styles";
   var TRACK_HEIGHT = 28;
   var KNOB_SIZE = 28;
   var KNOB_RADIUS = KNOB_SIZE / 2;
   var BASE_SPEEDUP = 4;
 
-  // Antigravity 默认三档模型 (Low / Medium / High) 无 Off 档，因此能量起点为 0、中点为 0.5；
-  // 若遇到首档为 Off 的四档模型 (Off / Low / High / Max)，energyStopsFor 会自动返回 { start: 1/3, end: 2/3 }。
   var ENERGY_START = 0;
   var ENERGY_END = 0.5;
   var MIN_HEIGHT_SLOTS = 2;
 
-  // Antigravity 官方推理档位枚举与展示名映射（对应 main.js 中的 DXb / EXb / GXb）
   var AG_EFFORT_ORDER = ["off", "low", "medium", "high", "xhigh", "max"];
   var AG_EFFORT_LABELS = {
     off: "Off",
@@ -284,7 +396,6 @@
   };
   var AG_MODEL_LABEL_RE = /^(.*?)\s*\((off|low|medium|high|xhigh|max)(?:\s+thinking)?\)\s*$/i;
 
-  // Claude 专属主题常量（6×60 点阵、1.6s 从右至左扫掠、Capsule 胶囊滑块）
   var CLAUDE_CELL = 28 / 6; // ≈ 4.67px
   var CLAUDE_ROWS = 6;
   var CLAUDE_SWEEP_MS = 1600;
@@ -297,8 +408,6 @@
     return /claude/i.test(name);
   }
 
-  // ── 连续物理运动参数 ────────────────────────────────────────────────────────
-  // full: 完整星云阻尼变速动画；fast: 快速 ~70ms 跟手吸附（默认）；quick: 0 动画直接跳格
   var MOTION = Object.freeze({
     maxSpeed: 3.2,
     accel: 28,
@@ -328,7 +437,6 @@
   var POINTER_STALE_S = 0.05;
   var POINTER_SPEED_TAU = 0.035;
 
-  // ── 用户设置 Schema 与持久化 ────────────────────────────────────────────────
   var SETTINGS_KEY = "ag.codexEffortSlider.settings.v1";
   var LEGACY_SETTINGS_KEY = "dsh.codexEffortSlider.settings.v1";
   var SETTINGS_EVENT = "ag:codex-effort-slider:settings";
@@ -392,7 +500,7 @@
     try {
       if (w && w.localStorage) return w.localStorage;
     } catch (err) {
-      // 沙箱或隐私上下文禁用 localStorage 时降级为内存模式
+
     }
     return null;
   }
@@ -419,7 +527,7 @@
       try {
         store.setItem(SETTINGS_KEY, JSON.stringify(next));
       } catch (err) {
-        // 忽略配额或权限异常
+
       }
     }
     try {
@@ -427,7 +535,7 @@
         w.dispatchEvent(new w.CustomEvent(SETTINGS_EVENT, { detail: next }));
       }
     } catch (err) {
-      // 忽略无 CustomEvent 构造器的测试环境
+
     }
     return next;
   }
@@ -462,7 +570,7 @@
         if (mq && mq.matches) return true;
       }
     } catch (err) {
-      // 忽略不支持 matchMedia 的环境
+
     }
     return false;
   }
@@ -479,7 +587,6 @@
     return MOTION_FAST;
   }
 
-  // ── 诊断环形缓冲区 ──────────────────────────────────────────────────────────
   var TRACE_CAPACITY = 200;
   var traceRingBuffer = [];
 
@@ -512,7 +619,6 @@
     traceRingBuffer.length = 0;
   }
 
-  // ── 数学、物理与刻度换算 ────────────────────────────────────────────────────
   function clamp01(value) {
     var num = Number(value);
     if (!Number.isFinite(num) || num <= 0) return 0;
@@ -542,11 +648,6 @@
     return Math.max(0, Math.min(n - 1, Math.round(p * (n - 1))));
   }
 
-  /**
-   * 迟滞棘轮分档器（Hysteresis Detent）：
-   * - 向新档位方向推进过 1/3 格宽即刻触发跳档，保证「拖过边界立即切档」的轻快手感；
-   * - 往回退则需要退过 2/3 格宽（留出 [1/3, 2/3] 迟滞带），防止手指停在边界附近时左右抖动。
-   */
   function detentTargetIndex(currentIndex, ptrPct, count) {
     var n = Number(count) || 0;
     if (n <= 1) return 0;
@@ -584,9 +685,6 @@
     return dist <= cfg.snapEps && vel <= cfg.velEps;
   }
 
-  /**
-   * 连续物理步进器：基于刹车距离 v^2 / (2 * decel) 平滑追赶 target，无过冲回弹
-   */
   function motionStep(state, dtSeconds, params) {
     if (!state) return;
     var cfg = params || MOTION;
@@ -623,7 +721,6 @@
     var nextV = clampAbs(v + a * dt, cfg.maxSpeed);
     var nextX = x + nextV * dt;
 
-    // 防止单步跨越目标造成振荡
     if ((target - x) * (target - nextX) <= 0 && Math.abs(nextV) <= cfg.maxSpeed) {
       state.x = target;
       state.v = 0;
@@ -664,7 +761,6 @@
     return indexFromPct(projected, count);
   }
 
-  // ── 22 颗黄金分割确定性星尘与色彩引擎（对齐 dsh-codex-effort-slider 右向左横穿星空） ──
   var PARTICLE_COUNT = 22;
   var STARFIELD_DURATION_MEAN = 1.5;
   var STARFIELD_DURATION_SPREAD = 0.08;
@@ -673,17 +769,11 @@
   var MAX_SPEED_FACTOR = 2;
   var REDUCED_MOTION_SLOWDOWN = 2.6;
 
-  /** 确定性伪随机 [0,1)：不用 Math.random，每次渲染完全一致且可离线断言 */
   function starHash01(index, salt) {
     var value = ((index + 1) * (salt || 1) * 2654435761) % 4294967296;
     return ((value >>> 8) % 1000) / 1000;
   }
 
-  /**
-   * 22 颗星尘粒子（形态 = 3px 圆点；运动 = 从右向左连续横穿已填充轨道，不消失、不上下飘动）：
-   * - 相位：黄金比低差异序列（任意前缀均匀铺开）
-   * - 高度：与相位排名解耦的确定性哈希排列，且相位相邻两星高度至少差 MIN_HEIGHT_SLOTS 槽
-   */
   var PARTICLES = (function buildParticles() {
     var count = PARTICLE_COUNT;
     var minSlots = 3;
@@ -752,7 +842,6 @@
     );
   }
 
-  /* ── Claude Ultracode 像素点阵抖动引擎 ──────────────────────────────── */
   function hash01(a, b, c) {
     var h = (a | 0) * 374761393 + (b | 0) * 668265263 + (c | 0) * 1274126177;
     h = (h ^ (h >>> 13)) * 1274126177;
@@ -835,19 +924,12 @@
     }
   }
 
-  /**
-   * Claude 点阵绘制。intensity ∈ [0,1] 连续控制特效强度（中档约 0.35，最高档 1）：
-   * - 底晕 wash 透明度按 intensity 缩放；
-   * - 像素密度：按每格固定哈希做确定性稀疏剔除，intensity 越低保留越少（不会随帧闪烁）；
-   * - 像素亮度：整体 alpha 乘以 (0.45 + 0.55 * intensity)。
-   * intensity = 1 时三项系数均为 1，输出与旧版完全一致。
-   */
   function paintDither(ctx, w, h, dark, progress, timeSec, intensity) {
     if (!ctx) return;
     var strength = typeof intensity === "number" ? clamp01(intensity) : 1;
     ctx.clearRect(0, 0, w, h);
     if (strength <= 0 || w <= 0) return;
-    // 密度阈值：strength=1 → 1.0（全保留）；strength=0.35 → ~0.51（约一半格子）
+
     var keepRatio = strength >= 1 ? 1 : 0.25 + 0.75 * strength;
     var alphaMul = 0.45 + 0.55 * strength;
     var k = 1 - progress;
@@ -879,7 +961,7 @@
       var t = clamp01(x / Math.max(1, w));
       var fade = clamp01((t - 0.02) / 0.48);
       for (var row = 0; row < rows; row += 1) {
-        // 确定性稀疏：同一格在同一强度下始终同样保留/剔除，避免拖动时整片闪烁
+
         if (keepRatio < 1 && hash01(col, row, 101) > keepRatio) continue;
         var base = ditherAlphaAt(x, w, col, row) * alphaMul;
         if (base < 0.05) continue;
@@ -939,14 +1021,14 @@
           ctx.globalAlpha = lAlpha;
           ctx.fillStyle = "rgb(" + lr + "," + lg + "," + lb + ")";
           fillRoundRect(ctx, x + 0.5, y2 + 0.5, lw, lh, 1);
-          // 流光脉冲是点阵“流动”的唯一来源：亮度不随强度衰减（中档只靠点更少、底色更淡、速度更慢来区分）
+
           var whiteAmt = clamp01(pulse * (0.35 + 0.65 * t)) * (0.55 + 0.45 * hash01(col, row, 71));
           if (progress < 0.999) {
             var flash = clamp01(1 - (t - front) / 0.16) * (0.55 + 0.45 * hash01(col, row, 73));
             whiteAmt = Math.max(whiteAmt, flash);
           }
           if (whiteAmt > 0.03) {
-            // 除回 alphaMul，让高光核心亮度与 High 一致
+
             ctx.globalAlpha = Math.min(1, (lAlpha / alphaMul) * (0.12 + 0.88 * whiteAmt));
             ctx.fillStyle = "rgb(247, 243, 255)";
             var ins = lw * 0.14;
@@ -968,7 +1050,6 @@
         ctx.fillStyle = "rgb(" + purple[0] + "," + purple[1] + "," + purple[2] + ")";
         fillRoundRect(ctx, x + 0.5, y + 0.5, size, size, 1.1);
 
-        // 同浅色模式：流光亮度不随强度衰减
         var whiteAmtDark = clamp01(pulse * (0.35 + 0.65 * t)) * (0.55 + 0.45 * hash01(col, row, 71));
         if (progress < 0.999) {
           var flashDark = clamp01(1 - (t - front) / 0.16) * (0.55 + 0.45 * hash01(col, row, 73));
@@ -984,13 +1065,6 @@
     ctx.globalAlpha = 1;
   }
 
-  /**
-   * 根据档位列表自动推导能量起点与中点：
-   * - 若首档为 Off（如 4 档 Off / Low / High / Max），则第 1 档 (Low) 为纯蓝无星尘起点：
-   *   start = 1 / (count - 1), end = (start + 1) / 2
-   * - 若首档不是 Off（如 Antigravity 的 3 档 Low / Medium / High），则第 0 档 (Low) 为纯蓝起点：
-   *   start = 0, end = 0.5
-   */
   function energyStopsFor(levels) {
     var list = Array.isArray(levels) ? levels : [];
     var n = list.length;
@@ -1010,35 +1084,21 @@
     return clamp01((p - start) / (1 - start));
   }
 
-  /**
-   * 位置 → 粒子横穿速率倍数：
-   * Medium (energy=0.5) 对应 1×（约 3.0s 横穿），High/Max (energy=1.0) 对应 2×（约 1.5s 横穿），左端下限 0.35×
-   */
   function speedFor(pct, startOverride) {
     var e = energyForPct(pct, startOverride);
     return Math.min(MAX_SPEED_FACTOR, Math.max(0.35, 2 * e));
   }
 
-  /**
-   * Claude 点阵特效强度（随位置连续变化，与 Codex 能量曲线同源）：
-   * energy=0 (Low) → 0 无特效；energy=0.5 (Medium) → ≈0.35 少量点阵；energy=1 (High) → 1 全量。
-   * 采用 e^1.5 曲线：低端起势柔和，靠近 High 时加速饱和。
-   */
   function claudeIntensityFor(pct, startOverride) {
     var e = energyForPct(pct, startOverride);
     if (e <= 0) return 0;
     return Math.round(Math.pow(e, 1.5) * 1000) / 1000;
   }
 
-  /**
-   * Claude 点阵流动速度倍率（以 High = 1 为基准）：Medium = 0.5（慢一倍），下限 0.175。
-   * 直接复用 Codex 的 speedFor（Medium 1× / High 2×）再除以 2 归一化。
-   */
   function claudeSpeedFor(pct, startOverride) {
     return speedFor(pct, startOverride) / MAX_SPEED_FACTOR;
   }
 
-  /** 位置 → 可见粒子数量（随能量从 0 渐增至 22 颗） */
   function particleCountFor(pct, startOverride) {
     return Math.round(energyForPct(pct, startOverride) * PARTICLES.length);
   }
@@ -1047,11 +1107,6 @@
     return particleCountFor(pct, startOverride);
   }
 
-  /**
-   * 第 index 颗粒子的亮度/大小系数（落在 [STARFIELD_MIN, 1]，越亮越大）：
-   * - 单参数调用 starBrightnessFor(indexOrStar)：返回该星固有亮度 [0.5, 1]
-   * - 双参数调用 starBrightnessFor(starOrIndex, energy)：当 energy 尚未达到该星出现序号时返回 0，已出现则返回固有亮度
-   */
   function starBrightnessFor(starOrIndex, energy) {
     var idx = typeof starOrIndex === "number"
       ? starOrIndex
@@ -1066,10 +1121,6 @@
     return Math.round(baseB * 1000) / 1000;
   }
 
-  /**
-   * 第 index 颗粒子从右向左横穿轨道的时长（秒）：
-   * 最高档约 1.5s、中档约 3.0s、低端约 8.6s，各星之间仅差 ±8% 防止追尾成团
-   */
   function starDurationFor(starOrIndex, speedFactor) {
     var idx = typeof starOrIndex === "number"
       ? starOrIndex
@@ -1082,10 +1133,6 @@
     return (STARFIELD_DURATION_MEAN * MAX_SPEED_FACTOR) / speed * spread;
   }
 
-  /**
-   * 第 index 颗粒子的负相位延迟（秒）：
-   * 按黄金比低差异序列铺开，只与粒子序号与当前周期有关，与当前可见颗数无关
-   */
   function starDelayFor(starOrIndex, duration) {
     var idx = typeof starOrIndex === "number"
       ? starOrIndex
@@ -1097,9 +1144,6 @@
     return -((phase + jitter) % 1) * dur;
   }
 
-  /**
-   * 星星层总不透明度：独立于星云层，保证中档 (energy=0.5) 也有 0.8 的清晰度，最高档为 1.0
-   */
   function starLayerOpacityFor(energyOrPct, startOverride) {
     var e = typeof startOverride === "number" ? energyForPct(energyOrPct, startOverride) : clamp01(energyOrPct);
     if (e <= 0) return 0;
@@ -1127,12 +1171,6 @@
     );
   }
 
-  /**
-   * 填充区末端主色：
-   * - pct <= start          : #4d93f8 (Codex 纯蓝)
-   * - start < pct <= end    : #4d93f8 -> #9333ea (蓝紫过渡)
-   * - end < pct <= 1        : #9333ea -> #4c1d95 (深紫星云)
-   */
   function fillColorFor(pct, startOverride, endOverride, isClaude) {
     var p = clamp01(pct);
     var start = typeof startOverride === "number" && Number.isFinite(startOverride) ? startOverride : ENERGY_START;
@@ -1155,17 +1193,13 @@
     return mixHex("#9333ea", "#4c1d95", (p - end) / span2);
   }
 
-  /**
-   * 填充区线性渐变背景：
-   * 让轨道左侧始终保留蓝色起点，随滑块向右推进依次展开蓝紫过渡与深紫星云
-   */
   function fillBackgroundFor(pct, startOverride, endOverride, isClaude) {
     var p = clamp01(pct);
     var start = typeof startOverride === "number" && Number.isFinite(startOverride) ? startOverride : ENERGY_START;
     var end = typeof endOverride === "number" && Number.isFinite(endOverride) ? endOverride : ENERGY_END;
     if (isClaude) {
       if (p <= 0.05) return "rgba(142, 118, 192, 0.15)";
-      // 末端颜色随位置连续插值（#71717a → #a78bfa → #704ea2），避免过中点时整条填充色突变
+
       return "linear-gradient(90deg, rgba(142, 118, 192, 0.25) 0%, " + fillColorFor(p, start, end, true) + " 100%)";
     }
     if (p <= start + 1e-6) return "#4d93f8";
@@ -1193,12 +1227,6 @@
     );
   }
 
-  /**
-   * 档位文字着色：
-   * - 单档位锁定模型或 Off 档位保持官方默认灰（返回 ""）
-   * - Codex 风格：首档蓝 #4d93f8、中档蓝紫 #6c78f7、高档亮紫 #8b5cf6
-   * - Claude 风格：首档暖灰/柔紫 #94a3b8、中档紫罗兰 #a78bfa、高档亮淡紫 #c4b5fd
-   */
   function valueColorFor(label, index, count, isMax, hasOffFirst, isClaude) {
     if (isOffLevel(label)) return "";
     var n = Number(count) || 0;
@@ -1224,7 +1252,6 @@
 
   var FILL_RADIUS_CSS = KNOB_RADIUS + "px 0 0 " + KNOB_RADIUS + "px";
 
-  // ── 样式表注入（对齐 dsh-codex-effort-slider 右向左星尘横穿 + 星云扫光 + Antigravity 面板适配） ──
   var SLIDER_CSS = [
     "@keyframes ces-sweep {",
     "  0% { transform: translateX(100%); }",
@@ -1387,7 +1414,7 @@
     "  pointer-events: none;",
     "  will-change: left;",
     "}",
-    "/* ── Claude 专属主题适配 (data-theme='claude') ── */",
+    "",
     ".ces-root[data-theme='claude'] .ces-stars,",
     ".ces-root[data-theme='claude'] .ces-energy,",
     ".ces-inline[data-theme='claude'] .ces-stars,",
@@ -1432,7 +1459,7 @@
     "  position: absolute;",
     "  left: 0;",
     "  top: 0;",
-    // 宽度由 JS 每帧同步为已填充宽度（与 .ces-stars 一致），只在圆钮左侧绘制点阵，杜绝右侧未填充区提前冒出特效
+
     "  width: var(--ces-fill, 0px);",
     "  height: 100%;",
     "  border-radius: 999px;",
@@ -1453,12 +1480,12 @@
     ".ces-ag-effort-value.ces-text-rise {",
     "  animation: ces-claude-rise 0.3s cubic-bezier(0.2, 0.85, 0.25, 1);",
     "}",
-    "/* 当同时触发文字向上翻转与 High 光斑爆散时，以 CSS 复合动画并发执行，防止相互覆盖打断 */",
+    "",
     ".ces-ag-effort-value.is-claude-changing.is-glowing,",
     ".ces-ag-effort-value.ces-text-rise.is-glowing {",
     "  animation: ces-claude-rise 0.3s cubic-bezier(0.2, 0.85, 0.25, 1), ces-text-bloom 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;",
     "}",
-    "/* Antigravity 原生模型菜单底部专属「推理等级」区域 */",
+    "",
     "[data-testid='model-selector-panel'].ces-ag-panel-enhanced {",
     "  max-height: 26rem !important;",
     "}",
@@ -1511,19 +1538,7 @@
     "  font-weight: 500;",
     "  opacity: 0.9;",
     "}",
-    "/* ── 面板到达最高档时的物理微震颤 (0.18s 快速阻尼撞墙感) ── */",
-    "@keyframes ces-panel-shake {",
-    "  0% { transform: translateX(0); }",
-    "  20% { transform: translateX(2.5px); }",
-    "  40% { transform: translateX(-2px); }",
-    "  60% { transform: translateX(1.5px); }",
-    "  80% { transform: translateX(-0.8px); }",
-    "  100% { transform: translateX(0); }",
-    "}",
-    ".ces-panel-shaking {",
-    "  animation: ces-panel-shake 0.18s cubic-bezier(0.36, 0.07, 0.19, 0.97) both !important;",
-    "}",
-    "/* ── 'High' 档位文字到达最高档时的模糊光斑爆散 (约 0.4s 淡淡消失) ── */",
+    "",
     ".ces-ag-effort-value {",
     "  position: relative;",
     "  z-index: 1;",
@@ -1582,7 +1597,7 @@
     "  .ces-ag-effort-value.ces-text-rise { animation: none !important; }",
     "  .ces-ag-effort-value.is-claude-changing { animation: none !important; }",
     "}",
-    "/* 屏蔽模型行悬停弹出的冗余右侧二级档位子菜单（严格排除包含 model-selector-panel 的外层主菜单容器，防止悬停时主面板闪烁） */",
+    "",
     "[role='menu']:has([data-testid='model-selector-effort-option']):not(:has([data-testid='model-selector-panel'])),",
     "div[role='presentation']:has(> [role='menu'] [data-testid='model-selector-effort-option']):not(:has([data-testid='model-selector-panel'])) {",
     "  display: none !important;",
@@ -1599,7 +1614,7 @@
     "[role='menuitem'][data-ces-model-selected='true'] {",
     "  background-color: rgba(128, 128, 145, 0.14);",
     "}",
-    "/* 右键 / 长按 设置浮层 */",
+    "",
     ".ces-set {",
     "  position: fixed;",
     "  z-index: 2147483646;",
@@ -1704,7 +1719,6 @@
     return style;
   }
 
-  // ── 右键设置面板 ────────────────────────────────────────────────────────────
   function openSettingsPanel(options) {
     var opts = options || {};
     var doc = opts.document || (typeof document !== "undefined" ? document : null);
@@ -1801,7 +1815,7 @@
           win.navigator.clipboard.writeText(payload);
         }
       } catch (err) {
-        // 忽略剪贴板权限错误
+
       }
       copyBtn.textContent = "已复制";
     });
@@ -1969,7 +1983,6 @@
     };
   }
 
-  // ── DOM 与 Antigravity React Fiber 解析辅助函数 ─────────────────────────────
   var INFERENCE_LABELS = ["推理等级", "Reasoning effort", "Reasoning Effort", "Thinking effort", "推理强度"];
 
   function parseModelLabel(label) {
@@ -2053,7 +2066,6 @@
     var d = doc || (typeof document !== "undefined" ? document : null);
     if (!d || typeof d.querySelectorAll !== "function") return null;
 
-    // 1. 优先匹配 Antigravity 原生模型选择器按钮中的档位 span (<span class="opacity-70"> High</span>)
     var agTrigger = findAntigravityTrigger(d);
     if (agTrigger) {
       var effortSpan = agTrigger.querySelector("span.opacity-70, [data-ces-part='trigger-effort']");
@@ -2061,7 +2073,6 @@
       return agTrigger;
     }
 
-    // 2. 兼容通用 composer 触发器（如包含 " · " 的按钮）
     var composers = d.querySelectorAll(".surface-composer, .surface-composer-card, form, body");
     for (var cIdx = 0; cIdx < composers.length; cIdx += 1) {
       var buttons = composers[cIdx].querySelectorAll('button[aria-haspopup="menu"]');
@@ -2080,7 +2091,6 @@
     var claudeFlag = typeof isClaude === "boolean" ? isClaude : isClaudeModel(agTrigger ? agTrigger.textContent : "");
     var color = valueColorFor(label, index, count, isMax, hasOffFirst, claudeFlag);
 
-    // 1. Antigravity 原生触发按钮：只给档位后缀 span 着色，保持模型名称本身清晰易读
     var agTrigger = findAntigravityTrigger(d);
     if (agTrigger) {
       var effortSpan = agTrigger.querySelector("span.opacity-70, [data-ces-part='trigger-effort']");
@@ -2093,7 +2103,6 @@
       return;
     }
 
-    // 2. 兼容通用触发按钮
     var trigger = findEffortTrigger(d);
     if (!trigger) return;
     var spans = trigger.querySelectorAll("span");
@@ -2161,13 +2170,6 @@
     return indexMap;
   }
 
-  /**
-   * 从 Antigravity 的 DOM 节点向上遍历 React Fiber 树，提取：
-   * - OXb.Provider: effortIndex, modelOptions, selectedModel, groups
-   * - $Xb         : 未包装 setIsOpen(false) 的 setSelectedModel, open, setIsOpen
-   * - cYb         : conversationId
-   * - eKa.Provider: setModelConfigByLabelForConversation（直接切档不关菜单、不抢焦点）
-   */
   function readAntigravityFiberContext(el) {
     var startFiber = getReactFiber(el);
     if (!startFiber) return null;
@@ -2184,7 +2186,6 @@
       var props = cur.memoizedProps;
       if (!props || typeof props !== "object") continue;
 
-      // 1. OXb.Provider / WJc.Provider (ModelSelectorProvider)
       if (!selectorCtx && props.value && typeof props.value === "object") {
         var val = props.value;
         if (val.effortIndex instanceof Map && Array.isArray(val.modelOptions)) {
@@ -2192,7 +2193,6 @@
         }
       }
 
-      // 2. $Xb / hKc / XJc (ModelSelectorPopover 及其各层包装)
       if (
         typeof props.setIsOpen === "function" &&
         typeof props.setSelectedModel === "function" &&
@@ -2202,13 +2202,11 @@
         outerPopoverProps = props;
       }
 
-      // 3. cYb / kKc (ConversationModelSelector)
       if (!hasConversationSelector && ("conversationId" in props) && ("placement" in props)) {
         hasConversationSelector = true;
         conversationId = props.conversationId;
       }
 
-      // 4. eKa.Provider (Global Model Context，在 Antigravity Web 中通常位于 ~170 层 Fiber 高度)
       if (
         !globalModelCtx &&
         props.value &&
@@ -2247,11 +2245,6 @@
         ? selectorCtx.effortIndex
         : buildEffortIndexFromOptions(modelOptions);
 
-    // ★ 关键：在 Antigravity IDE (VSCode / agy.exe) 中：
-    // kKc 将原始未包装的 setSelectedModel 传给 hKc；
-    // hKc 内部将其包装为 g = (m) => { b(m); c(!1); } 并传给子组件 XJc 和 Provider；
-    // 爬树遍历时从内部向外爬，innerPopoverProps 是 XJc (带 c(!1) 强制闭合菜单逻辑)，
-    // 而最外层的 outerPopoverProps (hKc) 才是最原始未包装关菜单的纯净 setter！
     var unwrappedSetter =
       (outerPopoverProps && typeof outerPopoverProps.setSelectedModel === "function" ? outerPopoverProps.setSelectedModel : null) ||
       (innerPopoverProps && typeof innerPopoverProps.setSelectedModel === "function" ? innerPopoverProps.setSelectedModel : null) ||
@@ -2283,9 +2276,6 @@
     };
   }
 
-  /**
-   * 剖析当前选中模型（或指定 baseName 模型）在 Antigravity 中的可用推理档位列表
-   */
   function resolveModelEffortProfile(ctx, targetModelOrBase, perModelEffortMap) {
     if (!ctx) return null;
     var selected = ctx.selectedModel;
@@ -2358,7 +2348,6 @@
       };
     }
 
-    // 单档位模型（如 GPT-OSS 120B (Medium)）或自定义模型：锁定不可拖动
     var singleParsed = modelObj && parseModelLabel(modelObj.label);
     var singleEffort = singleParsed ? singleParsed.effort : "medium";
     var singleLabel = singleParsed ? singleParsed.effortLabel : "固定";
@@ -2385,17 +2374,13 @@
   function commitAntigravityModelOption(ctx, targetOption) {
     if (!ctx || !targetOption || !targetOption.label) return false;
     try {
-      // 优先调用 eKa.Provider 的 setModelConfigByLabelForConversation：
-      // 直接更新当前会话与全局默认模型，不触发 $Xb 的 setIsOpen(false) 关菜单，也不触发编辑器抢焦点
+
       if (typeof ctx.setModelConfigByLabelForConversation === "function") {
         ctx.setModelConfigByLabelForConversation(targetOption.label, ctx.conversationId, true);
         return true;
       }
       if (typeof ctx.unwrappedSetSelectedModel === "function") {
-        // 核心保护：
-        // 1. kKc 的 setSelectedModel 内部最后会同步调用 getLexicalEditor()?.focus() 抢夺焦点，
-        //    导致 Radix Popover / @base-ui/react 菜单捕获 focusout/onFocusOutside 触发关闭；
-        //    此处在调用期间临时屏蔽 Lexical editor 及全局 DOM focus 抢夺
+
         var doc = typeof document !== "undefined" ? document : null;
         var editable = doc && doc.querySelector ? doc.querySelector('[contenteditable="true"]') : null;
         var editorInst = editable ? editable.__lexicalEditor : null;
@@ -2421,12 +2406,11 @@
           if (origElemFocus) Element.prototype.focus = origElemFocus;
         }
 
-        // 2. 强保障：确保菜单保持开启状态
         if (typeof ctx.setIsOpen === "function") {
           try {
             ctx.setIsOpen(true);
           } catch (err) {
-            // 忽略外部状态同步异常
+
           }
         }
         return true;
@@ -2441,7 +2425,6 @@
     return false;
   }
 
-  // ── 核心滑条挂载器（零外部框架依赖，纯 DOM + 连续物理帧循环） ─────────────────
   function extractEffortKey(item) {
     if (item === null || item === undefined) return "";
     if (typeof item === "string") return item;
@@ -2460,7 +2443,7 @@
         var formatted = seat.formatEffortLabel(effortKey);
         if (formatted) return String(formatted);
       } catch (err) {
-        // 忽略格式化异常
+
       }
     }
     var lower = String(effortKey || "").toLowerCase();
@@ -2481,7 +2464,6 @@
 
     installStyles(doc);
 
-    // 清空宿主容器并构建 DOM 树（对齐 dsh-codex-effort-slider 四层结构：fill / energy+sweep / stars+dot / knob）
     container.innerHTML = "";
     var rootEl = doc.createElement("div");
     rootEl.className = "ces-root";
@@ -2555,18 +2537,16 @@
     rootEl.appendChild(trackEl);
     container.appendChild(rootEl);
 
-    // ── 内部状态机 ──────────────────────────────────────────────────────────
     var destroyed = false;
     var rafId = null;
     var lastFrameMs = 0;
 
     var claudeRafId = null;
     var claudeAnimStart = 0;
-    // 点阵流动相位（秒）：按「帧间隔 × 当前速度倍率」累加，而不是 elapsed × 倍率，
-    // 这样拖动中速度连续变化时波纹不会因倍率突变而跳帧/倒退
+
     var claudeFlowTime = 0;
     var claudeLastTs = 0;
-    // 当前位置对应的强度与速度（由 applyVisualPct 每次刷新，RAF 循环读取）
+
     var claudeIntensity = 0;
     var claudeSpeed = 0;
 
@@ -2683,7 +2663,7 @@
       if (valEl) {
         if (label && valEl.textContent !== label) {
           valEl.textContent = label;
-          // 无论是 Claude 还是 Codex (Argon / Flash)，文字切换时统一触发顺滑向上翻转动效
+
           if (!prefersReducedMotion(win)) {
             if (valEl.__cesRiseTimer) {
               clearTimeout(valEl.__cesRiseTimer);
@@ -2721,7 +2701,7 @@
             locked: snap.locked
           });
         } catch (err) {
-          // 忽略外部视觉回调错误
+
         }
       }
     }
@@ -2777,7 +2757,7 @@
       claudeRafId = null;
       if (destroyed) return;
       var snap = readSeatSnapshot();
-      // 强度归零（回到 Low / 切走 Claude / 锁定）即停止循环，零冗余开销
+
       if (!snap.isClaude || snap.locked || claudeIntensity <= 0) {
         stopClaudeCanvasAnimation();
         return;
@@ -2785,7 +2765,7 @@
       var now = typeof nowTs === "number" && nowTs > 0 ? nowTs : nowMs();
       var elapsed = Math.max(0, now - claudeAnimStart);
       var progress = Math.min(1, elapsed / CLAUDE_SWEEP_MS);
-      // 相位按帧累加：dt 上限 50ms，防止切后台回来后一次性跳很远
+
       var frameDt = claudeLastTs > 0 ? Math.min(0.05, Math.max(0, (now - claudeLastTs) / 1000)) : 0;
       claudeLastTs = now;
       claudeFlowTime += frameDt * claudeSpeed;
@@ -2793,7 +2773,7 @@
       var rect = trackEl.getBoundingClientRect ? trackEl.getBoundingClientRect() : null;
       var trackW = rect && rect.width > 0 ? rect.width : 280;
       var th = rect && rect.height > 0 ? Math.round(rect.height) : (claudeCanvasEl.height || 28);
-      // 画布像素宽度 = 已填充宽度（圆钮中心），与 CSS width: var(--ces-fill) 对齐
+
       var curPct = motionState ? clamp01(motionState.x) : 0;
       var tw = Math.max(1, Math.round(KNOB_RADIUS + (trackW - KNOB_RADIUS * 2) * curPct));
       if (claudeCanvasEl.width !== tw) claudeCanvasEl.width = tw;
@@ -2830,7 +2810,6 @@
         container.setAttribute("data-theme", theme);
       }
 
-      // 设为 -1，防止 Radix/Base UI FocusScope 在重新打开菜单时将焦点自动抢到推理条上导致框选
       var nextTabIndex = "-1";
       if (rootEl.getAttribute("tabindex") !== nextTabIndex) rootEl.setAttribute("tabindex", nextTabIndex);
       if (rootEl.getAttribute("aria-valuemin") !== "0") rootEl.setAttribute("aria-valuemin", "0");
@@ -2858,12 +2837,11 @@
       starsEl.style.width = offsetCss;
       knobEl.style.left = offsetCss;
 
-      // Claude 点阵：按圆钮实际位置连续计算强度/速度（Medium ≈0.35 强度、半速；High 全量、全速）
       claudeIntensity = snap.isClaude && !snap.locked && count > 1 ? claudeIntensityFor(p, snap.energyStart) : 0;
       claudeSpeed = claudeSpeedFor(p, snap.energyStart);
       if (claudeIntensity > 0) {
         if (claudeCanvasEl.style.display !== "block") {
-          // 仅「无特效 → 有特效」时重置入场扫掠；之后拖动只调强度/速度，不重播
+
           claudeCanvasEl.style.display = "block";
           claudeAnimStart = nowMs();
           claudeLastTs = 0;
@@ -2978,30 +2956,6 @@
     function triggerMaxEffects(isClaude) {
       if (prefersReducedMotion(win)) return;
 
-      // 1. 整个模型选择面板整体微幅震颤 (左右 ±2.5px 约 0.18s 快速阻尼撞墙感)
-      var panelEl =
-        opts.panel ||
-        (container.closest &&
-          (container.closest('[data-testid="model-selector-panel"]') ||
-            container.closest('.ces-ag-panel-enhanced') ||
-            container.closest('.ag-menu-popup') ||
-            container.closest('[role="menu"]'))) ||
-        findAntigravityPanel(doc);
-
-      if (panelEl && panelEl.classList) {
-        panelEl.classList.remove("ces-panel-shaking");
-        void panelEl.offsetWidth;
-        panelEl.classList.add("ces-panel-shaking");
-        if (panelEl.__cesShakeTimer) {
-          clearTimeout(panelEl.__cesShakeTimer);
-        }
-        panelEl.__cesShakeTimer = setTimeout(function () {
-          if (panelEl && panelEl.classList) panelEl.classList.remove("ces-panel-shaking");
-          panelEl.__cesShakeTimer = null;
-        }, 220);
-      }
-
-      // 2. "High" 文字模糊光斑爆散后淡淡消失 (约 0.4s)
       var rowEl =
         opts.row ||
         (container.closest &&
@@ -3026,10 +2980,6 @@
       }
     }
 
-    /**
-     * 立即把目标档位写回宿主（Antigravity React Fiber 或 Seat）：
-     * 拖过档位边界时同步触发，无需等待 pointerup 松手。
-     */
     function commitAtIndex(targetIndex, reason) {
       var snap = readSeatSnapshot();
       if (snap.locked || snap.count <= 1) return;
@@ -3065,7 +3015,7 @@
         try {
           opts.onCommit(item, clampedIdx, reason || "drag");
         } catch (err) {
-          // 忽略外部回调异常
+
         }
       }
     }
@@ -3104,15 +3054,14 @@
 
       if (mode === "fast") {
         if (isInitialDown || detentIndex < 0 || detentIndex >= snap.count) {
-          // 按下时若点击位置跨格，直接按最近格响应；随后的拖动按 1/3 边界迟滞棘轮触发
+
           nowIndex = isInitialDown
             ? indexFromPct(ptrPct, snap.count)
             : detentTargetIndex(snap.officialIndex, ptrPct, snap.count);
         } else {
           nowIndex = detentTargetIndex(detentIndex, ptrPct, snap.count);
         }
-        // 仅当指针已进入 nowIndex 自身的稳定死区时才把棘轮锚点推进到 nowIndex，
-        // 否则保持在过渡区来源侧相邻格，防止在 [1/3, 2/3] 区间连续微移或松手时来回翻转
+
         if (detentTargetIndex(nowIndex, ptrPct, snap.count) === nowIndex) {
           detentIndex = nowIndex;
         } else if (ptrPct < pctFromIndex(nowIndex, snap.count)) {
@@ -3132,13 +3081,10 @@
       var m = ensureMotion(snap);
       m.target = targetPct;
 
-      // ★ 核心交互：只要滑过档位边界（或者点击了另一档位），不用等松手，立即切换官方真实档位 ★
       if (nowIndex !== lastCommittedIndex) {
         commitAtIndex(nowIndex, isInitialDown ? "down" : "drag");
       }
 
-      // ★ 顺滑连续跟手：拖动中圆钮直接 1:1 跟随鼠标连续浮点位置，不卡顿、不硬吸附 ★
-      // 松手（endDrag）时再以 ~100ms 轻快阻尼磁吸至最终离散档位圆心
       m.x = targetPct;
       m.v = 0;
       m.a = 0;
@@ -3213,7 +3159,7 @@
 
       dragging = true;
       buttonDown = true;
-      // 起手时对齐当前官方档位，若起手点就在当前档位则不重复触发无意义的写入；若点在其他档位则立即切过去
+
       lastCommittedIndex = snap.officialIndex;
       detentIndex = snap.officialIndex;
       snapIndex = null;
@@ -3224,7 +3170,7 @@
           trackEl.setPointerCapture(ev.pointerId);
         }
       } catch (err) {
-        // 忽略不支持 pointerCapture 的环境
+
       }
 
       moveToClientX(ev.clientX, true);
@@ -3246,7 +3192,7 @@
           trackEl.releasePointerCapture(ev.pointerId);
         }
       } catch (err) {
-        // 忽略释放失败
+
       }
       endDrag(ev && typeof ev.clientX === "number" ? ev.clientX : undefined);
     }
@@ -3296,7 +3242,6 @@
       }
     }
 
-    // 阻断 click / mouseup 冒泡到外层 MenuItem，防止拖动松手时意外关闭官方菜单
     function onBlockMenuClose(ev) {
       swallowEvent(ev);
     }
@@ -3348,7 +3293,6 @@
       applyVisualPct(snap, m.x, currentShownIndex(snap));
     }, win);
 
-    // 首次同步渲染
     var initSnap = readSeatSnapshot();
     var initMotion = ensureMotion(initSnap);
     initMotion.x = pctFromIndex(initSnap.officialIndex, initSnap.count);
@@ -3371,19 +3315,6 @@
           clearTimeout(valEl.__cesRiseTimer);
           valEl.__cesRiseTimer = null;
         }
-        var pEl =
-          opts.panel ||
-          (container.closest &&
-            (container.closest('[data-testid="model-selector-panel"]') ||
-              container.closest('.ces-ag-panel-enhanced') ||
-              container.closest('.ag-menu-popup') ||
-              container.closest('[role="menu"]'))) ||
-          findAntigravityPanel(doc);
-        if (pEl && pEl.__cesShakeTimer) {
-          clearTimeout(pEl.__cesShakeTimer);
-          pEl.__cesShakeTimer = null;
-          if (pEl.classList) pEl.classList.remove("ces-panel-shaking");
-        }
         if (typeof offSeat === "function") offSeat();
         if (typeof offSettings === "function") offSettings();
         trackEl.removeEventListener("pointerdown", onPointerDown);
@@ -3404,7 +3335,6 @@
     };
   }
 
-  // ── 通用菜单观察器（兼容预置「推理等级」行的 DOM 结构与独立预览页） ────────────
   function installMenuObserver(options) {
     var opts = options || {};
     var doc = opts.document || (typeof document !== "undefined" ? document : null);
@@ -3432,13 +3362,13 @@
           prev.row.style.paddingBottom = prev.previousStyle.paddingBottom;
         }
       } catch (err) {
-        // 忽略清理异常
+
       }
       onChange(null);
     }
 
     function scan() {
-      // 若页面存在 Antigravity 原生模型面板，交由 installAntigravityObserver 接管
+
       if (findAntigravityPanel(doc) || findAntigravityTrigger(doc)) return;
 
       var row = findInferenceRow(doc);
@@ -3503,7 +3433,6 @@
     };
   }
 
-  // ── Antigravity 原生模型选择器深度桥接器 ───────────────────────────────────
   function installAntigravityObserver(options) {
     var opts = options || {};
     var doc = opts.document || (typeof document !== "undefined" ? document : null);
@@ -3514,7 +3443,6 @@
 
     installStyles(doc);
 
-    // 记录每个基础模型在当前会话最后选定的推理档位（默认跟随 selectedModel 或 medium）
     var perModelEffortMap = new Map();
     var activeMount = null;
     var activePanel = null;
@@ -3533,7 +3461,7 @@
         try {
           fn();
         } catch (err) {
-          // 忽略订阅者异常
+
         }
       });
     }
@@ -3550,11 +3478,6 @@
       return resolveModelEffortProfile(ctx, target, perModelEffortMap);
     }
 
-    /**
-     * 立即同步更新：
-     * 1. 底部 Composer 折叠触发按钮的模型名与档位颜色
-     * 2. 展开菜单中每一行模型右侧的档位文字与颜色、以及选中态高亮
-     */
     function syncAntigravityDomDecorations(ctx, activeProfile) {
       if (!ctx) return;
       var profile = activeProfile || getActiveProfile(ctx);
@@ -3568,7 +3491,6 @@
       var idx = profile.currentIndex;
       var isMax = !profile.locked && count > 1 && idx === count - 1 && !isOffLevel(profile.currentLabel);
 
-      // 1. 同步底部折叠按钮 (button[data-testid="model-selector-trigger"])
       var triggerBtn = findAntigravityTrigger(doc);
       if (triggerBtn) {
         var outerSpan = triggerBtn.querySelector("span.min-w-0");
@@ -3596,7 +3518,6 @@
       }
       syncTriggerColor(doc, profile.currentLabel, idx, count, isMax, false);
 
-      // 2. 同步展开菜单中的各模型行
       var panel = findAntigravityPanel(doc);
       if (!panel) return;
 
@@ -3631,7 +3552,6 @@
           }
         }
 
-        // 模型名右侧的档位标签 (<span class="shrink-0 opacity-70 text-xs">)
         var sib = gSpan.nextElementSibling;
         if (sib && sib.tagName === "SPAN") {
           var displayEffort = isSelectedModel ? profile.currentLabel : rowProf.currentLabel;
@@ -3766,7 +3686,6 @@
         return null;
       }
 
-      // 捕获阶段拦截模型行 pointerup / mouseup，阻止 @base-ui/react 菜单因抬起指针而自动关闭
       function onPointerOrMouseUpCapture(ev) {
         if (ev.target && typeof ev.target.closest === "function" && ev.target.closest(".ces-ag-section")) {
           ev.stopPropagation();
@@ -3778,7 +3697,6 @@
         if (typeof ev.stopImmediatePropagation === "function") ev.stopImmediatePropagation();
       }
 
-      // 捕获阶段拦截模型行 click：切换选中模型但保持菜单常开，下方滑条即时联动该模型的档位
       function onClickCapture(ev) {
         if (ev.target && typeof ev.target.closest === "function" && ev.target.closest(".ces-ag-section")) {
           ev.stopPropagation();
@@ -3830,7 +3748,6 @@
         }
       }
 
-      // 拦截 View Usage 触发项的划过展开，增加 0.3s (300ms) 停留防误触展开延迟
       var usageHoverTimer = null;
       var usageTriggerEl = null;
       var usageHoverAllowed = false;
@@ -3888,7 +3805,6 @@
         resetUsageHover();
         usageTriggerEl = trigger;
 
-        // 直接在目标元素上注册离开监听（W3C 规范：pointerleave 仅在离开该元素时触发且不冒泡）
         try {
           trigger.addEventListener("pointerleave", onTriggerLeave, { once: true });
           trigger.addEventListener("mouseleave", onTriggerLeave, { once: true });
@@ -3945,7 +3861,7 @@
                 trigger.dispatchEvent(new EV("pointerenter", { bubbles: false, cancelable: true }));
               }
             } catch (err) {
-              // 忽略派发失败
+
             } finally {
               isDispatchingSynthetic = false;
             }
@@ -3957,7 +3873,7 @@
         if (isDispatchingSynthetic) return;
         var trigger = findViewUsageTrigger(ev.target);
         if (!trigger) {
-          // 鼠标移动到模型项或其它非 View Usage 元素，立即重置延迟状态
+
           if (usageHoverAllowed || usageHoverTimer) {
             resetUsageHover();
           }
@@ -3974,7 +3890,7 @@
         var trigger = findViewUsageTrigger(ev.target);
         if (trigger) {
           var rel = ev.relatedTarget;
-          // 若相关目标已不在当前 trigger 内部，说明鼠标已移出 View Usage
+
           if (!rel || !trigger.contains(rel)) {
             resetUsageHover();
           }
@@ -3991,7 +3907,7 @@
       }
 
       function onPointerLeaveCapture(ev) {
-        // panel 自身的 pointerleave，或鼠标彻底移出面板
+
         var rel = ev.relatedTarget;
         if (!rel || !panel.contains(rel)) {
           resetUsageHover();
@@ -4087,7 +4003,6 @@
 
       section.appendChild(row);
 
-      // 挂载位置：模型列表容器 (panel.firstElementChild) 之后、View Usage 分隔线之前
       var modelListWrapper = panel.firstElementChild;
       if (modelListWrapper && modelListWrapper.nextSibling) {
         panel.insertBefore(section, modelListWrapper.nextSibling);
@@ -4129,7 +4044,7 @@
           win.dispatchEvent(new win.Event("resize"));
         }
       } catch (err) {
-        // 忽略 resize 触发失败
+
       }
     }
 
@@ -4150,7 +4065,6 @@
           return;
         }
 
-        // 若外部修改了 selectedModel，清除临时 override 对齐最新模型
         if (ctx && ctx.selectedModel && activeModelOptionOverride) {
           if (ctx.selectedModel.label === activeModelOptionOverride.label) {
             activeModelOptionOverride = null;
@@ -4198,7 +4112,6 @@
     };
   }
 
-  // ── 一键安装到当前窗口（同时兼容 Antigravity 原生环境与 Seat 预览环境） ────────
   function installCodexEffortSlider(options) {
     var opts = options || {};
     var doc = opts.document || (typeof document !== "undefined" ? document : null);
@@ -4209,7 +4122,7 @@
       try {
         win.__agCodexEffortSliderInstance.stop();
       } catch (err) {
-        // 忽略旧实例卸载错误
+
       }
     }
 
@@ -4264,7 +4177,6 @@
     return instance;
   }
 
-  // 在浏览器主世界（非 Node 测试环境且非禁用自动启动）下自动挂载
   if (
     typeof window !== "undefined" &&
     typeof document !== "undefined" &&
@@ -4274,7 +4186,7 @@
       if (document.body && (findAntigravityTrigger(document) || window.__agCodexEffortSliderForceBoot)) {
         installCodexEffortSlider({ document: document, window: window });
       } else if (document.body) {
-        // 页面还在异步挂载 React 根节点时，启动守护观察器
+
         installCodexEffortSlider({ document: document, window: window });
       }
     };
@@ -4400,9 +4312,26 @@
         { label: "Claude Sonnet 5.5 (High)", value: 1405 },
         { label: "GPT-OSS 120B (Medium)", value: 342 }
       ];
-      var logEl = document.getElementById("ag-log");
+
       var triggerEl = document.getElementById("ag-trigger");
       var panelEl = document.getElementById("ag-panel");
+      var themeToggleBtn = document.getElementById("theme-toggle-btn");
+      var themeIcon = document.getElementById("theme-icon");
+      var themeText = document.getElementById("theme-text");
+      var pills = document.querySelectorAll(".ag-pill");
+
+      function updateActivePills(modelLabel) {
+        var match = modelLabel.match(/^(.*?)\s*\((Low|Medium|High)\)$/i);
+        var base = match ? match[1] : modelLabel;
+        pills.forEach(function (pill) {
+          var target = pill.getAttribute("data-target-base");
+          if (target === base) {
+            pill.classList.add("active");
+          } else {
+            pill.classList.remove("active");
+          }
+        });
+      }
 
       var mockContextValue = {
         visibleModelConfigs: modelOptions,
@@ -4412,7 +4341,7 @@
           if (found) {
             mockContextValue.currentModelConfig = found;
             mockPopoverProps.selectedModel = found;
-            logEl.textContent = "官方当前模型: " + found.label + " (即时同步)";
+            updateActivePills(found.label);
           }
         }
       };
@@ -4423,7 +4352,9 @@
         modelOptions: modelOptions,
         selectedModel: modelOptions[2],
         setSelectedModel: function (opt) {
-          mockContextValue.setModelConfigByLabelForConversation(opt.label, "preview-conv", true);
+          if (opt && opt.label) {
+            mockContextValue.setModelConfigByLabelForConversation(opt.label, "preview-conv", true);
+          }
         }
       };
 
@@ -4447,6 +4378,76 @@
         document: document,
         window: window
       });
+
+      var isDark = false;
+      document.body.style.backgroundColor = "#f7f7f9";
+
+      function applyTheme(nextIsDark) {
+        isDark = nextIsDark;
+        var htmlEl = document.documentElement;
+        if (isDark) {
+          htmlEl.classList.remove("light");
+          htmlEl.classList.add("dark");
+          themeIcon.textContent = "☀️";
+          themeText.textContent = "切换亮色";
+          document.body.style.backgroundColor = "#111114";
+        } else {
+          htmlEl.classList.remove("dark");
+          htmlEl.classList.add("light");
+          themeIcon.textContent = "🌙";
+          themeText.textContent = "切换暗色";
+          document.body.style.backgroundColor = "#f7f7f9";
+        }
+        window.dispatchEvent(new Event("resize"));
+      }
+
+      themeToggleBtn.addEventListener("click", function (event) {
+        var nextIsDark = !isDark;
+        if (!document.startViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          applyTheme(nextIsDark);
+          return;
+        }
+
+        var rect = themeToggleBtn.getBoundingClientRect();
+        var x = event && typeof event.clientX === "number" ? event.clientX : (rect.left + rect.width / 2);
+        var y = event && typeof event.clientY === "number" ? event.clientY : (rect.top + rect.height / 2);
+        var endRadius = Math.hypot(
+          Math.max(x, window.innerWidth - x),
+          Math.max(y, window.innerHeight - y)
+        );
+
+        var transition = document.startViewTransition(function () {
+          applyTheme(nextIsDark);
+        });
+
+        transition.ready.then(function () {
+          document.documentElement.animate(
+            {
+              clipPath: [
+                "circle(0px at " + x + "px " + y + "px)",
+                "circle(" + endRadius + "px at " + x + "px " + y + "px)"
+              ]
+            },
+            {
+              duration: 480,
+              easing: "cubic-bezier(0.32, 0.72, 0, 1)",
+              pseudoElement: "::view-transition-new(root)"
+            }
+          );
+        });
+      });
+
+      pills.forEach(function (pill) {
+        pill.addEventListener("click", function () {
+          var targetBase = pill.getAttribute("data-target-base");
+          var row = document.querySelector('[data-model-row="' + targetBase + '"]');
+          if (row) {
+            row.click();
+          }
+        });
+      });
+
+      updateActivePills(mockContextValue.currentModelConfig.label);
     })();
   </script>
 </body>
