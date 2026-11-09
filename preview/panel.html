@@ -246,12 +246,16 @@
  *    - High (100%) : 深紫星云 (#4c1d95) + 流光扫掠 + 22 颗星尘全开 (2x 速度) + 紫色边框光晕 + 亮紫文字
  */
 (function (root, factory) {
-  var exportsObj = factory(root);
-  if (typeof module === "object" && module && typeof module.exports === "object") {
-    module.exports = exportsObj;
-  }
-  if (root && typeof root === "object") {
-    root.AntigravityCodexEffortSlider = exportsObj;
+  try {
+    var exportsObj = factory(root);
+    if (typeof module === "object" && module && typeof module.exports === "object") {
+      module.exports = exportsObj;
+    }
+    if (root && typeof root === "object") {
+      root.AntigravityCodexEffortSlider = exportsObj;
+    }
+  } catch (err) {
+    // Factory error handled silently
   }
 })(typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : this, function (globalRoot) {
 
@@ -2152,6 +2156,7 @@
 
     var selectorCtx = null;
     var innerPopoverProps = null;
+    var outerPopoverProps = null;
     var conversationId = undefined;
     var hasConversationSelector = false;
     var globalModelCtx = null;
@@ -2161,7 +2166,7 @@
       var props = cur.memoizedProps;
       if (!props || typeof props !== "object") continue;
 
-      // 1. OXb.Provider (ModelSelectorProvider)
+      // 1. OXb.Provider / WJc.Provider (ModelSelectorProvider)
       if (!selectorCtx && props.value && typeof props.value === "object") {
         var val = props.value;
         if (val.effortIndex instanceof Map && Array.isArray(val.modelOptions)) {
@@ -2169,23 +2174,23 @@
         }
       }
 
-      // 2. $Xb (ModelSelectorPopover)
+      // 2. $Xb / hKc / XJc (ModelSelectorPopover 及其各层包装)
       if (
-        !innerPopoverProps &&
         typeof props.setIsOpen === "function" &&
         typeof props.setSelectedModel === "function" &&
         Array.isArray(props.modelOptions)
       ) {
-        innerPopoverProps = props;
+        if (!innerPopoverProps) innerPopoverProps = props;
+        outerPopoverProps = props;
       }
 
-      // 3. cYb (ConversationModelSelector)
+      // 3. cYb / kKc (ConversationModelSelector)
       if (!hasConversationSelector && ("conversationId" in props) && ("placement" in props)) {
         hasConversationSelector = true;
         conversationId = props.conversationId;
       }
 
-      // 4. eKa.Provider (Global Model Context，在 Antigravity 应用中通常位于 ~170 层 Fiber 高度)
+      // 4. eKa.Provider (Global Model Context，在 Antigravity Web 中通常位于 ~170 层 Fiber 高度)
       if (
         !globalModelCtx &&
         props.value &&
@@ -2195,22 +2200,24 @@
         globalModelCtx = props.value;
       }
 
-      if (selectorCtx && innerPopoverProps && hasConversationSelector && globalModelCtx) {
+      if (selectorCtx && outerPopoverProps && hasConversationSelector && globalModelCtx) {
         break;
       }
     }
 
-    if (!selectorCtx && !innerPopoverProps && !globalModelCtx) return null;
+    if (!selectorCtx && !innerPopoverProps && !outerPopoverProps && !globalModelCtx) return null;
 
     var modelOptions =
-      (selectorCtx && selectorCtx.modelOptions) ||
+      (outerPopoverProps && outerPopoverProps.modelOptions) ||
       (innerPopoverProps && innerPopoverProps.modelOptions) ||
+      (selectorCtx && selectorCtx.modelOptions) ||
       (globalModelCtx && globalModelCtx.visibleModelConfigs) ||
       [];
 
     var selectedModel =
-      (selectorCtx && selectorCtx.selectedModel) ||
+      (outerPopoverProps && outerPopoverProps.selectedModel) ||
       (innerPopoverProps && innerPopoverProps.selectedModel) ||
+      (selectorCtx && selectorCtx.selectedModel) ||
       (globalModelCtx &&
         (hasConversationSelector && typeof globalModelCtx.getModelConfigForConversation === "function"
           ? globalModelCtx.getModelConfigForConversation(conversationId)
@@ -2221,6 +2228,21 @@
       selectorCtx && selectorCtx.effortIndex instanceof Map
         ? selectorCtx.effortIndex
         : buildEffortIndexFromOptions(modelOptions);
+
+    // ★ 关键：在 Antigravity IDE (VSCode / agy.exe) 中：
+    // kKc 将原始未包装的 setSelectedModel 传给 hKc；
+    // hKc 内部将其包装为 g = (m) => { b(m); c(!1); } 并传给子组件 XJc 和 Provider；
+    // 爬树遍历时从内部向外爬，innerPopoverProps 是 XJc (带 c(!1) 强制闭合菜单逻辑)，
+    // 而最外层的 outerPopoverProps (hKc) 才是最原始未包装关菜单的纯净 setter！
+    var unwrappedSetter =
+      (outerPopoverProps && typeof outerPopoverProps.setSelectedModel === "function" ? outerPopoverProps.setSelectedModel : null) ||
+      (innerPopoverProps && typeof innerPopoverProps.setSelectedModel === "function" ? innerPopoverProps.setSelectedModel : null) ||
+      (selectorCtx && typeof selectorCtx.setSelectedModel === "function" ? selectorCtx.setSelectedModel : null);
+
+    var setIsOpenFn =
+      (outerPopoverProps && typeof outerPopoverProps.setIsOpen === "function" ? outerPopoverProps.setIsOpen : null) ||
+      (innerPopoverProps && typeof innerPopoverProps.setIsOpen === "function" ? innerPopoverProps.setIsOpen : null) ||
+      (selectorCtx && typeof selectorCtx.setIsOpen === "function" ? selectorCtx.setIsOpen : null);
 
     return {
       effortIndex: effortIndex,
@@ -2237,17 +2259,9 @@
         globalModelCtx && typeof globalModelCtx.setCurrentModelConfigByLabel === "function"
           ? globalModelCtx.setCurrentModelConfigByLabel
           : null,
-      unwrappedSetSelectedModel:
-        innerPopoverProps && typeof innerPopoverProps.setSelectedModel === "function"
-          ? innerPopoverProps.setSelectedModel
-          : selectorCtx && typeof selectorCtx.setSelectedModel === "function"
-          ? selectorCtx.setSelectedModel
-          : null,
-      setIsOpen:
-        innerPopoverProps && typeof innerPopoverProps.setIsOpen === "function"
-          ? innerPopoverProps.setIsOpen
-          : null,
-      isOpen: innerPopoverProps ? Boolean(innerPopoverProps.open) : false
+      unwrappedSetSelectedModel: unwrappedSetter,
+      setIsOpen: setIsOpenFn,
+      isOpen: Boolean((outerPopoverProps && outerPopoverProps.open) || (innerPopoverProps && innerPopoverProps.open))
     };
   }
 
@@ -2360,17 +2374,41 @@
         return true;
       }
       if (typeof ctx.unwrappedSetSelectedModel === "function") {
-        // 兜底保护：cYb 的 setSelectedModel 内部会同步调用 getLexicalEditor()?.focus() 抢夺焦点，
-        // 导致 @base-ui/react 菜单因失焦而触发关闭动画；此处在同步调用期间临时屏蔽外部 focus 抢夺
-        var origFocus = typeof HTMLElement !== "undefined" && HTMLElement.prototype ? HTMLElement.prototype.focus : null;
-        if (origFocus) {
-          HTMLElement.prototype.focus = function () {};
-        }
+        // 核心保护：
+        // 1. kKc 的 setSelectedModel 内部最后会同步调用 getLexicalEditor()?.focus() 抢夺焦点，
+        //    导致 Radix Popover / @base-ui/react 菜单捕获 focusout/onFocusOutside 触发关闭；
+        //    此处在调用期间临时屏蔽 Lexical editor 及全局 DOM focus 抢夺
+        var doc = typeof document !== "undefined" ? document : null;
+        var editable = doc && doc.querySelector ? doc.querySelector('[contenteditable="true"]') : null;
+        var editorInst = editable ? editable.__lexicalEditor : null;
+        var editorProto = editorInst ? Object.getPrototypeOf(editorInst) : null;
+        var origEditorFocus = editorProto && typeof editorProto.focus === "function" ? editorProto.focus : null;
+        var origInstFocus = editorInst && Object.prototype.hasOwnProperty.call(editorInst, "focus") ? editorInst.focus : null;
+
+        var origHtmlFocus = typeof HTMLElement !== "undefined" && HTMLElement.prototype ? HTMLElement.prototype.focus : null;
+        var origElemFocus = typeof Element !== "undefined" && Element.prototype ? Element.prototype.focus : null;
+
+        var noop = function () {};
+        if (origEditorFocus) editorProto.focus = noop;
+        if (origInstFocus) editorInst.focus = noop;
+        if (origHtmlFocus) HTMLElement.prototype.focus = noop;
+        if (origElemFocus) Element.prototype.focus = noop;
+
         try {
           ctx.unwrappedSetSelectedModel(targetOption);
         } finally {
-          if (origFocus) {
-            HTMLElement.prototype.focus = origFocus;
+          if (origEditorFocus) editorProto.focus = origEditorFocus;
+          if (origInstFocus) editorInst.focus = origInstFocus;
+          if (origHtmlFocus) HTMLElement.prototype.focus = origHtmlFocus;
+          if (origElemFocus) Element.prototype.focus = origElemFocus;
+        }
+
+        // 2. 强保障：确保菜单保持开启状态
+        if (typeof ctx.setIsOpen === "function") {
+          try {
+            ctx.setIsOpen(true);
+          } catch (err) {
+            // 忽略外部状态同步异常
           }
         }
         return true;
@@ -3802,6 +3840,12 @@
       var section = doc.createElement("div");
       section.className = "ces-ag-section";
       section.setAttribute("data-ces-part", "ag-section");
+      section.addEventListener("pointerdown", function (ev) {
+        if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation();
+      });
+      section.addEventListener("mousedown", function (ev) {
+        if (ev && typeof ev.stopPropagation === "function") ev.stopPropagation();
+      });
 
       var sep = doc.createElement("div");
       sep.setAttribute("role", "separator");

@@ -205,6 +205,89 @@ test("4. Antigravity 模型标签解析与 React Fiber 上下文提取 (parseMod
   const doubleBufferedEl = { __reactFiber$test: stalePopoverFiber };
   const liveCtx = slider.readAntigravityFiberContext(doubleBufferedEl);
   assert.equal(liveCtx.selectedModel.label, "Gemini 4 Argon (Low)");
+
+  // 验证 Antigravity IDE (agy.exe / VSCode) 双层 Popover 嵌套：
+  // 内层子组件 XJc 的 setSelectedModel 被包装了 setIsOpen(false)；
+  // 外层父组件 hKc 才是未被包装的纯净 setter。
+  let setIsOpenCalls = [];
+  let unwrappedCalls = [];
+  const unwrappedSetter = (opt) => {
+    unwrappedCalls.push(opt);
+  };
+  const setIsOpenFn = (open) => {
+    setIsOpenCalls.push(open);
+  };
+  const wrappedCloser = (opt) => {
+    unwrappedSetter(opt);
+    setIsOpenFn(false);
+  };
+
+  const ideConvFiber = {
+    memoizedProps: { conversationId: "ide-conv", placement: "top-start" },
+    return: null
+  };
+  const outerHKcFiber = {
+    memoizedProps: {
+      open: true,
+      setIsOpen: setIsOpenFn,
+      setSelectedModel: unwrappedSetter,
+      modelOptions,
+      selectedModel: modelOptions[1]
+    },
+    return: ideConvFiber
+  };
+  const innerXJcFiber = {
+    memoizedProps: {
+      open: true,
+      setIsOpen: setIsOpenFn,
+      setSelectedModel: wrappedCloser,
+      modelOptions,
+      selectedModel: modelOptions[1]
+    },
+    return: outerHKcFiber
+  };
+  const panelChildFiber = {
+    memoizedProps: {},
+    return: innerXJcFiber
+  };
+
+  const idePanelEl = { __reactFiber$test: panelChildFiber };
+  const ideCtx = slider.readAntigravityFiberContext(idePanelEl);
+  assert.ok(ideCtx);
+  assert.strictEqual(ideCtx.unwrappedSetSelectedModel, unwrappedSetter, "应当匹配外层未被包装的 setSelectedModel，而非内层的 wrappedCloser");
+
+  slider.commitAntigravityModelOption(ideCtx, modelOptions[2]);
+  assert.equal(unwrappedCalls.length, 1);
+  assert.equal(unwrappedCalls[0].label, "Gemini 4 Argon (High)");
+  assert.ok(!setIsOpenCalls.includes(false), "commit 不应调用 setIsOpen(false)，保证菜单常开");
+
+  // 验证 Lexical focus 抢夺屏蔽保护
+  let lexicalFocusCalled = false;
+  const mockEditorProto = {
+    focus() {
+      lexicalFocusCalled = true;
+    }
+  };
+  const mockEditorInst = Object.create(mockEditorProto);
+  globalThis.document = {
+    querySelector(sel) {
+      if (sel === '[contenteditable="true"]') {
+        return { __lexicalEditor: mockEditorInst };
+      }
+      return null;
+    }
+  };
+  const unwrappedWithEditorFocus = (opt) => {
+    unwrappedCalls.push(opt);
+    mockEditorInst.focus();
+  };
+  const ideWithEditorCtx = {
+    ...ideCtx,
+    unwrappedSetSelectedModel: unwrappedWithEditorFocus
+  };
+  slider.commitAntigravityModelOption(ideWithEditorCtx, modelOptions[0]);
+  assert.strictEqual(lexicalFocusCalled, false, "commit期间应暂时屏蔽 Lexical editor.focus()，防止抢夺焦点导致失焦关闭");
+  delete globalThis.document;
 });
 
 test("5. 拖动滑条跨边界即时切档（pointerdown + pointermove 无需等待 pointerup 松手）", () => {
