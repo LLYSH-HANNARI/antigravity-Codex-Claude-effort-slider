@@ -748,4 +748,128 @@ test("6. Claude 模型识别、原生三档映射、Ultracode 像素点阵抖动
   mounted.unmount();
 });
 
+test("7. 推理条无焦点框选（outline: none !important / tabindex='-1'）与 View Usage 0.3s 停留展开延迟", () => {
+  // 1. 验证 CSS 中的 outline / user-select 屏蔽规则
+  const testDoc = makeMockDoc();
+  const styleEl = slider.installStyles(testDoc);
+  assert.ok(styleEl.textContent.includes("outline: none !important;"));
+  assert.ok(styleEl.textContent.includes("user-select: none !important;"));
+  assert.ok(styleEl.textContent.includes(".ces-ag-section *"));
+
+  // 2. 验证 rootEl 的 tabindex 为 -1，避免 Radix/Base UI FocusScope 自动聚焦
+  const levels = [
+    { effort: "low", label: "Low" },
+    { effort: "medium", label: "Medium" },
+    { effort: "high", label: "High" }
+  ];
+  let curEffort = "high";
+  const seat = {
+    effortLevels: levels,
+    get currentEffort() { return curEffort; },
+    selectEffort(item, idx) { curEffort = item.effort; }
+  };
+  function makeMockDoc() {
+    function makeEl(tag) {
+      const listeners = new Map();
+      const styleProps = new Map();
+      const attrs = new Map();
+      const classes = new Set();
+      const el = {
+        tagName: String(tag || "div").toUpperCase(),
+        className: "",
+        children: [],
+        parentElement: null,
+        ownerDocument: null,
+        style: {
+          setProperty(k, v) { styleProps.set(k, String(v)); },
+          getPropertyValue(k) { return styleProps.get(k) || ""; }
+        },
+        classList: {
+          add(c) { classes.add(c); },
+          remove(c) { classes.delete(c); },
+          contains(c) { return classes.has(c); }
+        },
+        setAttribute(k, v) { attrs.set(k, String(v)); },
+        getAttribute(k) { return attrs.has(k) ? attrs.get(k) : null; },
+        appendChild(child) {
+          child.parentElement = el;
+          el.children.push(child);
+          return child;
+        },
+        insertBefore(child, before) {
+          child.parentElement = el;
+          const idx = el.children.indexOf(before);
+          if (idx >= 0) el.children.splice(idx, 0, child);
+          else el.children.push(child);
+          return child;
+        },
+        removeChild(child) {
+          const idx = el.children.indexOf(child);
+          if (idx >= 0) el.children.splice(idx, 1);
+          child.parentElement = null;
+          return child;
+        },
+        addEventListener(type, fn) {
+          if (!listeners.has(type)) listeners.set(type, []);
+          listeners.get(type).push(fn);
+        },
+        removeEventListener(type, fn) {
+          const arr = listeners.get(type) || [];
+          const idx = arr.indexOf(fn);
+          if (idx >= 0) arr.splice(idx, 1);
+        },
+        dispatchEvent(ev) {
+          const arr = (listeners.get(ev.type) || []).slice();
+          for (const fn of arr) fn.call(el, ev);
+          return true;
+        },
+        closest(sel) {
+          let cur = el;
+          while (cur) {
+            if (sel.includes(".") && cur.classList && cur.classList.contains(sel.replace(".", ""))) return cur;
+            if (sel.includes("ces-root") && cur.className && cur.className.includes("ces-root")) return cur;
+            if (sel.includes("model-selector-panel") && cur.getAttribute && cur.getAttribute("data-testid") === "model-selector-panel") return cur;
+            cur = cur.parentElement;
+          }
+          return null;
+        },
+        contains(child) {
+          let cur = child;
+          while (cur) {
+            if (cur === el) return true;
+            cur = cur.parentElement;
+          }
+          return false;
+        }
+      };
+      return el;
+    }
+    const head = makeEl("head");
+    const body = makeEl("body");
+    return {
+      head,
+      body,
+      createElement: makeEl,
+      getElementById(id) { return null; },
+      querySelector(sel) { return null; },
+      querySelectorAll(sel) { return []; },
+      activeElement: null
+    };
+  }
+
+  const doc = makeMockDoc();
+  const container = doc.createElement("div");
+  doc.body.appendChild(container);
+  const mounted = slider.mountCodexEffortSlider({
+    container,
+    seat,
+    document: doc,
+    window: { performance: { now: () => Date.now() }, matchMedia: () => ({ matches: false }) }
+  });
+
+  const rootEl = container.children[0];
+  assert.strictEqual(rootEl.getAttribute("tabindex"), "-1", "rootEl tabindex 应为 -1，防止 FocusScope 自动聚焦框选");
+  mounted.unmount();
+});
+
 console.log(`All ${passedCount} test suites passed!`);
