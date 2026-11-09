@@ -872,4 +872,193 @@ test("7. 推理条无焦点框选（outline: none !important / tabindex='-1'）�
   mounted.unmount();
 });
 
+test("8. View Usage 0.3s (300ms) 停留展开防误触及移出后再次移入重新计时验证", () => {
+  const origSetTimeout = global.setTimeout;
+  const origClearTimeout = global.clearTimeout;
+  let pendingTimers = [];
+  let timerIdSeq = 1;
+  global.setTimeout = (fn, ms) => {
+    const id = timerIdSeq++;
+    pendingTimers.push({ id, fn, ms });
+    return id;
+  };
+  global.clearTimeout = (id) => {
+    pendingTimers = pendingTimers.filter((t) => t.id !== id);
+  };
+  function advanceTime(ms) {
+    const ready = [];
+    pendingTimers = pendingTimers.filter((t) => {
+      t.ms -= ms;
+      if (t.ms <= 0) {
+        ready.push(t.fn);
+        return false;
+      }
+      return true;
+    });
+    for (const fn of ready) fn();
+  }
+
+  try {
+    const listeners = new Map();
+    const panel = {
+      classList: { add() {}, remove() {}, contains() { return false; } },
+      addEventListener(type, fn, capture) {
+        const key = type + (capture ? ":capture" : ":bubble");
+        if (!listeners.has(key)) listeners.set(key, []);
+        listeners.get(key).push(fn);
+      },
+      removeEventListener(type, fn, capture) {
+        const key = type + (capture ? ":capture" : ":bubble");
+        const arr = listeners.get(key) || [];
+        const idx = arr.indexOf(fn);
+        if (idx >= 0) arr.splice(idx, 1);
+      },
+      contains(target) {
+        let cur = target;
+        while (cur) {
+          if (cur === panel) return true;
+          cur = cur.parentElement;
+        }
+        return false;
+      }
+    };
+
+    const triggerListeners = new Map();
+    const dispatchedToTrigger = [];
+    const viewUsageItem = {
+      parentElement: panel,
+      textContent: "View Usage ›",
+      closest(sel) {
+        if (sel.includes('[role="menuitem"]') || sel.includes('button')) return viewUsageItem;
+        return null;
+      },
+      contains(target) {
+        return target === viewUsageItem;
+      },
+      addEventListener(type, fn, opts) {
+        if (!triggerListeners.has(type)) triggerListeners.set(type, []);
+        triggerListeners.get(type).push({ fn, once: opts && opts.once });
+      },
+      dispatchEvent(ev) {
+        dispatchedToTrigger.push(ev);
+        const arr = (triggerListeners.get(ev.type) || []).slice();
+        for (const item of arr) {
+          item.fn.call(viewUsageItem, ev);
+          if (item.once) {
+            const list = triggerListeners.get(ev.type) || [];
+            const idx = list.indexOf(item);
+            if (idx >= 0) list.splice(idx, 1);
+          }
+        }
+        return true;
+      }
+    };
+
+    const otherModelItem = {
+      parentElement: panel,
+      textContent: "Gemini 4 Argon (High)",
+      closest(sel) {
+        if (sel.includes('[role="menuitem"]') || sel.includes('button')) return otherModelItem;
+        return null;
+      },
+      contains(target) {
+        return target === otherModelItem;
+      }
+    };
+
+    function simulateDispatch(type, target, relatedTarget) {
+      let stopped = false;
+      const ev = {
+        type,
+        target,
+        relatedTarget,
+        bubbles: type === "pointerover" || type === "pointerout" || type === "pointermove",
+        cancelable: true,
+        isPropagationStopped: false,
+        isTestDispatch: true,
+        stopPropagation() {
+          stopped = true;
+          this.isPropagationStopped = true;
+        },
+        stopImmediatePropagation() {
+          stopped = true;
+          this.isPropagationStopped = true;
+        }
+      };
+
+      // 1. Capture on panel
+      const capList = (listeners.get(type + ":capture") || []).slice();
+      for (const fn of capList) {
+        fn(ev);
+        if (stopped) break;
+      }
+
+      // 2. Direct on target if not stopped
+      if (!stopped && target && typeof target.dispatchEvent === "function") {
+        target.dispatchEvent(ev);
+      }
+      return ev;
+    }
+
+    const mockDoc = {
+      body: { appendChild() {}, removeChild() {} },
+      head: { appendChild() {}, removeChild() {} },
+      createElement(tag) {
+        return {
+          tagName: String(tag || "div").toUpperCase(),
+          style: { setProperty() {}, getPropertyValue() { return ""; } },
+          setAttribute() {},
+          appendChild() {},
+          textContent: ""
+        };
+      },
+      getElementById() { return null; },
+      querySelectorAll() { return []; },
+      querySelector() { return null; }
+    };
+    const obs = slider.installAntigravityObserver({ document: mockDoc, window: { performance: { now: () => 0 } } });
+    obs.bindPanelInteractions(panel);
+
+    const getSyntheticEnters = () => dispatchedToTrigger.filter((e) => e.type === "pointerenter" && !e.isTestDispatch);
+
+    // 1. 鼠标首次移入 View Usage: 应被拦截且启动 300ms 计时器
+    const enter1 = simulateDispatch("pointerenter", viewUsageItem, otherModelItem);
+    assert.strictEqual(enter1.isPropagationStopped, true, "首次移入 View Usage 必须阻止冒泡并延迟打开");
+    assert.strictEqual(pendingTimers.length, 1, "应注册一个 300ms 定时器");
+    assert.strictEqual(getSyntheticEnters().length, 0, "未达到 300ms 时不应触发任何展开事件");
+
+    // 2. 若在 300ms 内离开（例如 100ms 划过），定时器应被取消，不触发展开
+    advanceTime(100);
+    simulateDispatch("pointerout", viewUsageItem, otherModelItem);
+    assert.strictEqual(pendingTimers.length, 0, "鼠标在 300ms 内移出必须立即取消定时器");
+    assert.strictEqual(getSyntheticEnters().length, 0, "快速划过绝不展开子菜单");
+
+    // 3. 鼠标再次移入并有意停留满 300ms: 定时器执行，派发合成展开事件
+    const enter2 = simulateDispatch("pointerenter", viewUsageItem, otherModelItem);
+    assert.strictEqual(enter2.isPropagationStopped, true, "再次移入必须重新拦截并计时");
+    assert.strictEqual(pendingTimers.length, 1, "应注册新的 300ms 定时器");
+    advanceTime(300);
+    assert.ok(dispatchedToTrigger.length >= 1, "停留满 300ms 后必须向触发项派发合成事件展开子菜单");
+    dispatchedToTrigger.length = 0;
+
+    // 4. 鼠标从 View Usage 移出至其他模型项（例如浏览 Gemini 模型）
+    simulateDispatch("pointerout", viewUsageItem, otherModelItem);
+    simulateDispatch("pointerover", otherModelItem, viewUsageItem);
+    dispatchedToTrigger.length = 0;
+
+    // 5. 关键回归测试：鼠标再次移入 View Usage 时，必须重新生效 0.3s 延迟，绝不能瞬间打开！
+    const enter3 = simulateDispatch("pointerenter", viewUsageItem, otherModelItem);
+    assert.strictEqual(enter3.isPropagationStopped, true, "移出再次移入后必须再次被拦截，绝不能立即放行展开！");
+    assert.strictEqual(pendingTimers.length, 1, "必须重新启动 300ms 定时器");
+    assert.strictEqual(getSyntheticEnters().length, 0, "再次移入在未满 300ms 前绝不应有合成事件派发");
+
+    // 6. 再次停留满 300ms 后才顺利展开
+    advanceTime(300);
+    assert.ok(dispatchedToTrigger.length >= 1, "再次停留满 300ms 后顺利展开");
+  } finally {
+    global.setTimeout = origSetTimeout;
+    global.clearTimeout = origClearTimeout;
+  }
+});
+
 console.log(`All ${passedCount} test suites passed!`);
