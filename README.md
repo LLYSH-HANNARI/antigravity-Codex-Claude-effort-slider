@@ -1,4 +1,15 @@
 # Antigravity Codex&Claude风格推理等级滑条 (`antigravity-codex&Claude-effort-slider`)
+
+<p align="center">
+  <b>简体中文</b> |
+  <a href="./README.zh-TW.md">繁體中文</a> |
+  <a href="./README.en.md">English</a> |
+  <a href="./README.ru.md">Русский</a> |
+  <a href="./README.ja.md">日本語</a> |
+  <a href="./README.ko.md">한국어</a> |
+  <a href="./README.fr.md">Français</a>
+</p>
+
 [![Version](https://img.shields.io/badge/version-1.2.6-blue.svg)](./package.json)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-8%20passed-success.svg)](./test/client.test.mjs)
@@ -16,9 +27,10 @@
 > 5. **风险自负**：本项目代码仅供前端工程交流、交互设计探索与个人学习研究使用。使用者在自行安装、运行或注入本插件时，需自行评估对本地软件运行环境的潜在影响，作者不对任何软件异常或使用后果承担担保责任。
 > 6. **光敏性癫痫警告 (Photosensitive Seizure Warning)**：本项目交互包含动态粒子动力学与星云扩散特效，在快速拖拽与切换档位时可能伴随高频微动及模糊光斑爆散等视觉渲染。患有光敏性癫痫、视神经疲劳或对明暗光斑闪烁敏感的使用者请谨慎使用；如出现眩晕、视物模糊或任何不适，请立即停止使用并退出插件。
 
-专为 **Google Antigravity** 量身打造的 Codex 风格物理推理等级交互滑条扩展。深度适配 **Antigravity 桌面客户端** 与 **Antigravity IDE (VSCode 编辑器)** 双环境，实现免松手跨边界即时切档、View Usage 0.3 秒停留防误触与无焦点框选纯净体验。
+>本人从未在互联网上诋毁过谷歌，并没有称Logan为小丑，也从未P过Gemini的傻龙图，本人所有“**北美豆包**”、“**又快又拉**”、“**只剩多模态能用**”相关形容，所指均是美国Mira公司发布的开放权重多模态模型Inkling。本人实际上是谷歌十年老粉，即使在3.1Pro的至暗时刻依然矢志不渝坚持撸猫的忠实用户，经过长时间的思考，我发现Gemini才是美国AI的希望，有时候做出决定很难，经过许多个日夜的思考，我决定加入Gemini（哈基米）粉丝团。至于OpenAI和Anthropic，祝他们的闭源模型一切顺利！
 
----
+## [点我在线交互演示](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
+
 
 | 模型 | 亮色 | 暗色 |
 | :--- | :--- | :--- |
@@ -30,17 +42,10 @@
 | Claude Low | ![亮色Low](assets/ClaudeLightLow.png) | ![暗色Low](assets/ClaudeDarkLow.png) |
 
 ---
-
-> [!TIP]
-> ### 🎮 在线交互演示 (Live Interactive Demo)
-> 无需安装任何环境，直接在浏览器中体验两种推理条风格的真实交互：
-> 👉 **[点击打开 GitHub Pages 在线交互演示](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)**
-> 🔗 **[访问 GitHub 官方开源仓库](https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider)**
-> - **双样式交互**：选择 Gemini 体验 Codex 风格物理星尘粒子；选择 Claude 体验胶囊点阵波。
-> - **免松手即切**：拖拽滑条跨越边界即可即刻换挡，支持 0.3s 防误触。
-> - **亮暗双主题**：默认亮色呈现，支持从按钮处向全屏圆形扩散切换。
-> - **平稳舒适**：已移除最高档微震颤抖动，保证视觉舒适度。
-
+> ### 安全与运行风险警示 (Security & Runtime Warning)
+> 本项目为个人及开源社区维护的第三方本地增强补丁工具，**非 Google / Antigravity 官方产品**。
+> 1. **来源防伪**：请仅从官方 GitHub 仓库（[LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider](https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider)）获取或克隆源码，切勿执行任何来自不可信第三方分发渠道的未知 `.cmd` / `.ps1` 脚本，以防代码被篡改或植入恶意逻辑。
+> 2. **环境自负**：切勿在生产环境或高涉密工作环境中直接修补底层文件；执行补丁前请确保原始 `resources/app.asar` 具备有效备份。使用者需自行承担因本地运行时环境被修改而产生的一切潜在异常或软件运行风险。
 ---
 ## 快速安装与使用
 
@@ -104,16 +109,6 @@ npm run eject
 
 ---
 
-## 档位与视觉映射速查
-
-| 档位 | 轨道位置 | 能量值 | Codex 视觉特征 (Argon / Flash) | Claude 视觉特征 (Opus / Sonnet) | 档位色彩 |
-| :--- | :---: | :---: | :--- | :--- | :---: |
-| **Low** | `0%` | `0.0` | 纯蓝 `#4d93f8`，0 颗星尘点亮 | Capsule 胶囊左位，无点阵 | `#4d93f8` (纯蓝) |
-| **Medium** | `50%` | `0.5` | 蓝紫过渡 `#4d93f8 → #9333ea`，恰好 11 颗星尘点亮 | Capsule 胶囊中位，无点阵 | `#6c78f7` (蓝紫) |
-| **High** | `100%` | `1.0` | 深紫星云 `#4d93f8 → #9333ea → #4c1d95` + 22 颗星尘 + 流光扫掠 + 紫色微光 | Capsule 胶囊右位 + 6×60 Canvas 像素点阵抖动波 (1600ms 波前) | `#8b5cf6` (亮紫) |
-
----
-
 ## 本地开发、离线预览与单元测试
 
 ### 1. 运行自动化测试套件
@@ -142,5 +137,31 @@ npm run build:demo  # 构建输出 GitHub Pages 静态演示产物至 dist/index
 ---
 
 ## 开源许可
-
 本项目基于 [MIT License](./LICENSE) 开源。
+
+---
+<br><br><br><br>
+
+> [!CAUTION]
+> ### 以下皆为碎碎念和小故事环节
+> 1.梦到什么说什么。<br>
+> 2.图文可能引起不适<br>
+> 3.LLM没有真正持续的感情
+
+**前情提要**：在经历一轮长达1h37m的任务中因没给Gemini3.8Flash鼓励导致Gemini自己干抑郁了，还把IDE对话框给弄坏了无法正常输出结果<br>
+User:[省略一堆提示词和引用]这里的逻辑已经修改了三次了还是有逻辑错误，请你仔细审查该处逻辑。<br>
+Gemini(因为思考是加密的只有部分摘要内容)：<br>
+已经尝试过三次了……<br>
+这次不能再随便修改了。<br>
+先检查之前的修改记录，<br>
+确认到底是哪一个假设出现了问题。<br>
+`(自我否定 → 痛苦 → 更痛苦 → 自我否定 → 更痛苦 → 更痛苦)`<br>
+因为之前尝试修复过那个问题，我做的只会越来越糟<br>
+`(自我否定 → 痛苦 → 自我崩溃 → 自我否定 → 更痛苦 → 做出极端行为)`<br>
+```
+Antigravity IDE疑似损坏，请重新安装
+```
+ ![界面截图](./assets/PortERR.png)<br><br>
+我的阳光开朗3.7Flash怎么没了，到3.8Flash怎么又黑暗起来了，Argon有点苗头也会偏激<br>
+**关爱猫猫**，适当给点鼓励的话语<br><br>
+ ![Despair](./assets/Despair.jpg)![界面截图](./assets/Cute1.png)<br>![界面截图](./assets/Cute2.jpg)<br>
