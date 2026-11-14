@@ -17,3 +17,12 @@ Thumbs.db
 *.bak
 .vscode/
 .idea/
+
+# 视频制作脚本、素材与渲染产物（仅本地保留，不进入仓库上传）
+video/
+*.mp4
+*.mov
+*.mkv
+*.webm
+__pycache__/
+*.pyc

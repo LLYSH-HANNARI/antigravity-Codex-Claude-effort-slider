@@ -1061,4 +1061,54 @@ test("8. View Usage 0.3s (300ms) 停留展开防误触及移出后再次移入�
   }
 });
 
+test("9. Extra 档位兼容解析与 Gemini 4 Hydrogen 四档模型配置", () => {
+  const parsedExtra = slider.parseModelLabel("Gemini 4 Hydrogen (Extra)");
+  assert.deepEqual(parsedExtra, {
+    base: "Gemini 4 Hydrogen",
+    effort: "xhigh",
+    effortLabel: "Extra"
+  });
+
+  const parsedXhigh = slider.parseModelLabel("Gemini 4 Hydrogen (xhigh)");
+  assert.deepEqual(parsedXhigh, {
+    base: "Gemini 4 Hydrogen",
+    effort: "xhigh",
+    effortLabel: "Extra"
+  });
+
+  const hydrogenOptions = [
+    { label: "Gemini 4 Carbon (Low)", value: 1429 },
+    { label: "Gemini 4 Carbon (Medium)", value: 1428 },
+    { label: "Gemini 4 Carbon (High)", value: 1427 },
+    { label: "Gemini 4 Hydrogen (Low)", value: 1439 },
+    { label: "Gemini 4 Hydrogen (Medium)", value: 1438 },
+    { label: "Gemini 4 Hydrogen (High)", value: 1437 },
+    { label: "Gemini 4 Hydrogen (Extra)", value: 1436 }
+  ];
+
+  const popoverFiber = {
+    memoizedProps: {
+      open: true,
+      setIsOpen() {},
+      setSelectedModel() {},
+      modelOptions: hydrogenOptions,
+      selectedModel: hydrogenOptions[6]
+    },
+    return: null
+  };
+  const ctx = slider.readAntigravityFiberContext({ __reactFiber$extra: popoverFiber });
+  assert.ok(ctx);
+  assert.equal(ctx.effortIndex.get("Gemini 4 Hydrogen").size, 4);
+
+  const profHydrogen = slider.resolveModelEffortProfile(ctx, "Gemini 4 Hydrogen", new Map());
+  assert.equal(profHydrogen.baseName, "Gemini 4 Hydrogen");
+  assert.equal(profHydrogen.locked, false);
+  assert.deepEqual(
+    profHydrogen.levels.map((l) => l.label),
+    ["Low", "Medium", "High", "Extra"]
+  );
+  assert.equal(profHydrogen.currentIndex, 3);
+  assert.equal(profHydrogen.currentLabel, "Extra");
+});
+
 console.log(`All ${passedCount} test suites passed!`);

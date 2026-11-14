@@ -166,6 +166,9 @@ const html = `<!DOCTYPE html>
       border-color: var(--btn-active-border);
       background: var(--secondary);
     }
+    .ag-pill.is-fading {
+      transition: color 0.8s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.8s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+    }
     .ag-stage {
       width: 320px;
       display: flex;
@@ -198,8 +201,40 @@ const html = `<!DOCTYPE html>
     .ag-model-list {
       display: flex;
       flex-direction: column;
-      gap: 1px;
+      gap: 2px;
       padding-bottom: 2px;
+    }
+    .ag-model-group {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      border-radius: 9px;
+    }
+    .ag-model-group::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: 9px;
+      pointer-events: none;
+      opacity: 0;
+      border: 1.5px solid rgba(139, 92, 246, 0.72);
+      background: rgba(139, 92, 246, 0.05);
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.16);
+      transition: none;
+    }
+    html.dark .ag-model-group::after {
+      border-color: rgba(167, 139, 250, 0.78);
+      background: rgba(139, 92, 246, 0.08);
+      box-shadow: 0 0 14px rgba(167, 139, 250, 0.22);
+    }
+    .ag-model-group.is-highlighted::after {
+      opacity: 1;
+      transition: none;
+    }
+    .ag-model-group.is-fading::after {
+      opacity: 0;
+      transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1);
     }
     [role="menuitem"] {
       display: flex;
@@ -301,11 +336,11 @@ const html = `<!DOCTYPE html>
     </header>
 
     <div class="ag-style-pills">
-      <button type="button" class="ag-pill active" id="pill-codex" data-target-base="Gemini 4 Argon">
-        Codex 样式：Gemini 4 Argon
+      <button type="button" class="ag-pill" id="pill-codex" data-style-group="codex" data-target-base="Gemini 4 Carbon">
+        Codex 样式
       </button>
-      <button type="button" class="ag-pill" id="pill-claude" data-target-base="Claude Sonnet 5.5">
-        Claude 样式：Claude Sonnet 5.5
+      <button type="button" class="ag-pill" id="pill-claude" data-style-group="claude" data-target-base="Claude Sonnet 5.5">
+        Claude Code 样式
       </button>
     </div>
 
@@ -315,36 +350,57 @@ const html = `<!DOCTYPE html>
           <div class="relative flex flex-col flex-grow min-h-0">
             <div data-testid="model-selector-header">Model</div>
             <div class="ag-model-list">
-              <div role="menuitem" class="text-foreground" data-model-row="Gemini 4 Argon">
-                <span class="ag-row-left">
-                  <span data-testid="model-selector-effort-group" data-model-base="Gemini 4 Argon">Gemini 4 Argon</span>
-                  <span class="shrink-0 opacity-70 text-xs">High</span>
-                  <span class="ag-badge">New</span>
-                </span>
-                <span class="flex shrink-0 pl-1 opacity-50">›</span>
+              <div class="ag-model-group" data-style-group="codex">
+                <div role="menuitem" class="text-foreground" data-model-row="Gemini 4 Carbon">
+                  <span class="ag-row-left">
+                    <span data-testid="model-selector-effort-group" data-model-base="Gemini 4 Carbon">Gemini 4 Carbon</span>
+                    <span class="shrink-0 opacity-70 text-xs">Medium</span>
+                    <span class="ag-badge">New</span>
+                  </span>
+                  <span class="flex shrink-0 pl-1 opacity-50">›</span>
+                </div>
+                <div role="menuitem" class="text-secondary-foreground" data-model-row="Gemini 4 Argon">
+                  <span class="ag-row-left">
+                    <span data-testid="model-selector-effort-group" data-model-base="Gemini 4 Argon">Gemini 4 Argon</span>
+                    <span class="shrink-0 opacity-70 text-xs">Medium</span>
+                    <span class="ag-badge">New</span>
+                  </span>
+                  <span class="flex shrink-0 pl-1 opacity-50">›</span>
+                </div>
+                <div role="menuitem" class="text-secondary-foreground" data-model-row="Gemini 4 Hydrogen">
+                  <span class="ag-row-left">
+                    <span data-testid="model-selector-effort-group" data-model-base="Gemini 4 Hydrogen">Gemini 4 Hydrogen</span>
+                    <span class="shrink-0 opacity-70 text-xs">Medium</span>
+                    <span class="ag-badge">New</span>
+                  </span>
+                  <span class="flex shrink-0 pl-1 opacity-50">›</span>
+                </div>
+                <div role="menuitem" class="text-secondary-foreground" data-model-row="Gemini 3.8 Flash">
+                  <span class="ag-row-left">
+                    <span data-testid="model-selector-effort-group" data-model-base="Gemini 3.8 Flash">Gemini 3.8 Flash</span>
+                    <span class="shrink-0 opacity-70 text-xs">Medium</span>
+                    <span class="ag-badge">Fast</span>
+                  </span>
+                  <span class="flex shrink-0 pl-1 opacity-50">›</span>
+                </div>
               </div>
-              <div role="menuitem" class="text-secondary-foreground" data-model-row="Gemini 3.8 Flash">
-                <span class="ag-row-left">
-                  <span data-testid="model-selector-effort-group" data-model-base="Gemini 3.8 Flash">Gemini 3.8 Flash</span>
-                  <span class="shrink-0 opacity-70 text-xs">Medium</span>
-                </span>
-                <span class="flex shrink-0 pl-1 opacity-50">›</span>
-              </div>
-              <div role="menuitem" class="text-secondary-foreground" data-model-row="Claude Opus 5.5">
-                <span class="ag-row-left">
-                  <span data-testid="model-selector-effort-group" data-model-base="Claude Opus 5.5">Claude Opus 5.5</span>
-                  <span class="shrink-0 opacity-70 text-xs">Medium</span>
-                  <span class="ag-badge">New</span>
-                </span>
-                <span class="flex shrink-0 pl-1 opacity-50">›</span>
-              </div>
-              <div role="menuitem" class="text-secondary-foreground" data-model-row="Claude Sonnet 5.5">
-                <span class="ag-row-left">
-                  <span data-testid="model-selector-effort-group" data-model-base="Claude Sonnet 5.5">Claude Sonnet 5.5</span>
-                  <span class="shrink-0 opacity-70 text-xs">Medium</span>
-                  <span class="ag-badge">New</span>
-                </span>
-                <span class="flex shrink-0 pl-1 opacity-50">›</span>
+              <div class="ag-model-group" data-style-group="claude">
+                <div role="menuitem" class="text-secondary-foreground" data-model-row="Claude Opus 5.5">
+                  <span class="ag-row-left">
+                    <span data-testid="model-selector-effort-group" data-model-base="Claude Opus 5.5">Claude Opus 5.5</span>
+                    <span class="shrink-0 opacity-70 text-xs">Medium</span>
+                    <span class="ag-badge">New</span>
+                  </span>
+                  <span class="flex shrink-0 pl-1 opacity-50">›</span>
+                </div>
+                <div role="menuitem" class="text-secondary-foreground" data-model-row="Claude Sonnet 5.5">
+                  <span class="ag-row-left">
+                    <span data-testid="model-selector-effort-group" data-model-base="Claude Sonnet 5.5">Claude Sonnet 5.5</span>
+                    <span class="shrink-0 opacity-70 text-xs">Medium</span>
+                    <span class="ag-badge">New</span>
+                  </span>
+                  <span class="flex shrink-0 pl-1 opacity-50">›</span>
+                </div>
               </div>
               <div role="menuitem" data-testid="model-selector-item" data-model-label="GPT-OSS 120B (Medium)" class="text-secondary-foreground">
                 <span class="ag-row-left">
@@ -366,7 +422,7 @@ const html = `<!DOCTYPE html>
 
       <div class="ag-composer-bar">
         <button type="button" data-testid="model-selector-trigger" id="ag-trigger" aria-label="Select model">
-          <span class="min-w-0">Gemini 4 Argon<span class="opacity-70"> High</span></span>
+          <span class="min-w-0">Gemini 4 Carbon<span class="opacity-70"> Medium</span></span>
         </button>
       </div>
     </main>
@@ -388,8 +444,8 @@ ${clientCode}
           themeLight: "切换亮色",
           themeTitle: "切换亮色/暗色主题",
           githubTitle: "查看 GitHub 开源仓库",
-          codexPill: "Codex 样式：Gemini 4 Argon",
-          claudePill: "Claude 样式：Claude Sonnet 5.5"
+          codexPill: "Codex 样式",
+          claudePill: "Claude Code 样式"
         },
         "zh-TW": {
           title: "Antigravity Codex & Claude 推理滑條 · 線上互動展示",
@@ -398,8 +454,8 @@ ${clientCode}
           themeLight: "切換亮色",
           themeTitle: "切換亮色/暗色主題",
           githubTitle: "查看 GitHub 開源倉庫",
-          codexPill: "Codex 樣式：Gemini 4 Argon",
-          claudePill: "Claude 樣式：Claude Sonnet 5.5"
+          codexPill: "Codex 樣式",
+          claudePill: "Claude Code 樣式"
         },
         "en": {
           title: "Antigravity Codex & Claude Effort Slider · Live Interactive Demo",
@@ -408,8 +464,8 @@ ${clientCode}
           themeLight: "Light Mode",
           themeTitle: "Toggle light/dark theme",
           githubTitle: "View GitHub repository",
-          codexPill: "Codex Style: Gemini 4 Argon",
-          claudePill: "Claude Style: Claude Sonnet 5.5"
+          codexPill: "Codex Style",
+          claudePill: "Claude Code Style"
         },
         "ru": {
           title: "Ползунок рассуждений Antigravity Codex и Claude · Демо",
@@ -418,8 +474,8 @@ ${clientCode}
           themeLight: "Светлая тема",
           themeTitle: "Переключить тему",
           githubTitle: "Открыть репозиторий GitHub",
-          codexPill: "Стиль Codex: Gemini 4 Argon",
-          claudePill: "Стиль Claude: Claude Sonnet 5.5"
+          codexPill: "Стиль Codex",
+          claudePill: "Стиль Claude Code"
         },
         "ja": {
           title: "Antigravity Codex & Claude 推論スライダー · オンラインデモ",
@@ -428,8 +484,8 @@ ${clientCode}
           themeLight: "ライトモード",
           themeTitle: "ライト/ダークテーマ切り替え",
           githubTitle: "GitHub リポジトリを表示",
-          codexPill: "Codex スタイル：Gemini 4 Argon",
-          claudePill: "Claude スタイル：Claude Sonnet 5.5"
+          codexPill: "Codex スタイル",
+          claudePill: "Claude Code スタイル"
         },
         "ko": {
           title: "Antigravity Codex & Claude 추론 슬라이더 · 온라인 데모",
@@ -438,8 +494,8 @@ ${clientCode}
           themeLight: "라이트 모드",
           themeTitle: "라이트/다크 테마 전환",
           githubTitle: "GitHub 저장소 보기",
-          codexPill: "Codex 스타일: Gemini 4 Argon",
-          claudePill: "Claude 스타일: Claude Sonnet 5.5"
+          codexPill: "Codex 스타일",
+          claudePill: "Claude Code 스타일"
         },
         "fr": {
           title: "Curseur de raisonnement Antigravity Codex & Claude · Démo",
@@ -448,8 +504,8 @@ ${clientCode}
           themeLight: "Mode clair",
           themeTitle: "Basculer entre thème clair et sombre",
           githubTitle: "Voir le dépôt GitHub",
-          codexPill: "Style Codex : Gemini 4 Argon",
-          claudePill: "Style Claude : Claude Sonnet 5.5"
+          codexPill: "Style Codex",
+          claudePill: "Style Claude Code"
         }
       };
 
@@ -509,9 +565,16 @@ ${clientCode}
       if (themeText) themeText.textContent = t.themeDark;
 
       var modelOptions = [
+        { label: "Gemini 4 Carbon (Low)", value: 1429 },
+        { label: "Gemini 4 Carbon (Medium)", value: 1428 },
+        { label: "Gemini 4 Carbon (High)", value: 1427 },
         { label: "Gemini 4 Argon (Low)", value: 1419 },
         { label: "Gemini 4 Argon (Medium)", value: 1418 },
         { label: "Gemini 4 Argon (High)", value: 1417 },
+        { label: "Gemini 4 Hydrogen (Low)", value: 1439 },
+        { label: "Gemini 4 Hydrogen (Medium)", value: 1438 },
+        { label: "Gemini 4 Hydrogen (High)", value: 1437 },
+        { label: "Gemini 4 Hydrogen (Extra)", value: 1436 },
         { label: "Gemini 3.8 Flash (Low)", value: 1320 },
         { label: "Gemini 3.8 Flash (Medium)", value: 1319 },
         { label: "Gemini 3.8 Flash (High)", value: 1318 },
@@ -527,29 +590,90 @@ ${clientCode}
       var triggerEl = document.getElementById("ag-trigger");
       var panelEl = document.getElementById("ag-panel");
       var pills = document.querySelectorAll(".ag-pill");
+      var styleGroups = document.querySelectorAll(".ag-model-group[data-style-group]");
+      var flashHoldTimer = null;
+      var flashFadeTimer = null;
 
-      function updateActivePills(modelLabel) {
-        var match = modelLabel.match(/^(.*?)\\s*\\((Low|Medium|High)\\)$/i);
-        var base = match ? match[1] : modelLabel;
+      function getStyleGroupForLabel(modelLabel) {
+        var match = String(modelLabel || "").match(/^(.*?)\\s*\\((Off|Low|Medium|High|Extra|xhigh|Max)\\)$/i);
+        var base = match ? match[1] : String(modelLabel || "");
+        if (/claude/i.test(base)) return "claude";
+        if (/gemini/i.test(base)) return "codex";
+        return "";
+      }
+
+      function clearStyleFlash() {
+        if (flashHoldTimer) {
+          clearTimeout(flashHoldTimer);
+          flashHoldTimer = null;
+        }
+        if (flashFadeTimer) {
+          clearTimeout(flashFadeTimer);
+          flashFadeTimer = null;
+        }
         pills.forEach(function (pill) {
-          var target = pill.getAttribute("data-target-base");
-          if (target === base) {
+          pill.classList.remove("active");
+          pill.classList.remove("is-fading");
+        });
+        styleGroups.forEach(function (groupEl) {
+          groupEl.classList.remove("is-highlighted");
+          groupEl.classList.remove("is-fading");
+        });
+      }
+
+      function triggerStyleFlash(targetGroup) {
+        clearStyleFlash();
+        if (!targetGroup) return;
+
+        void panelEl.offsetWidth;
+
+        var targetPills = [];
+        var targetGroupEls = [];
+
+        pills.forEach(function (pill) {
+          if (pill.getAttribute("data-style-group") === targetGroup) {
             pill.classList.add("active");
-          } else {
-            pill.classList.remove("active");
+            targetPills.push(pill);
           }
         });
+        styleGroups.forEach(function (groupEl) {
+          if (groupEl.getAttribute("data-style-group") === targetGroup) {
+            groupEl.classList.add("is-highlighted");
+            targetGroupEls.push(groupEl);
+          }
+        });
+
+        flashHoldTimer = setTimeout(function () {
+          flashHoldTimer = null;
+          targetPills.forEach(function (pill) {
+            pill.classList.add("is-fading");
+            pill.classList.remove("active");
+          });
+          targetGroupEls.forEach(function (groupEl) {
+            groupEl.classList.remove("is-highlighted");
+            groupEl.classList.add("is-fading");
+          });
+
+          flashFadeTimer = setTimeout(function () {
+            flashFadeTimer = null;
+            targetPills.forEach(function (pill) {
+              pill.classList.remove("is-fading");
+            });
+            targetGroupEls.forEach(function (groupEl) {
+              groupEl.classList.remove("is-fading");
+            });
+          }, 850);
+        }, 500);
       }
 
       var mockContextValue = {
         visibleModelConfigs: modelOptions,
-        currentModelConfig: modelOptions[2],
+        currentModelConfig: modelOptions[1],
         setModelConfigByLabelForConversation: function (label, convId, persist) {
           var found = modelOptions.find(function (m) { return m.label === label; });
           if (found) {
             mockContextValue.currentModelConfig = found;
             mockPopoverProps.selectedModel = found;
-            updateActivePills(found.label);
           }
         }
       };
@@ -558,7 +682,7 @@ ${clientCode}
         open: true,
         setIsOpen: function () {},
         modelOptions: modelOptions,
-        selectedModel: modelOptions[2],
+        selectedModel: modelOptions[1],
         setSelectedModel: function (opt) {
           if (opt && opt.label) {
             mockContextValue.setModelConfigByLabelForConversation(opt.label, "preview-conv", true);
@@ -647,15 +771,18 @@ ${clientCode}
 
       pills.forEach(function (pill) {
         pill.addEventListener("click", function () {
+          var targetGroup = pill.getAttribute("data-style-group");
           var targetBase = pill.getAttribute("data-target-base");
-          var row = document.querySelector('[data-model-row="' + targetBase + '"]');
-          if (row) {
-            row.click();
+          var currentGroup = getStyleGroupForLabel(mockContextValue.currentModelConfig.label);
+          triggerStyleFlash(targetGroup);
+          if (currentGroup !== targetGroup) {
+            var row = document.querySelector('[data-model-row="' + targetBase + '"]');
+            if (row) {
+              row.click();
+            }
           }
         });
       });
-
-      updateActivePills(mockContextValue.currentModelConfig.label);
     })();
   </script>
 </body>

@@ -7,6 +7,7 @@
     "test": "node test/client.test.mjs",
     "preview": "node preview/make-preview.mjs",
     "build:demo": "node preview/make-preview.mjs",
+    "render-video": "python video/generate-audio.py && node video/build-stage.mjs && python video/render.py",
     "inject": "node tools/inject-cdp.cjs",
     "eject": "node tools/inject-cdp.cjs --uninstall"
   },
