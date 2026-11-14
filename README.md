@@ -29,7 +29,7 @@
 
 >本人从未在互联网上诋毁过谷歌，并没有称Logan为小丑，也从未P过Gemini的傻龙图，本人所有“**北美豆包**”、“**又快又拉**”、“**只剩多模态能用**”相关形容，所指均是美国Mira公司发布的开放权重多模态模型Inkling。本人实际上是谷歌十年老粉，即使在3.1Pro的至暗时刻依然矢志不渝坚持撸猫的忠实用户，经过长时间的思考，我发现Gemini才是美国AI的希望，有时候做出决定很难，经过许多个日夜的思考，我决定加入Gemini（哈基米）粉丝团。至于OpenAI和Anthropic，祝他们的闭源模型一切顺利！
 
-## [点我在线交互演示](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
+## [点我在线交互演示](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)  [BiliBili视频演示](https://www.bilibili.com/video/BV1Krs363EAu/?share_source=copy_web&vd_source=c8828a7ec477afc7c143a2491eab71ca)
 
 
 | 模型 | 亮色 | 暗色 |
