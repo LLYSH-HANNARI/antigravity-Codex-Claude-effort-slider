@@ -50,6 +50,12 @@
 ---
 ## 快速安装与使用
 
+> [!NOTE]
+> ### 版本支持与更新提示
+> - **当前已验证支持版本**：Antigravity 桌面端 **2.32.1**、Antigravity IDE **2.7.0**。
+> - **更新会导致补丁失效**：Antigravity 客户端或 IDE 每次更新都会替换覆盖本地的 `resources/app.asar`（及 `main.js`）文件，导致已注入的补丁失效，更新后需重新运行一次 [`install.cmd`](./install.cmd)（或 `npm run install-patch`）即可恢复。
+> - **更新建议**：若当前版本运行稳定，**建议非必要少更新**，以免频繁重装补丁或遇到新版结构变动导致兼容问题。
+
 ### 方式一：双击一键持久安装（推荐）
 直接双击项目根目录下的 **[`install.cmd`](./install.cmd)**（或在终端运行 `npm run install-patch`）：
 1. **持久启动补丁**：自动备份并修补 Antigravity 桌面端 `resources/app.asar`（通过 `electron.webFrame.executeJavaScript` 将滑条注入渲染进程 Main World，并自动更新 PE Integrity SHA-256 校验值）及 Antigravity IDE（`resources/app/out/jetskiAgent/main.js`），今后每次启动 Antigravity 自动生效。
