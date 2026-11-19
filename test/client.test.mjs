@@ -1111,4 +1111,186 @@ test("9. Extra 档位兼容解析与 Gemini 4 Hydrogen 四档模型配置", () =
   assert.equal(profHydrogen.currentLabel, "Extra");
 });
 
+test("10. 模型行 √ 稳态显示、未选中行等宽占位及面板防收缩宽度锁定", () => {
+  function makeMockNode(tag) {
+    const attrs = new Map();
+    const classes = new Set();
+    const listeners = new Map();
+    const styleProps = new Map();
+    const node = {
+      tagName: String(tag || "div").toUpperCase(),
+      id: "",
+      textContent: "",
+      children: [],
+      parentNode: null,
+      parentElement: null,
+      offsetWidth: 0,
+      style: {
+        setProperty(k, v) { styleProps.set(k, String(v)); },
+        getPropertyValue(k) { return styleProps.get(k) || ""; }
+      },
+      classList: {
+        add(c) { classes.add(c); },
+        remove(c) { classes.delete(c); },
+        contains(c) { return classes.has(c); }
+      },
+      setAttribute(k, v) { attrs.set(k, String(v)); },
+      getAttribute(k) { return attrs.has(k) ? attrs.get(k) : null; },
+      hasAttribute(k) { return attrs.has(k); },
+      removeAttribute(k) { attrs.delete(k); },
+      appendChild(child) {
+        child.parentNode = node;
+        child.parentElement = node;
+        node.children.push(child);
+        return child;
+      },
+      insertBefore(child, before) {
+        child.parentNode = node;
+        child.parentElement = node;
+        const idx = node.children.indexOf(before);
+        if (idx >= 0) node.children.splice(idx, 0, child);
+        else node.children.push(child);
+        return child;
+      },
+      removeChild(child) {
+        const idx = node.children.indexOf(child);
+        if (idx >= 0) node.children.splice(idx, 1);
+        child.parentNode = null;
+        child.parentElement = null;
+        return child;
+      },
+      addEventListener(type, fn) {
+        if (!listeners.has(type)) listeners.set(type, []);
+        listeners.get(type).push(fn);
+      },
+      removeEventListener(type, fn) {
+        const arr = listeners.get(type) || [];
+        const idx = arr.indexOf(fn);
+        if (idx >= 0) arr.splice(idx, 1);
+      },
+      querySelector(sel) {
+        for (const ch of node.children) {
+          if (sel === '[data-testid="model-selector-panel"]' && ch.getAttribute("data-testid") === "model-selector-panel") return ch;
+          const nested = ch.querySelector ? ch.querySelector(sel) : null;
+          if (nested) return nested;
+        }
+        return null;
+      },
+      querySelectorAll() { return []; },
+      closest(sel) {
+        let cur = node;
+        while (cur) {
+          if (sel === '[role="menu"]' && cur.getAttribute("role") === "menu") return cur;
+          cur = cur.parentElement;
+        }
+        return null;
+      },
+      contains(target) {
+        let cur = target;
+        while (cur) {
+          if (cur === node) return true;
+          cur = cur.parentElement;
+        }
+        return false;
+      }
+    };
+    Object.defineProperty(node, "firstElementChild", {
+      get() { return node.children[0] || null; }
+    });
+    Object.defineProperty(node, "nextSibling", {
+      get() {
+        if (!node.parentNode) return null;
+        const idx = node.parentNode.children.indexOf(node);
+        return idx >= 0 ? node.parentNode.children[idx + 1] || null : null;
+      }
+    });
+    return node;
+  }
+
+  const head = makeMockNode("head");
+  const body = makeMockNode("body");
+  const popup = makeMockNode("div");
+  popup.setAttribute("role", "menu");
+  popup.offsetWidth = 288;
+
+  const panel = makeMockNode("div");
+  panel.setAttribute("data-testid", "model-selector-panel");
+  const listWrap = makeMockNode("div");
+  panel.appendChild(listWrap);
+  popup.appendChild(panel);
+  body.appendChild(popup);
+
+  const opts = [
+    { label: "Gemini 4 Hydrogen (Low)", value: 1439 },
+    { label: "Gemini 4 Hydrogen (Medium)", value: 1438 },
+    { label: "Gemini 4 Hydrogen (High)", value: 1437 }
+  ];
+  panel.__reactFiber$width = {
+    memoizedProps: {
+      open: true,
+      setIsOpen() {},
+      setSelectedModel() {},
+      modelOptions: opts,
+      selectedModel: opts[2]
+    },
+    return: null
+  };
+
+  const mockDoc = {
+    head,
+    body,
+    activeElement: null,
+    createElement: makeMockNode,
+    getElementById(id) {
+      for (const ch of head.children) {
+        if (ch.id === id) return ch;
+      }
+      return null;
+    },
+    querySelector(sel) {
+      return body.querySelector(sel);
+    },
+    querySelectorAll() { return []; }
+  };
+
+  const mockWin = {
+    performance: { now: () => 1000 },
+    matchMedia: () => ({ matches: false }),
+    requestAnimationFrame: (cb) => { cb(); return 1; }
+  };
+
+  // 1. 验证注入 CSS 包含 √ 稳态显示与未选中行等宽占位规则
+  const styleEl = slider.installStyles(mockDoc);
+  const css = styleEl.textContent;
+  assert.ok(css.includes(".group-focus\\:hidden"), "必须覆盖 group-focus:hidden 防止失焦/聚焦切换导致 √ 显隐跳动");
+  assert.ok(css.includes("span:not(:first-child):not(:last-child)"), "必须按结构兜底选中行中间 √ 节点始终稳态可见");
+  assert.ok(css.includes("visibility: visible !important;"), "必须强制选中行 √ 保持 visibility: visible");
+  assert.ok(css.includes("span:first-child + span.shrink-0:last-child"), "未选中行末尾 › 必须使用 visibility: hidden 保留等宽占位");
+  assert.ok(css.includes("visibility: hidden !important;"), "未选中行占位不可使用 display: none 塌缩宽度");
+
+  // 2. 验证面板宽度锁定：初始 288px -> 尝试收缩到 270px 仍锁定 288px -> 增宽至 296px 单调更新
+  const obs = slider.installAntigravityObserver({ document: mockDoc, window: mockWin });
+  assert.equal(popup.getAttribute("data-ces-locked-width"), "288");
+  assert.equal(popup.style.minWidth, "288px");
+  assert.equal(panel.style.minWidth, "100%");
+
+  popup.offsetWidth = 270;
+  obs.rescan();
+  assert.equal(popup.getAttribute("data-ces-locked-width"), "288", "面板宽度锁绝不应向回收缩");
+  assert.equal(popup.style.minWidth, "288px");
+
+  popup.offsetWidth = 296;
+  obs.rescan();
+  assert.equal(popup.getAttribute("data-ces-locked-width"), "296");
+  assert.equal(popup.style.minWidth, "296px");
+
+  // 3. 面板关闭卸载时清理宽度锁
+  body.removeChild(popup);
+  obs.rescan();
+  assert.equal(popup.getAttribute("data-ces-locked-width"), null);
+  assert.equal(popup.style.minWidth, "");
+  assert.equal(panel.style.minWidth, "");
+  obs.stop();
+});
+
 console.log(`All ${passedCount} test suites passed!`);

@@ -1661,11 +1661,22 @@
     "  pointer-events: none !important;",
     "  opacity: 0 !important;",
     "}",
-    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > span.shrink-0:last-child {",
+    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-hover\\:hidden,",
+    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-focus\\:hidden,",
+    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-focus-visible\\:hidden,",
+    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > [class*='highlighted:hidden'],",
+    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > span:not(:first-child):not(:last-child) {",
+    "  display: flex !important;",
+    "  visibility: visible !important;",
+    "  opacity: 1 !important;",
+    "}",
+    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > span:not(:first-child) + span.shrink-0:last-child:not(.group-hover\\:hidden):not(.group-focus\\:hidden):not(.ml-auto) {",
     "  display: none !important;",
     "}",
-    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-hover\\:hidden {",
+    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > span:first-child + span.shrink-0:last-child:not(.group-hover\\:hidden):not(.group-focus\\:hidden):not(.ml-auto) {",
     "  display: flex !important;",
+    "  visibility: hidden !important;",
+    "  pointer-events: none !important;",
     "}",
     "[role='menuitem'][data-ces-model-selected='true'] {",
     "  background-color: rgba(128, 128, 145, 0.14);",
@@ -3524,6 +3535,48 @@
       });
     }
 
+    function resolvePanelWidthTarget(panel) {
+      if (!panel) return null;
+      var popup = typeof panel.closest === "function" ? panel.closest('[role="menu"]') : null;
+      return popup || panel;
+    }
+
+    function stabilizePanelWidth(panel) {
+      var target = resolvePanelWidthTarget(panel);
+      if (!target || !target.style) return;
+      var layoutW = Number(target.offsetWidth) || 0;
+      if (!(layoutW > 0) && typeof target.getBoundingClientRect === "function") {
+        var rect = target.getBoundingClientRect();
+        layoutW = rect && rect.width > 0 ? Math.ceil(rect.width) : 0;
+      }
+      if (!(layoutW > 0)) return;
+      var prevLocked = Number(target.getAttribute("data-ces-locked-width") || "0");
+      var nextLocked = Math.max(prevLocked, layoutW);
+      if (nextLocked > prevLocked) {
+        target.setAttribute("data-ces-locked-width", String(nextLocked));
+        target.style.minWidth = nextLocked + "px";
+        if (panel !== target && panel.style && panel.style.minWidth !== "100%") {
+          panel.style.minWidth = "100%";
+        }
+      }
+    }
+
+    function clearPanelWidthLock(panel) {
+      if (!panel) return;
+      var target = resolvePanelWidthTarget(panel);
+      if (target && target.style && target.hasAttribute && target.hasAttribute("data-ces-locked-width")) {
+        target.removeAttribute("data-ces-locked-width");
+        target.style.minWidth = "";
+      }
+      if (panel.style && panel.hasAttribute && panel.hasAttribute("data-ces-locked-width")) {
+        panel.removeAttribute("data-ces-locked-width");
+        panel.style.minWidth = "";
+      }
+      if (panel !== target && panel.style && panel.style.minWidth === "100%") {
+        panel.style.minWidth = "";
+      }
+    }
+
     function getLiveContext() {
       var trigger = findAntigravityTrigger(doc);
       var panel = findAntigravityPanel(doc);
@@ -3655,6 +3708,8 @@
           }
         }
       }
+
+      stabilizePanelWidth(panel);
     }
 
     var agSeatAdapter = {
@@ -3988,6 +4043,9 @@
           activePanel.__cesAgResetUsageHover();
         } catch (e) {}
       }
+      if (activePanel) {
+        clearPanelWidthLock(activePanel);
+      }
       if (doc && doc.activeElement && activeSection && activeSection.contains(doc.activeElement)) {
         try {
           doc.activeElement.blur();
@@ -4103,6 +4161,19 @@
           }
         }
       });
+
+      stabilizePanelWidth(panel);
+      try {
+        if (win && typeof win.requestAnimationFrame === "function") {
+          win.requestAnimationFrame(function () {
+            if (activePanel === panel && doc.body && doc.body.contains(panel)) {
+              stabilizePanelWidth(panel);
+            }
+          });
+        }
+      } catch (err) {
+
+      }
 
       try {
         if (win && typeof win.dispatchEvent === "function" && typeof win.Event === "function") {

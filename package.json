@@ -1,6 +1,6 @@
 {
   "name": "antigravity-codex-effort-slider",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "Codex 风格推理等级滑条（适配 Google Antigravity）—— 底部专属推理等级滑条、跨档位边界即时切换、22 星尘粒子与深紫星云特效、支持 app.asar 持久安装与 CDP 免重启热注入",
   "main": "./lib/client.js",
   "scripts": {
