@@ -392,7 +392,7 @@ test("5. 拖动滑条跨边界即时切档（pointerdown + pointermove 无需等
   const mockWin = {
     localStorage: {
       getItem() {
-        return JSON.stringify({ v: 1, anim: "fast", ticks: "highlight", height: "1x", debug: false });
+        return JSON.stringify({ v: 1, motion: "fast", ticks: "highlight" });
       },
       setItem() {}
     },
@@ -682,6 +682,12 @@ test("6. Claude 模型识别、原生三档映射、Ultracode 像素点阵抖动
   const mockWin = {
     innerWidth: 800,
     innerHeight: 600,
+    localStorage: {
+      getItem() {
+        return JSON.stringify({ v: 1, motion: "fast", ticks: "highlight" });
+      },
+      setItem() {}
+    },
     requestAnimationFrame() { return 1; },
     cancelAnimationFrame() {},
     performance: { now: () => 100 }
@@ -1989,10 +1995,10 @@ test("13. 高频拖动零强制回流、零设置读取与 1× Fiber 快照", ()
   trackEl.dispatch("pointerdown", { clientX: 14 });
   assert.equal(rectReads, 1, "仅 pointerdown 读取一次轨道 getBoundingClientRect");
 
-  // 统计同档位单次 pointermove 的 Fiber 遍历次数（单次快照应只遍历 1×，而非旧版 6×）
+  // 统计同档位单次 pointermove 的 Fiber 遍历次数（拖动期快照缓存生效后应为 0×）
   fiberReads = 0;
   trackEl.dispatch("pointermove", { clientX: 20 });
-  assert.equal(fiberReads, 1, "同档位 pointermove 单次快照仅应遍历 Fiber 1 次（非 6×）");
+  assert.equal(fiberReads, 0, "同档位 pointermove 拖动期快照缓存应 0 次遍历 Fiber");
   assert.equal(rowDecorWrites, 0, "同档位移动不应重复写入面板模型行");
 
   // 重置 storage 计数器，继续拖动 29 次跨过 Medium -> High -> Low 再松手
@@ -2531,6 +2537,818 @@ test("17. 适配 Antigravity IDE 新版 slug 键 effortIndex（含 WeakMap 缓�
   assert.equal(rootEl.getAttribute("aria-valuemax"), "3", "Gemini 4 Neon 应展示 4 档刻度 (0..3)");
   assert.equal(panel.querySelectorAll('[data-ces-part="tick"]').length, 4);
 
+  obs.stop();
+});
+
+test("18. 2.34.0 Extra High 统一缩写解析、Orchestrator Fiber 上下文提取与规划器档位解析/提交", () => {
+  // 1. Extra High 括号与无括号展示文案统一归并为 xhigh -> "Extra"
+  assert.deepEqual(slider.parseModelLabel("Gemini 4 Neon (Extra High)"), {
+    base: "Gemini 4 Neon",
+    effort: "xhigh",
+    effortLabel: "Extra"
+  });
+  assert.deepEqual(slider.parseModelDisplayText("Gemini 4 Neon Extra High"), {
+    base: "Gemini 4 Neon",
+    effort: "xhigh",
+    effortLabel: "Extra"
+  });
+  assert.deepEqual(slider.parseModelDisplayText("Claude Opus 5.5 Medium"), {
+    base: "Claude Opus 5.5",
+    effort: "medium",
+    effortLabel: "Medium"
+  });
+
+  // 2. Orchestrator 选项识别
+  assert.equal(slider.isOrchestratorOption({ label: "Orchestrator", modelId: "gemini-pro-orchestrator", value: 1600 }), true);
+  assert.equal(slider.isOrchestratorOption({ label: "Orchestrator", modelId: "gemini-pro-coordinator", value: 1601 }), true);
+  assert.equal(slider.isOrchestratorOption({ label: "Gemini 4 Neon (High)", modelId: "gemini-4-neon-high", value: 1452 }), false);
+
+  // 3. 构造 Antigravity 2.34.0 真实 Fiber 上下文（orchestratorPlanners / orchestratorPlannerIndex / orchestratorPick）
+  const neonPlanners = [
+    { label: "Gemini 4 Neon (Low)", modelId: "gemini-4-neon-low", value: 1450 },
+    { label: "Gemini 4 Neon (Medium)", modelId: "gemini-4-neon-medium", value: 1451 },
+    { label: "Gemini 4 Neon (High)", modelId: "gemini-4-neon-high", value: 1452 },
+    { label: "Gemini 4 Neon (Extra High)", modelId: "gemini-4-neon-xhigh", value: 1453 }
+  ];
+  const argonPlanners = [
+    { label: "Gemini 4 Argon (Low)", modelId: "gemini-4-argon-low", value: 1460 },
+    { label: "Gemini 4 Argon (Medium)", modelId: "gemini-4-argon-medium", value: 1461 },
+    { label: "Gemini 4 Argon (High)", modelId: "gemini-4-argon-high", value: 1462 }
+  ];
+  const claudePlanners = [
+    { label: "Claude Opus 5.5 (Low)", modelId: "claude-opus-5-5-low", value: 1470 },
+    { label: "Claude Opus 5.5 (Medium)", modelId: "claude-opus-5-5-medium", value: 1471 },
+    { label: "Claude Opus 5.5 (High)", modelId: "claude-opus-5-5-high", value: 1472 }
+  ];
+  const orchOpt = { label: "Orchestrator", modelId: "gemini-pro-orchestrator", value: 1600 };
+  const flashOpt = { label: "Gemini 3.8 Flash (Medium)", modelId: "gemini-3.8-flash-medium", value: 1321 };
+
+  const orchestratorPlanners = [...neonPlanners, ...argonPlanners, ...claudePlanners];
+  const orchestratorPlannerIndex = new Map([
+    ["gemini-4-neon", new Map([
+      ["low", neonPlanners[0]],
+      ["medium", neonPlanners[1]],
+      ["high", neonPlanners[2]],
+      ["xhigh", neonPlanners[3]]
+    ])],
+    ["gemini-4-argon", new Map([
+      ["low", argonPlanners[0]],
+      ["medium", argonPlanners[1]],
+      ["high", argonPlanners[2]]
+    ])],
+    ["claude-opus-5-5", new Map([
+      ["low", claudePlanners[0]],
+      ["medium", claudePlanners[1]],
+      ["high", claudePlanners[2]]
+    ])]
+  ]);
+
+  const orchPickCalls = [];
+  const modelSelectCalls = [];
+  const setIsOpenCalls = [];
+  let currentOrchVal = 1453; // Neon Extra High
+  const orchestratorPick = {
+    get model() { return currentOrchVal; },
+    select(val) {
+      orchPickCalls.push(val);
+      currentOrchVal = val;
+    }
+  };
+
+  const modelOptions = [orchOpt, ...neonPlanners, flashOpt, ...claudePlanners];
+  const effortIndex = new Map([
+    ["gemini-4-neon", new Map([
+      ["low", neonPlanners[0]],
+      ["medium", neonPlanners[1]],
+      ["high", neonPlanners[2]],
+      ["xhigh", neonPlanners[3]]
+    ])],
+    ["claude-opus-5-5", new Map([
+      ["low", claudePlanners[0]],
+      ["medium", claudePlanners[1]],
+      ["high", claudePlanners[2]]
+    ])]
+  ]);
+
+  const providerValue = {
+    effortIndex,
+    modelOptions,
+    selectedModel: orchOpt,
+    groups: [],
+    orchestratorPlanners,
+    orchestratorPlannerIndex,
+    orchestratorDefaultPlanner: neonPlanners[3],
+    orchestratorPick
+  };
+  const outerPopoverFiber = {
+    memoizedProps: {
+      open: true,
+      setIsOpen(v) { setIsOpenCalls.push(v); },
+      setSelectedModel(opt) { modelSelectCalls.push(opt); },
+      modelOptions,
+      selectedModel: orchOpt,
+      orchestratorPick
+    },
+    return: { memoizedProps: { conversationId: "conv-orch-234", placement: "top-start" }, return: null }
+  };
+  const innerPopoverFiber = {
+    memoizedProps: {
+      open: true,
+      setIsOpen(v) { setIsOpenCalls.push(v); },
+      setSelectedModel(opt) { modelSelectCalls.push(opt); setIsOpenCalls.push(false); },
+      modelOptions,
+      selectedModel: orchOpt
+    },
+    return: outerPopoverFiber
+  };
+  const providerFiber = { memoizedProps: { value: providerValue }, return: innerPopoverFiber };
+
+  const ctx = slider.readAntigravityFiberContext({ __reactFiber$orch: providerFiber });
+  assert.ok(ctx);
+  assert.equal(ctx.hasOrchestratorPlanners, true);
+  assert.equal(ctx.isOrchestratorSelected, true);
+  assert.equal(ctx.orchestratorPlanners.length, 10);
+  assert.equal(ctx.orchestratorModelOption.value, 1600);
+  assert.equal(ctx.orchestratorPlannerIndex.get("Gemini 4 Neon").size, 4);
+
+  // 通过 resolveModelEffortProfile 统一解析当前选中的 Orchestrator 规划器
+  const profActive = slider.resolveModelEffortProfile(ctx, orchOpt, new Map(), new Map());
+  assert.equal(profActive.isOrchestrator, true);
+  assert.equal(profActive.baseName, "Gemini 4 Neon");
+  assert.equal(profActive.locked, false);
+  assert.equal(profActive.isClaude, false);
+  assert.equal(profActive.theme, "codex");
+  assert.deepEqual(profActive.levels.map((l) => l.label), ["Low", "Medium", "High", "Extra"]);
+  assert.equal(profActive.currentIndex, 3);
+  assert.equal(profActive.currentLabel, "Extra");
+
+  // 切到 Claude Opus 5.5 规划器应自动使用 claude 主题
+  const profClaudeOrch = slider.resolveOrchestratorPlannerProfile(ctx, "Claude Opus 5.5", new Map());
+  assert.equal(profClaudeOrch.isOrchestrator, true);
+  assert.equal(profClaudeOrch.isClaude, true);
+  assert.equal(profClaudeOrch.theme, "claude");
+  assert.equal(profClaudeOrch.levels.length, 3);
+  assert.equal(profClaudeOrch.currentLabel, "Medium");
+
+  // 当 orchestratorPick.model 为 0 (UNSPECIFIED) 时，应能从 DOM 兜底反查用户在全局 Settings 修改的默认规划器
+  currentOrchVal = 0;
+  const env = createPerfTestEnv();
+  const orchModelEl = env.makeNode("span");
+  orchModelEl.setAttribute("data-testid", "model-selector-orchestrator-model");
+  orchModelEl.textContent = "Claude Opus 5.5 High";
+  env.body.appendChild(orchModelEl);
+  const resolvedDomPlanner = slider.resolveCurrentOrchestratorPlanner(ctx, env.doc);
+  assert.equal(resolvedDomPlanner.value, 1472, "UNSPECIFIED 时应能从 DOM 反查全局设定的 Claude Opus 5.5 High");
+
+  // 提交规划器：已选中 Orchestrator 时仅调用 orchestratorPick.select，不重复触发 setSelectedModel
+  slider.commitOrchestratorPlannerOption(ctx, argonPlanners[2], false);
+  assert.deepEqual(orchPickCalls, [1462]);
+  assert.equal(modelSelectCalls.length, 0);
+
+  // 未选中 Orchestrator 时传入 ensureOrchestratorSelected = true，同时切换到 Orchestrator 且不关菜单
+  slider.commitOrchestratorPlannerOption(ctx, claudePlanners[1], true);
+  assert.deepEqual(orchPickCalls, [1462, 1471]);
+  assert.equal(modelSelectCalls.length, 1);
+  assert.equal(modelSelectCalls[0].value, 1600);
+  assert.ok(!setIsOpenCalls.includes(false), "提交 Orchestrator 不得关闭菜单");
+});
+
+test("19. Orchestrator 全链路交互：主行与二级子菜单拦截、第 3 级屏蔽、副标题、仅末尾着色及独立档位记忆", () => {
+  const env = createPerfTestEnv({ withMO: true, withRO: true });
+
+  // 1. 样式规则校验：屏蔽第 3 级档位菜单，保留第 2 级，不隐藏主行箭头
+  const styleEl = slider.installStyles(env.doc);
+  const css = styleEl.textContent;
+  assert.ok(
+    css.includes("[role='menu']:has([data-testid='orchestrator-picker-effort']):not(:has([data-testid='model-selector-panel'])):not(:has([data-testid='orchestrator-picker-row']))"),
+    "CSS 必须屏蔽第 3 级 orchestrator-picker-effort 子菜单并保护主面板及第 2 级子菜单"
+  );
+  assert.ok(css.includes(".ces-ag-orch-submenu [data-testid='orchestrator-picker-row']"), "CSS 应接管第 2 级子菜单稳态 √ 与等宽占位");
+  assert.ok(!css.includes("model-selector-orchestrator'] > span:first-child + span.shrink-0"), "不得隐藏 Orchestrator 主行右侧 › 箭头");
+
+  // 2. 构造完整 2.34.0 DOM（触发按钮 + 主面板 + 独立 Portal 二级子菜单）
+  const neonPlanners = [
+    { label: "Gemini 4 Neon (Low)", modelId: "gemini-4-neon-low", value: 1450 },
+    { label: "Gemini 4 Neon (Medium)", modelId: "gemini-4-neon-medium", value: 1451 },
+    { label: "Gemini 4 Neon (High)", modelId: "gemini-4-neon-high", value: 1452 },
+    { label: "Gemini 4 Neon (Extra High)", modelId: "gemini-4-neon-xhigh", value: 1453 }
+  ];
+  const argonPlanners = [
+    { label: "Gemini 4 Argon (Low)", modelId: "gemini-4-argon-low", value: 1460 },
+    { label: "Gemini 4 Argon (Medium)", modelId: "gemini-4-argon-medium", value: 1461 },
+    { label: "Gemini 4 Argon (High)", modelId: "gemini-4-argon-high", value: 1462 }
+  ];
+  const claudePlanners = [
+    { label: "Claude Opus 5.5 (Low)", modelId: "claude-opus-5-5-low", value: 1470 },
+    { label: "Claude Opus 5.5 (Medium)", modelId: "claude-opus-5-5-medium", value: 1471 },
+    { label: "Claude Opus 5.5 (High)", modelId: "claude-opus-5-5-high", value: 1472 }
+  ];
+  const flashOpts = [
+    { label: "Gemini 3.8 Flash (Low)", modelId: "gemini-3.8-flash-low", value: 1320 },
+    { label: "Gemini 3.8 Flash (Medium)", modelId: "gemini-3.8-flash-medium", value: 1321 },
+    { label: "Gemini 3.8 Flash (High)", modelId: "gemini-3.8-flash-high", value: 1322 }
+  ];
+  const orchOpt = { label: "Orchestrator", modelId: "gemini-pro-orchestrator", value: 1600 };
+
+  const modelOptions = [orchOpt, ...neonPlanners, ...flashOpts, ...claudePlanners];
+  const orchestratorPlanners = [...neonPlanners, ...argonPlanners, ...claudePlanners];
+  const effortIndex = new Map([
+    ["gemini-4-neon", new Map([["low", neonPlanners[0]], ["medium", neonPlanners[1]], ["high", neonPlanners[2]], ["xhigh", neonPlanners[3]]])],
+    ["gemini-3.8-flash", new Map([["low", flashOpts[0]], ["medium", flashOpts[1]], ["high", flashOpts[2]]])],
+    ["claude-opus-5-5", new Map([["low", claudePlanners[0]], ["medium", claudePlanners[1]], ["high", claudePlanners[2]]])]
+  ]);
+  const orchestratorPlannerIndex = new Map([
+    ["gemini-4-neon", new Map([["low", neonPlanners[0]], ["medium", neonPlanners[1]], ["high", neonPlanners[2]], ["xhigh", neonPlanners[3]]])],
+    ["gemini-4-argon", new Map([["low", argonPlanners[0]], ["medium", argonPlanners[1]], ["high", argonPlanners[2]]])],
+    ["claude-opus-5-5", new Map([["low", claudePlanners[0]], ["medium", claudePlanners[1]], ["high", claudePlanners[2]]])]
+  ]);
+
+  let isMenuOpen = true;
+  let selectedModel = flashOpts[1]; // 初始选中普通模型 Gemini 3.8 Flash (Medium)
+  let orchModelVal = 0; // UNSPECIFIED -> 默认 Neon Extra High
+  const orchSelectCalls = [];
+  const modelSelectCalls = [];
+
+  const orchestratorPick = {
+    get model() { return orchModelVal; },
+    select(val) {
+      orchSelectCalls.push(val);
+      orchModelVal = val;
+    }
+  };
+  const providerValue = {
+    effortIndex,
+    modelOptions,
+    get selectedModel() { return selectedModel; },
+    groups: [],
+    orchestratorPlanners,
+    orchestratorPlannerIndex,
+    orchestratorDefaultPlanner: neonPlanners[3],
+    orchestratorPick
+  };
+  const popoverFiber = {
+    memoizedProps: {
+      get open() { return isMenuOpen; },
+      setIsOpen(v) { isMenuOpen = v; },
+      setSelectedModel(opt) {
+        modelSelectCalls.push(opt.label);
+        selectedModel = opt;
+      },
+      modelOptions,
+      get selectedModel() { return selectedModel; },
+      orchestratorPick
+    },
+    return: { memoizedProps: { conversationId: "conv-orch-ui", placement: "top-start" }, return: null }
+  };
+  const providerFiber = { memoizedProps: { value: providerValue }, return: popoverFiber };
+
+  const triggerBtn = env.makeNode("button");
+  triggerBtn.setAttribute("data-testid", "model-selector-trigger");
+  const trigOuterSpan = env.makeNode("span");
+  trigOuterSpan.classList.add("min-w-0");
+  const trigMainText = { nodeType: 3, nodeValue: "Gemini 3.8 Flash" };
+  Object.defineProperty(trigOuterSpan, "firstChild", { get() { return trigMainText; } });
+  const trigEffSpan = env.makeNode("span");
+  trigEffSpan.classList.add("opacity-70");
+  trigEffSpan.textContent = " Medium";
+  trigOuterSpan.appendChild(trigEffSpan);
+  triggerBtn.appendChild(trigOuterSpan);
+  triggerBtn.__reactFiber$orch = providerFiber;
+  env.body.appendChild(triggerBtn);
+
+  const popup = env.makeNode("div");
+  popup.setAttribute("role", "menu");
+  const panel = env.makeNode("div");
+  panel.setAttribute("data-testid", "model-selector-panel");
+  panel.__reactFiber$orch = providerFiber;
+  const listWrap = env.makeNode("div");
+
+  // 主菜单 Orchestrator 行
+  const orchRow = env.makeNode("div");
+  orchRow.setAttribute("role", "menuitem");
+  orchRow.setAttribute("data-testid", "model-selector-orchestrator");
+  orchRow.setAttribute("data-model-label", "Orchestrator");
+  const orchRowLeft = env.makeNode("span");
+  const orchNameLabel = env.makeNode("span");
+  orchNameLabel.textContent = "Orchestrator";
+  const orchModelSpan = env.makeNode("span");
+  orchModelSpan.setAttribute("data-testid", "model-selector-orchestrator-model");
+  orchModelSpan.className = "min-w-0 truncate opacity-70 text-sm";
+  orchModelSpan.textContent = "Gemini 4 Neon Extra High";
+  orchRowLeft.appendChild(orchNameLabel);
+  orchRowLeft.appendChild(orchModelSpan);
+  orchRow.appendChild(orchRowLeft);
+  listWrap.appendChild(orchRow);
+
+  function addGroupRow(base) {
+    const item = env.makeNode("div");
+    item.setAttribute("role", "menuitem");
+    const gSpan = env.makeNode("span");
+    gSpan.setAttribute("data-testid", "model-selector-effort-group");
+    gSpan.setAttribute("data-model-base", base);
+    gSpan.textContent = base;
+    const sib = env.makeNode("span");
+    sib.className = "shrink-0 opacity-70 text-xs";
+    item.appendChild(gSpan);
+    item.appendChild(sib);
+    listWrap.appendChild(item);
+    return { item, gSpan, sib };
+  }
+  const neonRow = addGroupRow("Gemini 4 Neon");
+  const flashRow = addGroupRow("Gemini 3.8 Flash");
+  const claudeRow = addGroupRow("Claude Opus 5.5");
+
+  panel.appendChild(listWrap);
+  popup.appendChild(panel);
+  env.body.appendChild(popup);
+
+  const obs = slider.installAntigravityObserver({ document: env.doc, window: env.win });
+
+  // 验证初始渲染：Orchestrator 主行已拆分为柔和名 + 亮紫 Extra；主列表选中 Flash
+  assert.equal(orchRow.getAttribute("data-ces-model-selected"), "false");
+  assert.equal(flashRow.item.getAttribute("data-ces-model-selected"), "true");
+  const initOrchNamePart = orchModelSpan.querySelector('[data-ces-part="orch-model-name"]');
+  const initOrchEffPart = orchModelSpan.querySelector('[data-ces-part="orch-effort"]');
+  assert.equal(initOrchNamePart.textContent, "Gemini 4 Neon ");
+  assert.equal(initOrchNamePart.style.opacity, "0.7");
+  assert.equal(initOrchEffPart.textContent, "Extra");
+  assert.equal(initOrchEffPart.style.color, "#8b5cf6");
+
+  const rootEl = panel.querySelector('[role="slider"]');
+  const subtitleEl = panel.querySelector('[data-ces-part="subtitle"]');
+  assert.equal(subtitleEl.style.display, "none", "普通模型下副标题应隐藏");
+
+  // 3. 点击主菜单 Orchestrator 行：保持菜单常开，切换为 Orchestrator (Neon Extra)，仅末尾 Extra 着色，普通 Neon 行不高亮
+  panel.dispatch("click", { target: orchRow });
+  assert.equal(isMenuOpen, true, "点击 Orchestrator 不得关闭菜单");
+  assert.deepEqual(modelSelectCalls, ["Orchestrator"]);
+  assert.equal(orchRow.getAttribute("data-ces-model-selected"), "true");
+  assert.equal(neonRow.item.getAttribute("data-ces-model-selected"), "false", "主列表同名 Gemini 4 Neon 不得与 Orchestrator 同时高亮");
+  assert.equal(subtitleEl.textContent, "· Gemini 4 Neon");
+  assert.equal(subtitleEl.style.display, "");
+  assert.equal(rootEl.getAttribute("data-theme"), "codex");
+  assert.equal(rootEl.getAttribute("aria-valuemax"), "3", "Neon 规划器应具备 4 档刻度 (0..3)");
+  assert.equal(trigMainText.nodeValue, "Orchestrator");
+  assert.equal(trigEffSpan.querySelector('[data-ces-part="trigger-orch-name"]').textContent, " Gemini 4 Neon ");
+  assert.equal(trigEffSpan.querySelector('[data-ces-part="trigger-orch-name"]').style.opacity, "0.7");
+  assert.equal(trigEffSpan.querySelector('[data-ces-part="trigger-orch-effort"]').textContent, "Extra");
+  assert.equal(trigEffSpan.querySelector('[data-ces-part="trigger-orch-effort"]').style.color, "#8b5cf6");
+
+  // 4. 打开右侧二级子菜单（模拟 Portal 挂载到 body），验证装扮与点击切换 Claude Opus 5.5
+  const orchSubmenu = env.makeNode("div");
+  orchSubmenu.setAttribute("role", "menu");
+  function addOrchPickerRow(base, rawText) {
+    const r = env.makeNode("div");
+    r.setAttribute("role", "menuitem");
+    r.setAttribute("data-testid", "orchestrator-picker-row");
+    r.setAttribute("data-model-base", base);
+    const wrap = env.makeNode("span");
+    const nameS = env.makeNode("span");
+    nameS.textContent = base;
+    const effS = env.makeNode("span");
+    effS.className = "shrink-0 opacity-70";
+    effS.textContent = rawText;
+    wrap.appendChild(nameS);
+    wrap.appendChild(effS);
+    r.appendChild(wrap);
+    orchSubmenu.appendChild(r);
+    return { row: r, effS };
+  }
+  const subNeon = addOrchPickerRow("Gemini 4 Neon", "Extra High");
+  const subArgon = addOrchPickerRow("Gemini 4 Argon", "Medium");
+  const subClaude = addOrchPickerRow("Claude Opus 5.5", "Medium");
+  env.body.appendChild(orchSubmenu);
+
+  const bodyMO = env.moInstances.find((o) => o.target === env.body);
+  bodyMO.trigger([{ type: "childList", target: env.body, addedNodes: [orchSubmenu], removedNodes: [] }]);
+  env.flushRaf();
+
+  assert.equal(orchSubmenu.classList.contains("ces-ag-orch-submenu"), true);
+  assert.equal(subNeon.row.getAttribute("data-ces-model-selected"), "true");
+  assert.equal(subNeon.effS.textContent, "Extra", "二级子菜单中 Extra High 应统一显示为 Extra");
+  assert.equal(subNeon.effS.style.color, "#8b5cf6");
+  assert.equal(subClaude.effS.style.color, "#a78bfa");
+
+  // 点击二级子菜单中的 Claude Opus 5.5：不关菜单、切换主题为 claude、副标题切为 · Claude Opus 5.5
+  orchSubmenu.dispatch("pointerup", { target: subClaude.effS });
+  orchSubmenu.dispatch("click", { target: subClaude.effS });
+  assert.equal(isMenuOpen, true, "点击二级子菜单规划器不得关闭菜单");
+  assert.deepEqual(orchSelectCalls, [1471]);
+  assert.equal(rootEl.getAttribute("data-theme"), "claude");
+  assert.equal(rootEl.getAttribute("aria-valuemax"), "2", "Claude Opus 5.5 规划器应具备 3 档刻度 (0..2)");
+  assert.equal(subtitleEl.textContent, "· Claude Opus 5.5");
+  assert.equal(subClaude.row.getAttribute("data-ces-model-selected"), "true");
+  assert.equal(subNeon.row.getAttribute("data-ces-model-selected"), "false");
+  assert.equal(orchModelSpan.querySelector('[data-ces-part="orch-model-name"]').textContent, "Claude Opus 5.5 ");
+  assert.equal(orchModelSpan.querySelector('[data-ces-part="orch-effort"]').textContent, "Medium");
+  assert.equal(orchModelSpan.querySelector('[data-ces-part="orch-effort"]').style.color, "#a78bfa");
+  assert.equal(trigEffSpan.querySelector('[data-ces-part="trigger-orch-effort"]').style.color, "#a78bfa");
+
+  // 5. 在 Orchestrator -> Claude Opus 5.5 下拖动滑条到 High，验证只调 orchestratorPick.select，且与主列表普通 Claude Opus 5.5 记忆独立
+  const trackEl = panel.querySelector('[data-ces-part="track"]');
+  trackEl.getBoundingClientRect = () => ({ left: 0, top: 0, right: 228, bottom: 28, width: 228, height: 28 });
+  const prevModelCalls = modelSelectCalls.length;
+  trackEl.dispatch("pointerdown", { clientX: 114 });
+  trackEl.dispatch("pointermove", { clientX: 200 });
+  trackEl.dispatch("pointerup", { clientX: 200 });
+  assert.equal(orchSelectCalls[orchSelectCalls.length - 1], 1472, "拖动 Orchestrator 滑条应提交 Claude Opus 5.5 (High)");
+  assert.equal(modelSelectCalls.length, prevModelCalls, "已在 Orchestrator 模式下调档不应重复调用 setSelectedModel");
+  assert.equal(orchModelSpan.querySelector('[data-ces-part="orch-effort"]').textContent, "High");
+  assert.equal(orchModelSpan.querySelector('[data-ces-part="orch-effort"]').style.color, "#c4b5fd");
+
+  // 切换到主列表普通 Claude Opus 5.5：验证普通模型保持独立记忆 (Medium)，且副标题隐藏
+  panel.dispatch("click", { target: claudeRow.gSpan });
+  assert.equal(selectedModel.label, "Claude Opus 5.5 (Medium)", "主列表普通 Claude Opus 5.5 应保持独立记忆 Medium，不受 Orchestrator High 污染");
+  assert.equal(subtitleEl.style.display, "none", "切回普通模型后副标题应隐藏");
+  assert.equal(claudeRow.item.getAttribute("data-ces-model-selected"), "true");
+  assert.equal(orchRow.getAttribute("data-ces-model-selected"), "false");
+  assert.equal(trigMainText.nodeValue, "Claude Opus 5.5");
+
+  // 再次点回 Orchestrator：验证恢复独立记忆的 Claude Opus 5.5 High 与副标题
+  panel.dispatch("click", { target: orchRow });
+  assert.equal(subtitleEl.textContent, "· Claude Opus 5.5");
+  assert.equal(orchModelSpan.querySelector('[data-ces-part="orch-effort"]').textContent, "High");
+  assert.equal(orchRow.getAttribute("data-ces-model-selected"), "true");
+  assert.equal(claudeRow.item.getAttribute("data-ces-model-selected"), "false");
+
+  // 关闭二级子菜单与主面板：观察器全部断开，bodyPortalObserver 始终保持 1 个
+  assert.equal(env.moInstances.filter((o) => o.target === env.body).length, 1);
+  const subMO = env.moInstances.find((o) => o.target === orchSubmenu);
+  assert.ok(subMO && !subMO.disconnected);
+  env.body.removeChild(orchSubmenu);
+  bodyMO.trigger([{ type: "childList", target: env.body, addedNodes: [], removedNodes: [orchSubmenu] }]);
+  env.flushRaf();
+  assert.equal(subMO.disconnected, true, "关闭二级子菜单后应立刻断开 orchSubmenuObserver");
+
+  obs.stop();
+});
+
+test("20. 鼠标直接点击轨道平滑滑行与星尘渐亮、3px 防抖、拖动 1:1 衔接及简洁模式直跳 (Issue #3)", () => {
+  assert.equal(slider.DRAG_THRESHOLD_PX, 3);
+
+  function setupClickEnv(motionSetting) {
+    const env = createPerfTestEnv({
+      settingsJson: JSON.stringify({ v: 1, motion: motionSetting, ticks: "highlight" })
+    });
+    let frameTime = 1000;
+    let rafId = 1;
+    let pendingRafs = [];
+    env.win.performance = { now: () => frameTime };
+    env.win.requestAnimationFrame = (cb) => {
+      const id = rafId++;
+      pendingRafs.push({ id, cb });
+      return id;
+    };
+    env.win.cancelAnimationFrame = (id) => {
+      pendingRafs = pendingRafs.filter((item) => item.id !== id);
+    };
+    function stepOneFrame(dtMs = 16) {
+      if (pendingRafs.length === 0) return false;
+      frameTime += dtMs;
+      const batch = pendingRafs.splice(0, pendingRafs.length);
+      for (const item of batch) item.cb(frameTime);
+      return true;
+    }
+
+    let currentEffort = "low";
+    const commits = [];
+    const seat = {
+      effortLevels: [
+        { effort: "low", label: "Low" },
+        { effort: "medium", label: "Medium" },
+        { effort: "high", label: "High" }
+      ],
+      get currentEffort() { return currentEffort; },
+      selectEffort(item, idx) {
+        currentEffort = item.effort;
+        commits.push({ effort: currentEffort, index: idx });
+      }
+    };
+    const panel = env.makeNode("div");
+    panel.setAttribute("data-testid", "model-selector-panel");
+    const valEl = env.makeNode("span");
+    valEl.className = "ces-ag-effort-value";
+    const container = env.makeNode("div");
+
+    const mounted = slider.mountCodexEffortSlider({
+      container,
+      panel,
+      valueElement: valEl,
+      seat,
+      document: env.doc,
+      window: env.win
+    });
+    const trackEl = container.children[0].children[0];
+    const starsEl = trackEl.querySelector('[data-ces-part="stars"]');
+    // track width=228, KNOB_RADIUS=14 => usable 14..214 (Low=14, Medium=114, High=214)
+    return {
+      env,
+      trackEl,
+      starsEl,
+      commits,
+      mounted,
+      getCurrentEffort: () => currentEffort,
+      getFill: () => trackEl.style.getPropertyValue("--ces-fill"),
+      getStarCount: () => Number(starsEl.getAttribute("data-count") || "0"),
+      pendingCount: () => pendingRafs.length,
+      stepOneFrame
+    };
+  }
+
+  // 1. full 完整动画模式：直接点击 High (clientX=214)，不瞬移，经 2px 微抖与松手后仍平滑滑行并伴随星尘渐亮
+  const full = setupClickEnv("full");
+  assert.equal(full.getFill(), slider.knobOffsetOf(0, 14));
+  assert.equal(full.getStarCount(), 0);
+
+  full.trackEl.dispatch("pointerdown", { clientX: 214 });
+  assert.equal(full.commits.length, 1);
+  assert.equal(full.getCurrentEffort(), "high", "按下时立即提交真实档位 high");
+  assert.equal(full.getFill(), slider.knobOffsetOf(0, 14), "full 模式点击按下不得瞬间跳到 100%");
+  assert.equal(full.getStarCount(), 0, "星尘不得在按下瞬间直接点亮 22 颗");
+  assert.ok(full.pendingCount() > 0, "应启动 rAF 物理滑行循环");
+
+  // 2px 轻微手抖 (< 3px 阈值)：不应切入拖动瞬移，不打断滑行
+  full.trackEl.dispatch("pointermove", { clientX: 212 });
+  assert.equal(full.getFill(), slider.knobOffsetOf(0, 14), "小于 3px 的抖动不得触发 1:1 瞬移");
+
+  // 松手：endDrag 不得把圆钮瞬移到 100%
+  full.trackEl.dispatch("pointerup", { clientX: 212 });
+  assert.equal(full.getFill(), slider.knobOffsetOf(0, 14), "纯点击松手不得覆写 m.x 为 ptrPct");
+
+  const fillTrace = [];
+  const starTrace = [];
+  for (let i = 0; i < 60 && full.pendingCount() > 0; i += 1) {
+    full.stepOneFrame(16);
+    fillTrace.push(full.getFill());
+    starTrace.push(full.getStarCount());
+  }
+  assert.ok(fillTrace.length >= 5, `full 模式应经历多帧平滑滑行 (实际 ${fillTrace.length} 帧)`);
+  assert.equal(fillTrace[fillTrace.length - 1], slider.knobOffsetOf(1, 14), "最终应收敛到 100%");
+  assert.ok(
+    starTrace.some((c) => c > 0 && c < 22),
+    `星尘数量应随滑行过程渐亮 (轨迹: ${starTrace.join(",")})`
+  );
+  assert.equal(starTrace[starTrace.length - 1], 22, "到达 High 时 22 颗星尘全部点亮");
+
+  // 2. 滑行中途反向点击：从 Low 点 High 滑到一半直接点回 Low，应从中间位置平滑折返
+  full.trackEl.dispatch("pointerdown", { clientX: 14 });
+  full.trackEl.dispatch("pointerup", { clientX: 14 });
+  for (let i = 0; i < 60 && full.pendingCount() > 0; i += 1) full.stepOneFrame(16);
+  assert.equal(full.getFill(), slider.knobOffsetOf(0, 14));
+
+  full.trackEl.dispatch("pointerdown", { clientX: 214 });
+  full.trackEl.dispatch("pointerup", { clientX: 214 });
+  for (let i = 0; i < 8; i += 1) full.stepOneFrame(16);
+  const midFill = full.getFill();
+  assert.notEqual(midFill, slider.knobOffsetOf(0, 14));
+  assert.notEqual(midFill, slider.knobOffsetOf(1, 14));
+  // 途中点回 Low：不瞬移回 0，从 midFill 继续平滑折返
+  full.trackEl.dispatch("pointerdown", { clientX: 14 });
+  assert.equal(full.getCurrentEffort(), "low");
+  assert.equal(full.getFill(), midFill, "途中反向点击应从当前位置折返而非瞬移");
+  full.trackEl.dispatch("pointerup", { clientX: 14 });
+  for (let i = 0; i < 60 && full.pendingCount() > 0; i += 1) full.stepOneFrame(16);
+  assert.equal(full.getFill(), slider.knobOffsetOf(0, 14));
+  full.mounted.unmount();
+
+  // 3. fast 快速动画模式：直接点击 High，同样触发平滑滑行并在短帧内收敛
+  const fast = setupClickEnv("fast");
+  fast.trackEl.dispatch("pointerdown", { clientX: 214 });
+  assert.equal(fast.getCurrentEffort(), "high");
+  assert.equal(fast.getFill(), slider.knobOffsetOf(0, 14), "fast 模式点击同样从原位启动滑行而非瞬跳");
+  fast.trackEl.dispatch("pointerup", { clientX: 214 });
+  let fastFrames = 0;
+  while (fast.pendingCount() > 0 && fastFrames < 30) {
+    fast.stepOneFrame(16);
+    fastFrames += 1;
+  }
+  assert.ok(fastFrames >= 2 && fastFrames <= 15, `fast 模式应在短帧内平滑收敛 (frames=${fastFrames})`);
+  assert.equal(fast.getFill(), slider.knobOffsetOf(1, 14));
+  fast.mounted.unmount();
+
+  // 4. quick 简洁动画模式：直接点击 High 应立即无过渡瞬跳
+  const quick = setupClickEnv("quick");
+  quick.trackEl.dispatch("pointerdown", { clientX: 214 });
+  assert.equal(quick.getCurrentEffort(), "high");
+  assert.equal(quick.getFill(), slider.knobOffsetOf(1, 14), "quick 简洁模式点击应立即跳至目标档位");
+  assert.equal(quick.pendingCount(), 0, "quick 模式不应启动动画帧循环");
+  quick.trackEl.dispatch("pointerup", { clientX: 214 });
+  quick.mounted.unmount();
+
+  // 5. 按下后真实拖动 (>= 3px)：立刻切入 1:1 实时跟手，松手后磁吸至档位圆心
+  const dragCase = setupClickEnv("full");
+  dragCase.trackEl.dispatch("pointerdown", { clientX: 14 });
+  dragCase.trackEl.dispatch("pointermove", { clientX: 134 }); // 60% 位置 (14 + 120)
+  assert.equal(dragCase.getCurrentEffort(), "medium");
+  assert.equal(dragCase.getFill(), slider.knobOffsetOf(0.6, 14), "位移 >= 3px 后应立刻 1:1 跟随指针");
+  dragCase.trackEl.dispatch("pointerup", { clientX: 134 });
+  for (let i = 0; i < 60 && dragCase.pendingCount() > 0; i += 1) dragCase.stepOneFrame(16);
+  assert.equal(dragCase.getFill(), slider.knobOffsetOf(0.5, 14), "松手后磁吸回 Medium 圆心");
+  dragCase.mounted.unmount();
+});
+
+test("21. 默认完整动画、Issue #1 收尾（Fiber 截断/拖动快照缓存/星尘零重排）与废弃代码清理验证", () => {
+  // 1. 默认动画为 full 且位于设置面板首位；老用户已存 fast 保持不被覆写
+  assert.equal(slider.SETTINGS_SCHEMA[0].defaultValue, "full");
+  assert.equal(slider.SETTINGS_SCHEMA[0].options[0].value, "full");
+  assert.deepEqual(slider.schemaDefaults(), { v: 1, motion: "full", ticks: "highlight" });
+  assert.equal(slider.motionMode({ localStorage: { getItem: () => null } }), "full");
+
+  const legacyStore = new Map([
+    ["dsh.codexEffortSlider.settings.v1", JSON.stringify({ v: 1, motion: "quick", ticks: "hidden" })]
+  ]);
+  const legacyWin = {
+    localStorage: {
+      getItem: (k) => (legacyStore.has(k) ? legacyStore.get(k) : null),
+      setItem: (k, v) => legacyStore.set(k, v)
+    }
+  };
+  assert.equal(slider.readSettings(legacyWin).motion, "full", "不再回退读取已弃用的 dsh 存储键");
+  assert.equal(slider.normalizeSettings({ reducedMotion: true }).motion, "full", "不再兼容已弃用的 reducedMotion 字段");
+
+  const existingFastStore = new Map([
+    [slider.SETTINGS_KEY, JSON.stringify({ v: 1, motion: "fast", ticks: "dim" })]
+  ]);
+  const existingFastWin = {
+    localStorage: {
+      getItem: (k) => (existingFastStore.has(k) ? existingFastStore.get(k) : null),
+      setItem: (k, v) => existingFastStore.set(k, v)
+    }
+  };
+  assert.equal(slider.readSettings(existingFastWin).motion, "fast", "老用户已有 fast 配置应保持不变");
+  assert.equal(slider.resetSettings(existingFastWin).motion, "full", "恢复默认后应重置为 full");
+
+  // 默认无存储挂载时点击轨道直接走 full 平滑滑行
+  const defaultEnv = createPerfTestEnv({ settingsJson: "" });
+  defaultEnv.win.localStorage.getItem = () => null;
+  let defEffort = "low";
+  const defContainer = defaultEnv.makeNode("div");
+  const defMounted = slider.mountCodexEffortSlider({
+    container: defContainer,
+    seat: {
+      effortLevels: [{ effort: "low", label: "Low" }, { effort: "medium", label: "Medium" }, { effort: "high", label: "High" }],
+      get currentEffort() { return defEffort; },
+      selectEffort(item) { defEffort = item.effort; }
+    },
+    document: defaultEnv.doc,
+    window: defaultEnv.win
+  });
+  const defTrack = defContainer.children[0].children[0];
+  let defRafCount = 0;
+  const origDefRaf = defaultEnv.win.requestAnimationFrame;
+  defaultEnv.win.requestAnimationFrame = function (cb) {
+    defRafCount += 1;
+    return origDefRaf(cb);
+  };
+  defTrack.dispatch("pointerdown", { clientX: 214 });
+  assert.equal(defEffort, "high");
+  assert.equal(defTrack.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(0, 14), "默认 full 模式下点击应从原位平滑滑行");
+  assert.ok(defRafCount > 0, "默认 full 模式下点击应启动物理帧循环");
+  defTrack.dispatch("pointerup", { clientX: 214 });
+  defaultEnv.flushRaf();
+  assert.notEqual(defTrack.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(0, 14), "默认 full 模式松手后帧循环应推进位置");
+  defMounted.unmount();
+
+  // 2. 废弃常量与函数清理检查 + 保留导出检查
+  assert.equal(slider.findSeatEffort, undefined);
+  assert.equal(slider.BASE_SPEEDUP, undefined);
+  assert.equal(slider.MIN_HEIGHT_SLOTS, 3);
+  assert.equal(slider.CLAUDE_ROWS, 6);
+  assert.equal(slider.CLAUDE_KNOB_W, 24);
+  assert.equal(typeof slider.starCountFor, "function");
+  assert.equal(typeof slider.motionMode, "function");
+  assert.equal(typeof slider.traceClear, "function");
+
+  // 3. Antigravity 2.34.0 无 globalModelCtx 200 层 Fiber 树提前截断验证
+  let fiberStepReads = 0;
+  let head = { memoizedProps: {}, return: null };
+  for (let depth = 1; depth <= 200; depth += 1) {
+    const node = { return: head };
+    Object.defineProperty(node, "memoizedProps", {
+      get() {
+        fiberStepReads += 1;
+        if (depth === 190) {
+          return {
+            value: {
+              effortIndex: new Map(),
+              modelOptions: [{ label: "Gemini 4 Argon (Low)", value: 1 }, { label: "Gemini 4 Argon (High)", value: 2 }],
+              selectedModel: { label: "Gemini 4 Argon (Low)", value: 1 }
+            }
+          };
+        }
+        if (depth === 180) {
+          return {
+            open: true,
+            setIsOpen() {},
+            setSelectedModel() {},
+            modelOptions: [{ label: "Gemini 4 Argon (Low)", value: 1 }, { label: "Gemini 4 Argon (High)", value: 2 }],
+            selectedModel: { label: "Gemini 4 Argon (Low)", value: 1 }
+          };
+        }
+        if (depth === 170) {
+          return { conversationId: "conv-234", placement: "top-start" };
+        }
+        return {};
+      }
+    });
+    head = node;
+  }
+  const docOwner = { nodeType: 9 };
+  const fakeFiberEl = { ownerDocument: docOwner, __reactFiber$trunc: head };
+  fiberStepReads = 0;
+  const ctx1 = slider.readAntigravityFiberContext(fakeFiberEl);
+  assert.ok(ctx1 && ctx1.conversationId === "conv-234");
+  const firstPassReads = fiberStepReads;
+  assert.equal(firstPassReads, 200, "首次探测需爬完树确认不存在旧版 GlobalModelContext");
+
+  fiberStepReads = 0;
+  const ctx2 = slider.readAntigravityFiberContext(fakeFiberEl);
+  assert.ok(ctx2 && ctx2.conversationId === "conv-234");
+  assert.ok(fiberStepReads <= 40, `二次读取应在拿齐上下文后提前截断，实际=${fiberStepReads}`);
+
+  // 4. Gemini 四档拖动：星尘 .is-hidden 零重排显隐 + contain 隔离 + 0 次 Orchestrator 子菜单全文档查询
+  const env = createPerfTestEnv({ withMO: true, withRO: true });
+  const styleEl = slider.installStyles(env.doc);
+  assert.ok(styleEl.textContent.includes(".ces-star.is-hidden"), "应使用 .ces-star.is-hidden 类控制显隐");
+  assert.ok(styleEl.textContent.includes("contain: layout style;"), ".ces-track 应启用 contain: layout style");
+  assert.ok(styleEl.textContent.includes("contain: layout style paint;"), "子层应启用 contain: layout style paint");
+
+  let orchSelectorQueries = 0;
+  const origQS = env.doc.querySelector.bind(env.doc);
+  env.doc.querySelector = function (sel) {
+    if (String(sel).includes("orchestrator-picker-row")) {
+      orchSelectorQueries += 1;
+    }
+    return origQS(sel);
+  };
+
+  const triggerBtn = env.makeNode("button");
+  triggerBtn.setAttribute("data-testid", "model-selector-trigger");
+  const trigOuter = env.makeNode("span");
+  trigOuter.classList.add("min-w-0");
+  const trigEffort = env.makeNode("span");
+  trigEffort.classList.add("opacity-70");
+  trigEffort.textContent = " Low";
+  trigOuter.appendChild(trigEffort);
+  triggerBtn.appendChild(trigOuter);
+  env.body.appendChild(triggerBtn);
+
+  const popup = env.makeNode("div");
+  popup.setAttribute("role", "menu");
+  const panel = env.makeNode("div");
+  panel.setAttribute("data-testid", "model-selector-panel");
+  panel.appendChild(env.makeNode("div"));
+  popup.appendChild(panel);
+  env.body.appendChild(popup);
+
+  const hydroOpts = [
+    { label: "Gemini 4 Hydrogen (Low)", value: 1 },
+    { label: "Gemini 4 Hydrogen (Medium)", value: 2 },
+    { label: "Gemini 4 Hydrogen (High)", value: 3 },
+    { label: "Gemini 4 Hydrogen (Extra High)", value: 4 }
+  ];
+  let currentHydro = hydroOpts[0];
+  let panelFiberReads = 0;
+  const hydroFiber = { return: null };
+  Object.defineProperty(hydroFiber, "memoizedProps", {
+    get() {
+      panelFiberReads += 1;
+      return {
+        open: true,
+        setIsOpen() {},
+        setSelectedModel(opt) { currentHydro = opt; },
+        modelOptions: hydroOpts,
+        selectedModel: currentHydro
+      };
+    }
+  });
+  panel.__reactFiber$perf = hydroFiber;
+  triggerBtn.__reactFiber$perf = hydroFiber;
+
+  const obs = slider.installAntigravityObserver({ document: env.doc, window: env.win });
+  env.flushRaf();
+
+  const trackEl = panel.querySelector('[data-ces-part="track"]');
+  const starEls = trackEl.querySelectorAll('[data-ces-part="star"]');
+  assert.equal(starEls.length, 22);
+  assert.equal(starEls[0].style.display || "", "", "星尘初始不应设置内联 style.display");
+  assert.equal(starEls[0].classList.contains("is-hidden"), true, "Low 档星尘应通过 .is-hidden 类隐藏");
+
+  orchSelectorQueries = 0;
+  panelFiberReads = 0;
+  trackEl.dispatch("pointerdown", { clientX: 14 });
+  trackEl.dispatch("pointermove", { clientX: 22 }); // 同档位
+  assert.equal(panelFiberReads, 1, "按下加同档位微拖应共享拖动期快照缓存，仅爬 1 次 Fiber");
+
+  // 跨过 4 档边界提交到 Extra
+  trackEl.dispatch("pointermove", { clientX: 214 });
+  env.flushRaf();
+  assert.equal(currentHydro.label, "Gemini 4 Hydrogen (Extra High)");
+  assert.equal(orchSelectorQueries, 0, "非 Orchestrator 拖动切档不得全文档查询 orchestrator-picker-row");
+  assert.equal(starEls[0].style.display || "", "", "星尘显隐切换应始终零内联 style.display");
+  assert.equal(starEls[0].classList.contains("is-hidden"), false, "高档位星尘应移除 .is-hidden 显示");
+
+  trackEl.dispatch("pointerup", { clientX: 214 });
   obs.stop();
 });
 

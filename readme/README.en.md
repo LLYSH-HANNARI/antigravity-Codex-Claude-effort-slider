@@ -101,10 +101,10 @@ npm run eject
 - **3D Text Flip Animation**: Uniform vertical flip text animation when switching effort levels across all models.
 
 ### 6. Right-Click / Long-Press Independent Configuration Panel
-- **Right-click** on the slider (or long-press 500ms on touchscreens) to summon settings (`.ces-set`), saved in `localStorage["antigravity-codex-effort-slider:v1"]`:
-  - **Animation Mode**: `Fast` (Default, snaps across 1/3 detents · ~70ms) / `Simple` (Instant snap) / `Full` (Continuous chasing + stardust fade-in).
+- **Right-click** on the slider (or long-press 500ms on touchscreens) to summon settings (`.ces-set`), saved in `localStorage["ag.codexEffortSlider.settings.v1"]`:
+  - **Animation Mode**: `Full` (Default, continuous chasing + stardust fade-in) / `Fast` (Snaps across 1/3 detents · ~70ms) / `Simple` (Instant snap).
   - **Tick Points**: `Bright White` (Default) / `Muted Track Color` / `Hidden`.
-  - **Diagnostics & Reset**: Copy recent 80 interaction trace records as JSON and restore defaults.
+  - **Diagnostics & Reset**: Copy recent 200 interaction trace records as JSON and restore defaults.
 
 ---
 

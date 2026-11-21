@@ -102,9 +102,9 @@ npm run eject
 
 ### 6. Panneau de réglages indépendant par clic droit
 - **Clic droit** sur le curseur (ou appui long de 500 ms sur écran tactile) pour afficher les paramètres (`.ces-set`) :
-  - **Animation** : `Rapide` (par défaut, magnétisme en ~70 ms) / `Simple` / `Complète`.
+  - **Animation** : `Complète` (par défaut) / `Rapide` (magnétisme en ~70 ms) / `Simple`.
   - **Repères de graduation** : `Blanc éclatant` (défaut) / `Couleur de piste` / `Masqué`.
-  - **Diagnostics & Réinitialisation** : Copie des 80 derniers événements en JSON / Restauration par défaut.
+  - **Diagnostics & Réinitialisation** : Copie des 200 derniers événements en JSON / Restauration par défaut.
 
 ---
 

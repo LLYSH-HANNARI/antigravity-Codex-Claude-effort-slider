@@ -153,10 +153,51 @@
       transition: color 0.8s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.8s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.8s cubic-bezier(0.22, 1, 0.36, 1);
     }
     .ag-stage {
+      position: relative;
       width: 320px;
       display: flex;
       flex-direction: column;
       gap: 12px;
+    }
+    .ag-orch-submenu {
+      position: fixed;
+      z-index: 6000;
+      min-width: 224px;
+      padding: 4px;
+      border-radius: 10px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    html.dark .ag-orch-submenu {
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+    }
+    .ag-orch-row {
+      position: relative;
+      border-radius: 9px;
+    }
+    .ag-orch-row::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: 9px;
+      pointer-events: none;
+      opacity: 0;
+      border: 1.5px solid rgba(139, 92, 246, 0.72);
+      background: rgba(139, 92, 246, 0.05);
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.16);
+      transition: none;
+    }
+    .ag-orch-row.is-highlighted::after {
+      opacity: 1;
+      transition: none;
+    }
+    .ag-orch-row.is-fading::after {
+      opacity: 0;
+      transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1);
     }
     .ag-menu-popup {
       background: var(--card);
@@ -319,7 +360,10 @@
     </header>
 
     <div class="ag-style-pills">
-      <button type="button" class="ag-pill" id="pill-codex" data-style-group="codex" data-target-base="Gemini 4 Carbon">
+      <button type="button" class="ag-pill" id="pill-orchestrator" data-style-group="orchestrator" data-target-base="Orchestrator">
+        Orchestrator
+      </button>
+      <button type="button" class="ag-pill" id="pill-codex" data-style-group="codex" data-target-base="Gemini 4 Neon">
         Codex 样式
       </button>
       <button type="button" class="ag-pill" id="pill-claude" data-style-group="claude" data-target-base="Claude Sonnet 5.5">
@@ -333,10 +377,20 @@
           <div class="relative flex flex-col flex-grow min-h-0">
             <div data-testid="model-selector-header">Model</div>
             <div class="ag-model-list">
-              <div class="ag-model-group" data-style-group="codex">
-                <div role="menuitem" class="text-foreground" data-model-row="Gemini 4 Carbon">
+              <div class="ag-orch-row" data-style-group="orchestrator">
+                <div role="menuitem" class="text-foreground" data-testid="model-selector-orchestrator" data-model-label="Orchestrator" id="ag-orch-row">
                   <span class="ag-row-left">
-                    <span data-testid="model-selector-effort-group" data-model-base="Gemini 4 Carbon">Gemini 4 Carbon</span>
+                    <span class="shrink-0">Orchestrator</span>
+                    <span data-testid="model-selector-orchestrator-model" class="opacity-70 text-xs" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Gemini 4 Neon Extra High</span>
+                    <span class="ag-badge">New</span>
+                  </span>
+                  <span class="flex shrink-0 pl-1 opacity-50">›</span>
+                </div>
+              </div>
+              <div class="ag-model-group" data-style-group="codex">
+                <div role="menuitem" class="text-secondary-foreground" data-model-row="Gemini 4 Neon">
+                  <span class="ag-row-left">
+                    <span data-testid="model-selector-effort-group" data-model-base="Gemini 4 Neon">Gemini 4 Neon</span>
                     <span class="shrink-0 opacity-70 text-xs">Medium</span>
                     <span class="ag-badge">New</span>
                   </span>
@@ -405,7 +459,7 @@
 
       <div class="ag-composer-bar">
         <button type="button" data-testid="model-selector-trigger" id="ag-trigger" aria-label="Select model">
-          <span class="min-w-0">Gemini 4 Carbon<span class="opacity-70"> Medium</span></span>
+          <span class="min-w-0">Orchestrator<span class="opacity-70"> Gemini 4 Neon Extra High</span></span>
         </button>
       </div>
     </main>
@@ -435,11 +489,10 @@
   var TRACK_HEIGHT = 28;
   var KNOB_SIZE = 28;
   var KNOB_RADIUS = KNOB_SIZE / 2;
-  var BASE_SPEEDUP = 4;
 
   var ENERGY_START = 0;
   var ENERGY_END = 0.5;
-  var MIN_HEIGHT_SLOTS = 2;
+  var MIN_HEIGHT_SLOTS = 3;
 
   var AG_EFFORT_ORDER = ["off", "low", "medium", "high", "xhigh", "max"];
   var AG_EFFORT_LABELS = {
@@ -450,7 +503,8 @@
     xhigh: "Extra",
     max: "Max"
   };
-  var AG_MODEL_LABEL_RE = /^(.*?)\s*\((off|low|medium|high|xhigh|extra|max)(?:\s+thinking)?\)\s*$/i;
+  var AG_MODEL_LABEL_RE = /^(.*?)\s*\((off|low|medium|high|xhigh|extra\s+high|extra|max)(?:\s+thinking)?\)\s*$/i;
+  var AG_DISPLAY_EFFORT_RE = /^(.*?)\s+(off|low|medium|high|xhigh|extra\s+high|extra|max)$/i;
 
   var CLAUDE_CELL = 28 / 6; // ≈ 4.67px
   var CLAUDE_ROWS = 6;
@@ -492,9 +546,9 @@
   var POINTER_SPEED_EMA = 0.45;
   var POINTER_STALE_S = 0.05;
   var POINTER_SPEED_TAU = 0.035;
+  var DRAG_THRESHOLD_PX = 3;
 
   var SETTINGS_KEY = "ag.codexEffortSlider.settings.v1";
-  var LEGACY_SETTINGS_KEY = "dsh.codexEffortSlider.settings.v1";
   var SETTINGS_EVENT = "ag:codex-effort-slider:settings";
   var SETTINGS_VERSION = 1;
 
@@ -502,11 +556,11 @@
     Object.freeze({
       key: "motion",
       label: "动画效果",
-      defaultValue: "fast",
+      defaultValue: "full",
       options: Object.freeze([
+        Object.freeze({ value: "full", label: "完整动画", hint: "默认 · 匀变速追赶 + 星尘渐亮" }),
         Object.freeze({ value: "fast", label: "快速动画", hint: "拨过 1/3 即切档 · ~70ms 快速吸附" }),
-        Object.freeze({ value: "quick", label: "简洁动画", hint: "无过渡 · 直接跳档" }),
-        Object.freeze({ value: "full", label: "完整动画", hint: "匀变速追赶 + 星尘渐亮" })
+        Object.freeze({ value: "quick", label: "简洁动画", hint: "无过渡 · 直接跳档" })
       ])
     }),
     Object.freeze({
@@ -545,9 +599,6 @@
       }
       if (matched) base[item.key] = candidate;
     }
-    if (!raw.motion && raw.reducedMotion === true) {
-      base.motion = "quick";
-    }
     return base;
   }
 
@@ -565,7 +616,7 @@
     var store = resolveStorage(win);
     if (!store) return schemaDefaults();
     try {
-      var text = store.getItem(SETTINGS_KEY) || store.getItem(LEGACY_SETTINGS_KEY);
+      var text = store.getItem(SETTINGS_KEY);
       if (!text) return schemaDefaults();
       return normalizeSettings(JSON.parse(text));
     } catch (err) {
@@ -607,7 +658,7 @@
       listener(ev && ev.detail ? normalizeSettings(ev.detail) : readSettings(w));
     }
     function handleStorage(ev) {
-      if (!ev || (ev.key !== SETTINGS_KEY && ev.key !== LEGACY_SETTINGS_KEY)) return;
+      if (!ev || ev.key !== SETTINGS_KEY) return;
       listener(readSettings(w));
     }
     w.addEventListener(SETTINGS_EVENT, handleCustom);
@@ -634,13 +685,13 @@
   function motionMode(win, explicitSettings) {
     if (prefersReducedMotion(win)) return "quick";
     var s = explicitSettings ? normalizeSettings(explicitSettings) : readSettings(win);
-    return s.motion || "fast";
+    return s.motion || "full";
   }
 
   function motionParamsForMode(mode) {
     if (mode === "quick") return MOTION_REDUCED;
-    if (mode === "full") return MOTION;
-    return MOTION_FAST;
+    if (mode === "fast") return MOTION_FAST;
+    return MOTION;
   }
 
   var TRACE_CAPACITY = 200;
@@ -663,7 +714,7 @@
   function dumpTrace(win) {
     var w = win || (typeof window !== "undefined" ? window : globalRoot);
     return {
-      plugin: "antigravity-codex-effort-slider@1.2.1",
+      plugin: "antigravity-codex-effort-slider@1.3.0",
       time: new Date().toISOString(),
       ua: w && w.navigator ? w.navigator.userAgent : "node",
       settings: readSettings(w),
@@ -832,7 +883,7 @@
 
   var PARTICLES = (function buildParticles() {
     var count = PARTICLE_COUNT;
-    var minSlots = 3;
+    var minSlots = MIN_HEIGHT_SLOTS;
     var out = [];
     var i;
     for (i = 0; i < count; i += 1) {
@@ -1008,9 +1059,9 @@
     ctx.fillRect(0, 0, w, h);
 
     var purple = dark ? [208, 192, 246] : [150, 130, 205];
-    var cell = h / 6 > 0 ? h / 6 : CLAUDE_CELL;
+    var rows = CLAUDE_ROWS;
+    var cell = h / rows > 0 ? h / rows : CLAUDE_CELL;
     var cols = Math.ceil(w / cell);
-    var rows = 6;
 
     for (var col = 0; col < cols; col += 1) {
       var x = col * cell;
@@ -1350,6 +1401,7 @@
     "  cursor: pointer;",
     "  touch-action: none;",
     "  box-sizing: border-box;",
+    "  contain: layout style;",
     "  transition: opacity 0.15s ease, box-shadow 0.2s ease;",
     "}",
     ".ces-inline[data-energy='1'] .ces-track,",
@@ -1374,9 +1426,9 @@
     "  bottom: 0;",
     "  width: var(--ces-fill, 14px);",
     "  border-radius: " + FILL_RADIUS_CSS + ";",
-    "  background: var(--ces-fill-bg, #4d93f8);",
+    "  background: #4d93f8;",
     "  pointer-events: none;",
-    "  will-change: width, background;",
+    "  contain: layout style paint;",
     "}",
     ".ces-energy {",
     "  position: absolute;",
@@ -1389,6 +1441,7 @@
     "  pointer-events: none;",
     "  opacity: var(--ces-energy, 0);",
     "  transition: opacity 0.2s ease;",
+    "  contain: layout style paint;",
     "  background: linear-gradient(90deg, #3b1178 0%, #6d28d9 30%, #9333ea 62%, #c084fc 100%);",
     "}",
     ".ces-energy__sweep {",
@@ -1406,10 +1459,11 @@
     "  bottom: 0;",
     "  width: var(--ces-fill, 14px);",
     "  border-radius: " + FILL_RADIUS_CSS + ";",
-    "  opacity: var(--ces-star-opacity, 0);",
+    "  opacity: 0;",
     "  transition: opacity 0.2s ease;",
     "  pointer-events: none;",
     "  overflow: hidden;",
+    "  contain: layout style paint;",
     "}",
     ".ces-star {",
     "  position: absolute;",
@@ -1421,6 +1475,10 @@
     "  animation-name: ces-star-sweep;",
     "  animation-timing-function: linear;",
     "  animation-iteration-count: infinite;",
+    "}",
+    ".ces-star.is-hidden {",
+    "  visibility: hidden;",
+    "  animation-play-state: paused !important;",
     "}",
     ".ces-star__dot {",
     "  position: absolute;",
@@ -1490,10 +1548,10 @@
     "}",
     ".ces-root[data-theme='claude'] .ces-knob,",
     ".ces-inline[data-theme='claude'] .ces-knob {",
-    "  width: 24px;",
-    "  height: 30px;",
-    "  margin: -15px 0 0 -12px;",
-    "  border-radius: 7px;",
+    "  width: " + CLAUDE_KNOB_W + "px;",
+    "  height: " + CLAUDE_KNOB_H + "px;",
+    "  margin: " + (-CLAUDE_KNOB_H / 2) + "px 0 0 " + (-CLAUDE_KNOB_W / 2) + "px;",
+    "  border-radius: " + CLAUDE_KNOB_R + "px;",
     "  background: #ffffff;",
     "  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 0 0.5px rgba(0, 0, 0, 0.12);",
     "  display: flex;",
@@ -1582,6 +1640,7 @@
     "  display: flex;",
     "  align-items: center;",
     "  justify-content: space-between;",
+    "  gap: 8px;",
     "  width: 100%;",
     "  font-size: 12px;",
     "  line-height: 16px;",
@@ -1589,10 +1648,25 @@
     ".ces-ag-effort-title {",
     "  display: inline-flex;",
     "  align-items: center;",
-    "  gap: 6px;",
+    "  gap: 5px;",
+    "  min-width: 0;",
+    "  flex: 1;",
+    "  overflow: hidden;",
     "  color: inherit;",
     "  font-weight: 500;",
     "  opacity: 0.9;",
+    "}",
+    ".ces-ag-effort-title-label {",
+    "  flex-shrink: 0;",
+    "}",
+    ".ces-ag-effort-subtitle {",
+    "  min-width: 0;",
+    "  overflow: hidden;",
+    "  text-overflow: ellipsis;",
+    "  white-space: nowrap;",
+    "  font-size: 11px;",
+    "  font-weight: 400;",
+    "  opacity: 0.72;",
     "}",
     "",
     "@keyframes ces-panel-shake {",
@@ -1611,6 +1685,7 @@
     "  position: relative;",
     "  z-index: 1;",
     "  display: inline-block;",
+    "  flex-shrink: 0;",
     "  font-size: 12px;",
     "  font-weight: 600;",
     "  transition: color 0.15s ease;",
@@ -1667,12 +1742,16 @@
     "}",
     "",
     "[role='menu']:has([data-testid='model-selector-effort-option']):not(:has([data-testid='model-selector-panel'])),",
-    "div[role='presentation']:has(> [role='menu'] [data-testid='model-selector-effort-option']):not(:has([data-testid='model-selector-panel'])) {",
+    "div[role='presentation']:has(> [role='menu'] [data-testid='model-selector-effort-option']):not(:has([data-testid='model-selector-panel'])),",
+    "[role='menu']:has([data-testid='orchestrator-picker-effort']):not(:has([data-testid='model-selector-panel'])):not(:has([data-testid='orchestrator-picker-row'])),",
+    "div[role='presentation']:has(> [role='menu'] [data-testid='orchestrator-picker-effort']):not(:has([data-testid='model-selector-panel'])):not(:has([data-testid='orchestrator-picker-row'])) {",
     "  display: none !important;",
     "  visibility: hidden !important;",
     "  pointer-events: none !important;",
     "  opacity: 0 !important;",
     "}",
+    ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > .can-hover\\:group-hover\\:hidden,",
+    ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > .can-hover\\:group-focus\\:hidden,",
     ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-hover\\:hidden,",
     ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-focus\\:hidden,",
     ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-focus-visible\\:hidden,",
@@ -1690,8 +1769,29 @@
     "  visibility: hidden !important;",
     "  pointer-events: none !important;",
     "}",
-    ".ces-ag-panel-enhanced [role='menuitem'][data-ces-model-selected='true'] {",
+    ".ces-ag-panel-enhanced [role='menuitem'][data-ces-model-selected='true'],",
+    ".ces-ag-orch-submenu [data-testid='orchestrator-picker-row'][data-ces-model-selected='true'] {",
     "  background-color: rgba(128, 128, 145, 0.14);",
+    "}",
+    "",
+    ".ces-ag-orch-submenu [data-testid='orchestrator-picker-row'] > .can-hover\\:group-hover\\:hidden,",
+    ".ces-ag-orch-submenu [data-testid='orchestrator-picker-row'] > .can-hover\\:group-focus\\:hidden,",
+    ".ces-ag-orch-submenu [data-testid='orchestrator-picker-row'] > .group-hover\\:hidden,",
+    ".ces-ag-orch-submenu [data-testid='orchestrator-picker-row'] > .group-focus\\:hidden,",
+    ".ces-ag-orch-submenu [data-testid='orchestrator-picker-row'] > .group-focus-visible\\:hidden,",
+    ".ces-ag-orch-submenu [data-testid='orchestrator-picker-row'] > [class*='highlighted:hidden'],",
+    ".ces-ag-orch-submenu [data-testid='orchestrator-picker-row'] > span:not(:first-child):not(:last-child) {",
+    "  display: flex !important;",
+    "  visibility: visible !important;",
+    "  opacity: 1 !important;",
+    "}",
+    ".ces-ag-orch-submenu [data-testid='orchestrator-picker-row'] > span:not(:first-child) + span.shrink-0:last-child:not(.group-hover\\:hidden):not(.group-focus\\:hidden):not(.ml-auto) {",
+    "  display: none !important;",
+    "}",
+    ".ces-ag-orch-submenu [data-testid='orchestrator-picker-row'] > span:first-child + span.shrink-0:last-child:not(.group-hover\\:hidden):not(.group-focus\\:hidden):not(.ml-auto) {",
+    "  display: flex !important;",
+    "  visibility: hidden !important;",
+    "  pointer-events: none !important;",
     "}",
     "",
     ".ces-set {",
@@ -1828,7 +1928,7 @@
     titleSpan.textContent = "推理等级滑条";
     var verSpan = doc.createElement("span");
     verSpan.className = "ces-set-ver";
-    verSpan.textContent = "v1.2.1";
+    verSpan.textContent = "v1.3.0";
     head.appendChild(titleSpan);
     head.appendChild(verSpan);
     panel.appendChild(head);
@@ -2069,14 +2169,48 @@
     var match = AG_MODEL_LABEL_RE.exec(label.trim());
     if (!match) return null;
     var base = match[1].trim();
-    var effort = match[2].toLowerCase();
-
-    if (effort === "extra") effort = "xhigh";
+    var effort = normalizeEffortKey(match[2]);
     return {
       base: base,
       effort: effort,
       effortLabel: AG_EFFORT_LABELS[effort] || match[2]
     };
+  }
+
+  function parseModelDisplayText(text) {
+    if (!text || typeof text !== "string") return null;
+    var trimmed = text.trim();
+    if (!trimmed) return null;
+    var paren = parseModelLabel(trimmed);
+    if (paren) return paren;
+    var match = AG_DISPLAY_EFFORT_RE.exec(trimmed);
+    if (!match) return null;
+    var base = match[1].trim();
+    if (!base) return null;
+    var effort = normalizeEffortKey(match[2]);
+    return {
+      base: base,
+      effort: effort,
+      effortLabel: AG_EFFORT_LABELS[effort] || match[2]
+    };
+  }
+
+  function isOrchestratorModelId(modelId) {
+    if (!modelId || typeof modelId !== "string") return false;
+    return (
+      modelId === "gemini-pro-coordinator" ||
+      modelId === "gemini-pro-orchestrator" ||
+      modelId.indexOf("gemini-pro-orchestrator-") === 0
+    );
+  }
+
+  function isOrchestratorOption(opt) {
+    if (!opt || typeof opt !== "object" || opt.isCustom) return false;
+    if (isOrchestratorModelId(opt.modelId)) return true;
+    if (typeof opt.label === "string") {
+      return /^orchestrator(?:\b|\s*\()/i.test(opt.label.trim());
+    }
+    return false;
   }
 
   function findAntigravityTrigger(doc) {
@@ -2092,6 +2226,17 @@
     var d = doc || (typeof document !== "undefined" ? document : null);
     if (!d || typeof d.querySelector !== "function") return null;
     return d.querySelector('[data-testid="model-selector-panel"]');
+  }
+
+  function findOrchestratorSubmenu(doc) {
+    var d = doc || (typeof document !== "undefined" ? document : null);
+    if (!d || typeof d.querySelector !== "function") return null;
+    var row = d.querySelector('[data-testid="orchestrator-picker-row"]');
+    if (!row) return null;
+    if (typeof row.closest === "function") {
+      return row.closest('[role="menu"]') || row.parentElement || null;
+    }
+    return row.parentElement || null;
   }
 
   function findInferenceRow(doc) {
@@ -2177,6 +2322,24 @@
         ? agTrigger.querySelector("span.opacity-70, [data-ces-part='trigger-effort']")
         : null;
       if (effortSpan) {
+        var splitEffortEl = effortSpan.querySelector
+          ? effortSpan.querySelector('[data-ces-part="trigger-orch-effort"]')
+          : null;
+        if (splitEffortEl) {
+          if (splitEffortEl.style) {
+            var splitOpacity = color ? "1" : "";
+            var splitWeight = color ? "600" : "";
+            if (splitEffortEl.style.color !== color) splitEffortEl.style.color = color;
+            if (splitEffortEl.style.opacity !== splitOpacity) splitEffortEl.style.opacity = splitOpacity;
+            if (splitEffortEl.style.fontWeight !== splitWeight) splitEffortEl.style.fontWeight = splitWeight;
+          }
+          if (effortSpan.style) {
+            if (effortSpan.style.opacity !== "1") effortSpan.style.opacity = "1";
+            if (effortSpan.style.color !== "") effortSpan.style.color = "";
+            if (effortSpan.style.fontWeight !== "") effortSpan.style.fontWeight = "";
+          }
+          return;
+        }
         if (typeof effortSpan.getAttribute !== "function" || effortSpan.getAttribute("data-ces-part") !== "trigger-effort") {
           effortSpan.setAttribute("data-ces-part", "trigger-effort");
         }
@@ -2265,20 +2428,6 @@
     }
   }
 
-  function findSeatEffort(win) {
-    var w = win || (typeof window !== "undefined" ? window : globalRoot);
-    var map = w && w.__dshSeats;
-    if (!map || typeof map.forEach !== "function") return null;
-    var found = null;
-    map.forEach(function (seat) {
-      if (found) return;
-      if (seat && Array.isArray(seat.effortLevels)) {
-        found = seat;
-      }
-    });
-    return found;
-  }
-
   var cachedReactFiberKey = "";
 
   function getReactFiber(el) {
@@ -2355,9 +2504,12 @@
   }
 
   function normalizeEffortKey(rawKey) {
-    var key = String(rawKey || "").trim().toLowerCase();
+    var key = String(rawKey || "").trim().toLowerCase().replace(/\s+/g, " ");
 
-    return key === "extra" ? "xhigh" : key;
+    if (key === "extra" || key === "extra high" || key === "extra-high" || key === "extra_high") {
+      return "xhigh";
+    }
+    return key;
   }
 
   function normalizeEffortByMap(rawByEffort) {
@@ -2478,9 +2630,16 @@
     return null;
   }
 
+  var docGlobalCtxPresence = typeof WeakMap === "function" ? new WeakMap() : null;
+
   function readAntigravityFiberContext(el) {
     var startFiber = getReactFiber(el);
     if (!startFiber) return null;
+
+    var ownerDoc = el && el.ownerDocument && typeof el.ownerDocument === "object" ? el.ownerDocument : null;
+    var globalCtxConfirmedAbsent = Boolean(
+      ownerDoc && docGlobalCtxPresence && docGlobalCtxPresence.get(ownerDoc) === false
+    );
 
     var selectorCtx = null;
     var innerPopoverProps = null;
@@ -2522,11 +2681,40 @@
         typeof props.value.setModelConfigByLabelForConversation === "function"
       ) {
         globalModelCtx = props.value;
+        if (ownerDoc && docGlobalCtxPresence) {
+          docGlobalCtxPresence.set(ownerDoc, true);
+        }
       }
 
-      if (selectorCtx && outerPopoverProps && hasConversationSelector && globalModelCtx) {
+      if (
+        selectorCtx &&
+        outerPopoverProps &&
+        hasConversationSelector &&
+        (globalModelCtx || globalCtxConfirmedAbsent)
+      ) {
         break;
       }
+      if (
+        !globalModelCtx &&
+        globalCtxConfirmedAbsent &&
+        outerPopoverProps &&
+        hasConversationSelector &&
+        (selectorCtx || step > 60)
+      ) {
+        break;
+      }
+    }
+
+    if (
+      !cur &&
+      !globalModelCtx &&
+      outerPopoverProps &&
+      hasConversationSelector &&
+      ownerDoc &&
+      docGlobalCtxPresence &&
+      !docGlobalCtxPresence.has(ownerDoc)
+    ) {
+      docGlobalCtxPresence.set(ownerDoc, false);
     }
 
     if (!selectorCtx && !innerPopoverProps && !outerPopoverProps && !globalModelCtx) return null;
@@ -2564,6 +2752,58 @@
       (innerPopoverProps && typeof innerPopoverProps.setIsOpen === "function" ? innerPopoverProps.setIsOpen : null) ||
       (selectorCtx && typeof selectorCtx.setIsOpen === "function" ? selectorCtx.setIsOpen : null);
 
+    var orchestratorPlanners =
+      (selectorCtx && Array.isArray(selectorCtx.orchestratorPlanners) ? selectorCtx.orchestratorPlanners : null) ||
+      (outerPopoverProps && Array.isArray(outerPopoverProps.orchestratorPlanners) ? outerPopoverProps.orchestratorPlanners : null) ||
+      (innerPopoverProps && Array.isArray(innerPopoverProps.orchestratorPlanners) ? innerPopoverProps.orchestratorPlanners : null) ||
+      [];
+
+    var rawOrchIndex =
+      (selectorCtx && selectorCtx.orchestratorPlannerIndex instanceof Map ? selectorCtx.orchestratorPlannerIndex : null) ||
+      (outerPopoverProps && outerPopoverProps.orchestratorPlannerIndex instanceof Map ? outerPopoverProps.orchestratorPlannerIndex : null) ||
+      (innerPopoverProps && innerPopoverProps.orchestratorPlannerIndex instanceof Map ? innerPopoverProps.orchestratorPlannerIndex : null);
+
+    var orchestratorPlannerIndex = orchestratorPlanners.length > 0
+      ? normalizeEffortIndex(rawOrchIndex, orchestratorPlanners, null)
+      : new Map();
+
+    var orchestratorDefaultPlanner =
+      (selectorCtx && selectorCtx.orchestratorDefaultPlanner) ||
+      (outerPopoverProps && outerPopoverProps.orchestratorDefaultPlanner) ||
+      (innerPopoverProps && innerPopoverProps.orchestratorDefaultPlanner) ||
+      null;
+
+    var orchestratorPick =
+      (selectorCtx && selectorCtx.orchestratorPick) ||
+      (outerPopoverProps && outerPopoverProps.orchestratorPick) ||
+      (innerPopoverProps && innerPopoverProps.orchestratorPick) ||
+      null;
+
+    var orchestratorModelOption = null;
+    for (var mIdx = 0; mIdx < modelOptions.length; mIdx += 1) {
+      var optItem = modelOptions[mIdx];
+      if (!optItem || !isOrchestratorOption(optItem)) continue;
+      if (!optItem.disabled) {
+        orchestratorModelOption = optItem;
+        break;
+      }
+      if (!orchestratorModelOption) {
+        orchestratorModelOption = optItem;
+      }
+    }
+
+    var hasOrchestratorPlanners = Boolean(
+      orchestratorPlanners.length > 0 &&
+      orchestratorPick &&
+      typeof orchestratorPick.select === "function"
+    );
+
+    var isOrchestratorSelected = Boolean(
+      selectedModel &&
+      isOrchestratorOption(selectedModel) &&
+      hasOrchestratorPlanners
+    );
+
     return {
       effortIndex: effortIndex,
       modelOptions: modelOptions,
@@ -2581,11 +2821,189 @@
           : null,
       unwrappedSetSelectedModel: unwrappedSetter,
       setIsOpen: setIsOpenFn,
-      isOpen: Boolean((outerPopoverProps && outerPopoverProps.open) || (innerPopoverProps && innerPopoverProps.open))
+      isOpen: Boolean((outerPopoverProps && outerPopoverProps.open) || (innerPopoverProps && innerPopoverProps.open)),
+      orchestratorPlanners: orchestratorPlanners,
+      orchestratorPlannerIndex: orchestratorPlannerIndex,
+      orchestratorDefaultPlanner: orchestratorDefaultPlanner,
+      orchestratorPick: orchestratorPick,
+      orchestratorModelOption: orchestratorModelOption,
+      hasOrchestratorPlanners: hasOrchestratorPlanners,
+      isOrchestratorSelected: isOrchestratorSelected
     };
   }
 
-  function resolveModelEffortProfile(ctx, targetModelOrBase, perModelEffortMap) {
+  function resolveCurrentOrchestratorPlanner(ctx, doc) {
+    if (!ctx || !Array.isArray(ctx.orchestratorPlanners) || ctx.orchestratorPlanners.length === 0) {
+      return null;
+    }
+    var planners = ctx.orchestratorPlanners;
+    var pickModel = ctx.orchestratorPick ? ctx.orchestratorPick.model : undefined;
+    if (pickModel !== undefined && pickModel !== null && pickModel !== 0) {
+      for (var i = 0; i < planners.length; i += 1) {
+        if (planners[i] && planners[i].value === pickModel) {
+          return planners[i];
+        }
+      }
+    }
+
+    var d = doc || (typeof document !== "undefined" ? document : null);
+    if (d && typeof d.querySelector === "function" && ctx.orchestratorPlannerIndex instanceof Map) {
+      var orchSpan = d.querySelector('[data-testid="model-selector-orchestrator-model"]');
+      if (orchSpan) {
+        var dataBase = typeof orchSpan.getAttribute === "function" ? orchSpan.getAttribute("data-ces-planner-base") : "";
+        var dataEffort = typeof orchSpan.getAttribute === "function" ? orchSpan.getAttribute("data-ces-planner-effort") : "";
+        if (dataBase && dataEffort) {
+          var dataMap = lookupEffortByBaseName(ctx.orchestratorPlannerIndex, dataBase);
+          var normDataEffort = normalizeEffortKey(dataEffort);
+          if (dataMap && dataMap.has(normDataEffort)) {
+            return dataMap.get(normDataEffort);
+          }
+        }
+        var parsedSpan = parseModelDisplayText(orchSpan.textContent || "");
+        if (parsedSpan) {
+          var spanMap = lookupEffortByBaseName(ctx.orchestratorPlannerIndex, parsedSpan.base);
+          if (spanMap && spanMap.has(parsedSpan.effort)) {
+            return spanMap.get(parsedSpan.effort);
+          }
+        }
+      }
+      var triggerBtn = findAntigravityTrigger(d);
+      if (triggerBtn) {
+        var outerSpan = triggerBtn.querySelector ? triggerBtn.querySelector("span.min-w-0") : null;
+        var mainText = outerSpan && outerSpan.firstChild && outerSpan.firstChild.nodeType === 3
+          ? String(outerSpan.firstChild.nodeValue || "").trim()
+          : "";
+        if (mainText === "Orchestrator") {
+          var trigEffort = outerSpan.querySelector ? outerSpan.querySelector("span.opacity-70, [data-ces-part='trigger-effort']") : null;
+          if (trigEffort) {
+            var parsedTrig = parseModelDisplayText(trigEffort.textContent || "");
+            if (parsedTrig) {
+              var trigMap = lookupEffortByBaseName(ctx.orchestratorPlannerIndex, parsedTrig.base);
+              if (trigMap && trigMap.has(parsedTrig.effort)) {
+                return trigMap.get(parsedTrig.effort);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (ctx.orchestratorDefaultPlanner) {
+      for (var j = 0; j < planners.length; j += 1) {
+        if (planners[j] && planners[j].value === ctx.orchestratorDefaultPlanner.value) {
+          return planners[j];
+        }
+      }
+      return ctx.orchestratorDefaultPlanner;
+    }
+    return planners[0] || null;
+  }
+
+  function resolveOrchestratorPlannerProfile(ctx, targetPlannerOrBase, perOrchestratorEffortMap, doc) {
+    if (!ctx || !ctx.hasOrchestratorPlanners) return null;
+    var activePlanner = resolveCurrentOrchestratorPlanner(ctx, doc);
+    var plannerObj = null;
+    var plannerBase = "";
+    var activeEffort = "";
+
+    if (typeof targetPlannerOrBase === "string" && targetPlannerOrBase) {
+      plannerBase = targetPlannerOrBase;
+    } else if (targetPlannerOrBase && typeof targetPlannerOrBase === "object") {
+      plannerObj = targetPlannerOrBase;
+    } else {
+      plannerObj = activePlanner;
+    }
+
+    if (plannerObj && typeof plannerObj.label === "string") {
+      var parsed = parseModelLabel(plannerObj.label);
+      if (parsed) {
+        plannerBase = parsed.base;
+        activeEffort = parsed.effort;
+      } else {
+        plannerBase = plannerObj.label;
+      }
+    }
+
+    var byEffort = lookupEffortByBaseName(ctx.orchestratorPlannerIndex, plannerBase);
+    if (byEffort && byEffort.size >= 2) {
+      var sortedKeys = [];
+      for (var i = 0; i < AG_EFFORT_ORDER.length; i += 1) {
+        var key = AG_EFFORT_ORDER[i];
+        if (byEffort.has(key)) sortedKeys.push(key);
+      }
+      if (!activeEffort) {
+        if (perOrchestratorEffortMap && perOrchestratorEffortMap.has(plannerBase)) {
+          var remembered = perOrchestratorEffortMap.get(plannerBase);
+          if (byEffort.has(remembered)) activeEffort = remembered;
+        }
+        if (!activeEffort) {
+          var actParsed = activePlanner && parseModelLabel(activePlanner.label);
+          if (actParsed && actParsed.base === plannerBase && byEffort.has(actParsed.effort)) {
+            activeEffort = actParsed.effort;
+          } else if (byEffort.has("medium")) {
+            activeEffort = "medium";
+          } else {
+            activeEffort = sortedKeys[0] || "";
+          }
+        }
+      }
+      var levels = sortedKeys.map(function (k) {
+        var opt = byEffort.get(k);
+        return {
+          effort: k,
+          label: AG_EFFORT_LABELS[k] || k,
+          modelOption: opt
+        };
+      });
+      var currentIndex = Math.max(0, sortedKeys.indexOf(activeEffort));
+      var resolvedEffort = sortedKeys[currentIndex] || activeEffort;
+      var isClaude = isClaudeModel(plannerBase);
+      return {
+        isOrchestrator: true,
+        orchestratorLabel: "Orchestrator",
+        baseName: plannerBase,
+        plannerBaseName: plannerBase,
+        isClaude: isClaude,
+        theme: isClaude ? "claude" : "codex",
+        locked: false,
+        levels: levels,
+        currentIndex: currentIndex,
+        currentEffort: resolvedEffort,
+        currentLabel: AG_EFFORT_LABELS[resolvedEffort] || resolvedEffort,
+        modelOption: byEffort.get(resolvedEffort) || plannerObj,
+        orchestratorOption: ctx.orchestratorModelOption
+      };
+    }
+
+    var singleParsed = plannerObj && parseModelLabel(plannerObj.label);
+    var singleEffort = singleParsed ? singleParsed.effort : "medium";
+    var singleLabel = singleParsed ? singleParsed.effortLabel : "固定";
+    var resolvedSingleBase = plannerBase || (plannerObj && plannerObj.label) || "";
+    var isClaudeSingle = isClaudeModel(resolvedSingleBase);
+    return {
+      isOrchestrator: true,
+      orchestratorLabel: "Orchestrator",
+      baseName: resolvedSingleBase,
+      plannerBaseName: resolvedSingleBase,
+      isClaude: isClaudeSingle,
+      theme: isClaudeSingle ? "claude" : "codex",
+      locked: true,
+      levels: [
+        {
+          effort: singleEffort,
+          label: singleLabel,
+          modelOption: plannerObj
+        }
+      ],
+      currentIndex: 0,
+      currentEffort: singleEffort,
+      currentLabel: singleLabel,
+      modelOption: plannerObj,
+      orchestratorOption: ctx.orchestratorModelOption
+    };
+  }
+
+  function resolveModelEffortProfile(ctx, targetModelOrBase, perModelEffortMap, perOrchestratorEffortMap, doc) {
     if (!ctx) return null;
     var selected = ctx.selectedModel;
     var modelObj = null;
@@ -2598,6 +3016,13 @@
       modelObj = targetModelOrBase;
     } else {
       modelObj = selected;
+    }
+
+    if (
+      ctx.hasOrchestratorPlanners &&
+      ((modelObj && isOrchestratorOption(modelObj)) || (!modelObj && /^orchestrator$/i.test(baseName.trim())))
+    ) {
+      return resolveOrchestratorPlannerProfile(ctx, null, perOrchestratorEffortMap || null, doc);
     }
 
     if (modelObj && typeof modelObj.label === "string") {
@@ -2680,6 +3105,25 @@
     };
   }
 
+  function commitOrchestratorPlannerOption(ctx, targetPlannerOption, ensureOrchestratorSelected) {
+    if (!ctx || !targetPlannerOption) return false;
+    var ok = false;
+    if (ctx.orchestratorPick && typeof ctx.orchestratorPick.select === "function") {
+      try {
+        ctx.orchestratorPick.select(targetPlannerOption.value);
+        ok = true;
+      } catch (err) {
+        tracePush("ag-orch-commit-error", { message: String(err && err.message ? err.message : err) });
+      }
+    }
+    if (ensureOrchestratorSelected && ctx.orchestratorModelOption) {
+      ok = commitAntigravityModelOption(ctx, ctx.orchestratorModelOption) || ok;
+    }
+    return ok;
+  }
+
+  var cachedEditableEl = null;
+
   function commitAntigravityModelOption(ctx, targetOption) {
     if (!ctx || !targetOption || !targetOption.label) return false;
     try {
@@ -2691,7 +3135,15 @@
       if (typeof ctx.unwrappedSetSelectedModel === "function") {
 
         var doc = typeof document !== "undefined" ? document : null;
-        var editable = doc && doc.querySelector ? doc.querySelector('[contenteditable="true"]') : null;
+        var editable =
+          cachedEditableEl && cachedEditableEl.ownerDocument === doc && cachedEditableEl.isConnected === true
+            ? cachedEditableEl
+            : (doc && doc.querySelector ? doc.querySelector('[contenteditable="true"]') : null);
+        if (editable && editable.isConnected === true) {
+          cachedEditableEl = editable;
+        } else if (!editable) {
+          cachedEditableEl = null;
+        }
         var editorInst = editable ? editable.__lexicalEditor : null;
         var editorProto = editorInst ? Object.getPrototypeOf(editorInst) : null;
         var origEditorFocus = editorProto && typeof editorProto.focus === "function" ? editorProto.focus : null;
@@ -2805,10 +3257,9 @@
     for (var sIdx = 0; sIdx < PARTICLES.length; sIdx += 1) {
       var p = PARTICLES[sIdx];
       var starEl = doc.createElement("span");
-      starEl.className = "ces-star";
+      starEl.className = "ces-star is-hidden";
       starEl.setAttribute("data-ces-part", "star");
       starEl.style.top = p.y + "%";
-      starEl.style.display = "none";
 
       var dotEl = doc.createElement("span");
       dotEl.className = "ces-star__dot";
@@ -2861,6 +3312,8 @@
     var claudeActive = false;
 
     var dragging = false;
+    var hasDragged = false;
+    var downClientX = null;
     var buttonDown = false;
     var draftPct = null;
     var draftIndex = null;
@@ -2877,18 +3330,22 @@
     var lastRenderedTickCount = -1;
     var lastAppliedEnergy = -1;
     var lastAppliedSlowdown = -1;
+    var lastAppliedVisibleCount = -1;
+    var lastAppliedStarSpeed = -1;
+    var lastAppliedIsClaude = null;
     var lastAppliedOffsetCss = null;
     var lastAppliedFillBg = null;
     var lastVisualSyncSig = "";
+    var dragSnapCache = null;
 
     var cachedSettings = schemaDefaults();
     var cachedReducedMotion = false;
-    var cachedMotionMode = "fast";
+    var cachedMotionMode = "full";
 
     function refreshCachedSettings() {
       cachedSettings = readSettings(win);
       cachedReducedMotion = prefersReducedMotion(win);
-      cachedMotionMode = cachedReducedMotion ? "quick" : (cachedSettings.motion || "fast");
+      cachedMotionMode = cachedReducedMotion ? "quick" : (cachedSettings.motion || "full");
     }
     refreshCachedSettings();
 
@@ -2983,7 +3440,13 @@
         var shouldShow = i < visibleCount;
         var wasShown = starVisibleStates[i];
         if (shouldShow !== wasShown) {
-          sNode.el.style.display = shouldShow ? "" : "none";
+          if (sNode.el.classList) {
+            if (shouldShow) {
+              sNode.el.classList.remove("is-hidden");
+            } else {
+              sNode.el.classList.add("is-hidden");
+            }
+          }
           starVisibleStates[i] = shouldShow;
         }
         if (shouldShow && (speedChanged || !wasShown)) {
@@ -3008,7 +3471,7 @@
     }
 
     function scheduleStarNodesSync(visibleCount, speedFactor, slowdown) {
-      if (!dragging || !win || typeof win.requestAnimationFrame !== "function") {
+      if (!(dragging && hasDragged) || !win || typeof win.requestAnimationFrame !== "function") {
         cancelStarSync();
         applyStarNodesNow(visibleCount, speedFactor, slowdown);
         return;
@@ -3060,8 +3523,12 @@
       var baseName = (snapSource && snapSource.baseName) || (snapSource && snapSource.modelName) || "";
       var isClaude = Boolean((snapSource && snapSource.isClaude) || isClaudeModel(baseName));
       var theme = (snapSource && snapSource.theme) || (isClaude ? "claude" : "codex");
+      var subtitle = snapSource && typeof snapSource.subtitle === "string"
+        ? snapSource.subtitle
+        : (snapSource && snapSource.isOrchestrator && baseName ? "· " + baseName : "");
       return {
         baseName: baseName,
+        subtitle: subtitle,
         isClaude: isClaude,
         theme: theme,
         levels: levels,
@@ -3120,6 +3587,22 @@
         }
       }
 
+      var subtitleEl =
+        opts.subtitleElement ||
+        (rowEl && rowEl.querySelector ? rowEl.querySelector('[data-ces-part="subtitle"]') : null);
+      if (subtitleEl) {
+        var nextSub = snap.subtitle || "";
+        if (subtitleEl.textContent !== nextSub) {
+          subtitleEl.textContent = nextSub;
+        }
+        if (subtitleEl.style) {
+          var nextSubDisplay = nextSub ? "" : "none";
+          if (subtitleEl.style.display !== nextSubDisplay) {
+            subtitleEl.style.display = nextSubDisplay;
+          }
+        }
+      }
+
       var valEl = opts.valueElement || (rowEl && findValueElement(rowEl));
       if (valEl) {
         if (label && valEl.textContent !== label) {
@@ -3151,6 +3634,8 @@
 
       var visualSig =
         (snap.baseName || "") +
+        "|" +
+        (snap.subtitle || "") +
         "|" +
         safeIdx +
         "|" +
@@ -3313,16 +3798,11 @@
       if (offsetCss !== lastAppliedOffsetCss) {
         lastAppliedOffsetCss = offsetCss;
         trackEl.style.setProperty("--ces-fill", offsetCss);
-        fillEl.style.width = offsetCss;
-        energyEl.style.width = offsetCss;
-        starsEl.style.width = offsetCss;
-        knobEl.style.left = offsetCss;
       }
 
       var fillBg = fillBackgroundFor(p, snap.energyStart, snap.energyEnd, snap.isClaude);
       if (fillBg !== lastAppliedFillBg) {
         lastAppliedFillBg = fillBg;
-        trackEl.style.setProperty("--ces-fill-bg", fillBg);
         fillEl.style.background = fillBg;
       }
 
@@ -3346,34 +3826,49 @@
 
       var energy = snap.locked ? 0 : energyForPct(p, snap.energyStart);
       var slowdown = cachedMotionMode === "quick" ? REDUCED_MOTION_SLOWDOWN : 1;
-      if (Math.abs(energy - lastAppliedEnergy) > 1e-5 || slowdown !== lastAppliedSlowdown) {
+      var themeChanged = lastAppliedIsClaude !== Boolean(snap.isClaude);
+      if (Math.abs(energy - lastAppliedEnergy) > 1e-5 || slowdown !== lastAppliedSlowdown || themeChanged) {
         lastAppliedEnergy = energy;
         lastAppliedSlowdown = slowdown;
+        lastAppliedIsClaude = Boolean(snap.isClaude);
 
         var energyOn = energy > 0 ? "1" : "0";
-        var energyStr = String(Math.round(energy * 1000) / 1000);
+        var energyStr = String(Math.round(energy * 50) / 50);
         if (rootEl.getAttribute("data-energy") !== energyOn) rootEl.setAttribute("data-energy", energyOn);
-        rootEl.style.setProperty("--ces-energy", energyStr);
-        if (container && container.setAttribute) {
-          if (container.getAttribute("data-energy") !== energyOn) container.setAttribute("data-energy", energyOn);
-          if (container.style) container.style.setProperty("--ces-energy", energyStr);
+        if (container && container.setAttribute && container.getAttribute("data-energy") !== energyOn) {
+          container.setAttribute("data-energy", energyOn);
         }
+        trackEl.style.setProperty("--ces-energy", energyStr);
+        energyEl.style.opacity = energyStr;
 
-        var starLayerOpacity = starLayerOpacityFor(energy);
-        trackEl.style.setProperty("--ces-star-opacity", String(starLayerOpacity));
-        starsEl.style.opacity = String(starLayerOpacity);
+        if (!snap.isClaude) {
+          var starLayerOpacity = starLayerOpacityFor(energy);
+          starsEl.style.opacity = String(starLayerOpacity);
 
-        var visibleCount = Math.round(energy * PARTICLES.length);
-        var speedFactor = speedFor(p, snap.energyStart);
-        var nextCountStr = String(visibleCount);
-        if (starsEl.getAttribute("data-count") !== nextCountStr) {
-          starsEl.setAttribute("data-count", nextCountStr);
+          var visibleCount = Math.round(energy * PARTICLES.length);
+          var speedFactor = speedFor(p, snap.energyStart);
+          if (
+            visibleCount !== lastAppliedVisibleCount ||
+            Math.abs(speedFactor - lastAppliedStarSpeed) >= 0.04 ||
+            themeChanged
+          ) {
+            lastAppliedVisibleCount = visibleCount;
+            lastAppliedStarSpeed = speedFactor;
+            var nextCountStr = String(visibleCount);
+            if (starsEl.getAttribute("data-count") !== nextCountStr) {
+              starsEl.setAttribute("data-count", nextCountStr);
+            }
+            scheduleStarNodesSync(visibleCount, speedFactor, slowdown);
+          }
         }
-        scheduleStarNodesSync(visibleCount, speedFactor, slowdown);
       }
 
       renderTicks(snap, p);
       syncHeaderAndTrigger(snap, safeIdx, visualOpts);
+    }
+
+    function getActiveSnapshot() {
+      return dragging && dragSnapCache ? dragSnapCache : readSeatSnapshot();
     }
 
     function stopFrames() {
@@ -3406,6 +3901,7 @@
         m.x = clamp01(m.target);
         m.v = 0;
         m.a = 0;
+        lastFrameMs = 0;
         if (!dragging) {
           snapIndex = null;
         }
@@ -3533,6 +4029,9 @@
           tracePush("commit-error", { message: String(err && err.message ? err.message : err) });
         }
       }
+      if (dragSnapCache && dragSnapCache === snap) {
+        dragSnapCache.officialIndex = clampedIdx;
+      }
       if (typeof opts.onCommit === "function") {
         try {
           opts.onCommit(item, clampedIdx, reason || "drag");
@@ -3551,7 +4050,7 @@
     }
 
     function moveToClientX(clientX, isInitialDown) {
-      var snap = readSeatSnapshot();
+      var snap = getActiveSnapshot();
       if (snap.locked || snap.count <= 0) return;
 
       var ptrPct = pctAtClientX(clientX);
@@ -3601,7 +4100,6 @@
       draftIndex = nowIndex;
 
       var m = ensureMotion(snap);
-      m.target = targetPct;
 
       var committed = false;
       if (nowIndex !== lastCommittedIndex) {
@@ -3609,25 +4107,50 @@
         committed = true;
       }
 
+      if (isInitialDown && !hasDragged) {
+        var slotPct = pctFromIndex(nowIndex, snap.count);
+        m.target = slotPct;
+        if (mode === "quick") {
+          m.x = slotPct;
+          m.v = 0;
+          m.a = 0;
+          stopFrames();
+          applyVisualPct(snap, m.x, nowIndex);
+        } else {
+
+          applyVisualPct(snap, m.x, nowIndex);
+          if (!motionSettled(m, motionParamsForMode(mode))) {
+            startFrames();
+          }
+        }
+        return;
+      }
+
+      m.target = targetPct;
+
       m.x = targetPct;
       m.v = 0;
       m.a = 0;
       stopFrames();
-      applyVisualPct(committed ? readSeatSnapshot() : snap, m.x, nowIndex);
+      applyVisualPct(snap, m.x, nowIndex);
     }
 
     function endDrag(clientX) {
       if (!dragging) return;
-      var snap = readSeatSnapshot();
+      var wasDragged = hasDragged;
+      var clickedIndex = draftIndex;
+      var snap = getActiveSnapshot();
       var ptrPct = draftPct !== null ? draftPct : pctFromIndex(snap.officialIndex, snap.count);
-      if (typeof clientX === "number") {
+      if (wasDragged && typeof clientX === "number") {
         var p = pctAtClientX(clientX);
         if (p !== null) ptrPct = p;
       }
 
       var mode = cachedMotionMode;
       var finalIndex;
-      if (mode === "fast") {
+      if (!wasDragged) {
+        finalIndex = clickedIndex !== null ? clickedIndex : indexFromPct(ptrPct, snap.count);
+      } else if (mode === "fast") {
         var baseDetent = detentIndex >= 0 && detentIndex < snap.count ? detentIndex : snap.officialIndex;
         finalIndex = detentTargetIndex(baseDetent, ptrPct, snap.count);
       } else if (mode === "quick") {
@@ -3638,6 +4161,9 @@
       }
 
       dragging = false;
+      dragSnapCache = null;
+      hasDragged = false;
+      downClientX = null;
       cachedTrackRect = null;
       buttonDown = false;
       draftPct = null;
@@ -3647,15 +4173,12 @@
       ptrSpeed = 0;
       snapIndex = finalIndex;
 
-      var committed = false;
       if (finalIndex !== lastCommittedIndex) {
         commitAtIndex(finalIndex, "release", snap);
-        committed = true;
       }
 
       var m = ensureMotion(snap);
       m.target = pctFromIndex(finalIndex, snap.count);
-      var visualSnap = committed ? readSeatSnapshot() : snap;
 
       if (mode === "quick") {
         m.x = m.target;
@@ -3663,13 +4186,25 @@
         m.a = 0;
         snapIndex = null;
         stopFrames();
-        applyVisualPct(visualSnap, m.x, finalIndex);
-      } else {
+        applyVisualPct(snap, m.x, finalIndex);
+      } else if (wasDragged) {
         m.x = ptrPct;
         m.v = 0;
         m.a = 0;
-        applyVisualPct(visualSnap, m.x, finalIndex);
+        applyVisualPct(snap, m.x, finalIndex);
         startFrames();
+      } else {
+        if (motionSettled(m, motionParamsForMode(mode))) {
+          m.x = m.target;
+          m.v = 0;
+          m.a = 0;
+          snapIndex = null;
+          stopFrames();
+          applyVisualPct(snap, m.x, finalIndex);
+        } else {
+          applyVisualPct(snap, m.x, finalIndex);
+          startFrames();
+        }
       }
     }
 
@@ -3688,6 +4223,9 @@
 
       refreshTrackRectCache();
       dragging = true;
+      dragSnapCache = snap;
+      hasDragged = false;
+      downClientX = ev && typeof ev.clientX === "number" ? ev.clientX : null;
       buttonDown = true;
 
       lastCommittedIndex = snap.officialIndex;
@@ -3710,6 +4248,16 @@
       if (!dragging) return;
       if (ev && ev.buttons === 0 && !buttonDown) return;
       swallowEvent(ev);
+      if (
+        !hasDragged &&
+        downClientX !== null &&
+        ev &&
+        typeof ev.clientX === "number" &&
+        Math.abs(ev.clientX - downClientX) < DRAG_THRESHOLD_PX
+      ) {
+        return;
+      }
+      hasDragged = true;
       moveToClientX(ev.clientX, false);
     }
 
@@ -3828,7 +4376,7 @@
     var offSettings = onSettingsChange(function (nextSettings) {
       cachedSettings = nextSettings || readSettings(win);
       cachedReducedMotion = prefersReducedMotion(win);
-      cachedMotionMode = cachedReducedMotion ? "quick" : (cachedSettings.motion || "fast");
+      cachedMotionMode = cachedReducedMotion ? "quick" : (cachedSettings.motion || "full");
       var snap = readSeatSnapshot();
       var m = ensureMotion(snap);
       applyVisualPct(snap, m.x, currentShownIndex(snap));
@@ -3873,6 +4421,8 @@
     return {
       unmount: function () {
         destroyed = true;
+        dragging = false;
+        dragSnapCache = null;
         stopFrames();
         stopClaudeCanvasAnimation();
         cancelStarSync();
@@ -4107,15 +4657,15 @@
     installStyles(doc);
 
     var perModelEffortMap = new Map();
+    var perOrchestratorEffortMap = new Map();
     var activeMount = null;
     var activePanel = null;
     var activeSection = null;
-    var activeRow = null;
-    var activeValueEl = null;
-    var activeHostEl = null;
     var activeSeatListeners = new Set();
     var activeBaseOverride = null;
     var activeModelOptionOverride = null;
+    var activeOrchestratorMode = false;
+    var activeOrchestratorPlannerOverride = null;
     var isInternalMutating = false;
     var isStopped = false;
     var nativeDetected = false;
@@ -4126,6 +4676,8 @@
     var observedTriggerEl = null;
     var panelObserver = null;
     var observedPanelEl = null;
+    var orchSubmenuObserver = null;
+    var observedOrchSubmenuEl = null;
     var bootObserver = null;
     var panelResizeObserver = null;
     var postMountRafId = null;
@@ -4140,8 +4692,13 @@
     var lastPanelSig = "";
     var cachedGroupSpans = null;
     var cachedSingleItems = null;
+    var cachedOrchRow = null;
     var panelRowsDirty = true;
     var panelDecorDirty = true;
+    var lastOrchSubmenuEl = null;
+    var lastOrchSubmenuSig = "";
+    var orchSubmenuDirty = true;
+    var lastCommittedSyncKey = "";
 
     function isNodeDetached(node) {
       return Boolean(node && node.isConnected === false);
@@ -4158,7 +4715,14 @@
       }
       if (typeof el.getAttribute === "function") {
         var cesPart = el.getAttribute("data-ces-part");
-        if (cesPart && cesPart !== "trigger-effort") {
+        if (
+          cesPart &&
+          cesPart !== "trigger-effort" &&
+          cesPart !== "trigger-orch-name" &&
+          cesPart !== "trigger-orch-effort" &&
+          cesPart !== "orch-model-name" &&
+          cesPart !== "orch-effort"
+        ) {
           return true;
         }
       }
@@ -4191,7 +4755,7 @@
     }
 
     function drainObservers() {
-      var list = [bodyPortalObserver, triggerObserver, panelObserver, bootObserver];
+      var list = [bodyPortalObserver, triggerObserver, panelObserver, orchSubmenuObserver, bootObserver];
       for (var i = 0; i < list.length; i += 1) {
         var obs = list[i];
         if (obs && typeof obs.takeRecords === "function") {
@@ -4275,15 +4839,42 @@
     }
 
     function getLiveContext(triggerHint, panelHint) {
-      var trigger = triggerHint !== undefined ? triggerHint : findAntigravityTrigger(doc);
-      var panel = panelHint !== undefined ? panelHint : findAntigravityPanel(doc);
-      return readAntigravityFiberContext(trigger || panel);
+      var trigger =
+        triggerHint !== undefined
+          ? triggerHint
+          : (observedTriggerEl && !isNodeDetached(observedTriggerEl) ? observedTriggerEl : findAntigravityTrigger(doc));
+      var panel =
+        panelHint !== undefined
+          ? panelHint
+          : (activePanel && !isNodeDetached(activePanel) ? activePanel : findAntigravityPanel(doc));
+      var target = trigger || panel;
+      if (!target) {
+        target =
+          observedOrchSubmenuEl && !isNodeDetached(observedOrchSubmenuEl)
+            ? observedOrchSubmenuEl
+            : findOrchestratorSubmenu(doc);
+      }
+      return readAntigravityFiberContext(target);
+    }
+
+    function resolveOrchSubmenuForSync(orchMenuHint, profile) {
+      if (orchMenuHint !== undefined) return orchMenuHint;
+      if (observedOrchSubmenuEl && !isNodeDetached(observedOrchSubmenuEl)) {
+        return observedOrchSubmenuEl;
+      }
+      if (activeOrchestratorMode || (profile && profile.isOrchestrator)) {
+        return findOrchestratorSubmenu(doc);
+      }
+      return null;
     }
 
     function getActiveProfile(ctx) {
       if (!ctx) return null;
+      if (activeOrchestratorMode && ctx.hasOrchestratorPlanners) {
+        return resolveOrchestratorPlannerProfile(ctx, activeOrchestratorPlannerOverride, perOrchestratorEffortMap, doc);
+      }
       var target = activeModelOptionOverride || activeBaseOverride || ctx.selectedModel;
-      return resolveModelEffortProfile(ctx, target, perModelEffortMap);
+      return resolveModelEffortProfile(ctx, target, perModelEffortMap, perOrchestratorEffortMap, doc);
     }
 
     function buildSeatSnapshot(ctx, prof) {
@@ -4293,6 +4884,8 @@
           currentEffort: "",
           locked: true,
           baseName: "",
+          isOrchestrator: false,
+          subtitle: "",
           isClaude: false,
           theme: "codex"
         };
@@ -4302,18 +4895,279 @@
         currentEffort: prof.currentEffort,
         locked: prof.locked,
         baseName: prof.baseName,
+        isOrchestrator: Boolean(prof.isOrchestrator),
+        subtitle: prof.isOrchestrator && prof.baseName ? "· " + prof.baseName : "",
         isClaude: Boolean(prof.isClaude),
         theme: prof.theme || "codex"
       };
     }
 
-    function syncAntigravityDomDecorations(ctx, activeProfile, triggerHint, panelHint) {
+    function renderSplitEffortSpan(hostSpan, leadingText, effortLabel, color, namePart, effortPart) {
+      if (!hostSpan || !doc) return;
+      var nameNode = null;
+      var effortNode = null;
+      if (hostSpan.children && hostSpan.children.length === 2) {
+        var c0 = hostSpan.children[0];
+        var c1 = hostSpan.children[1];
+        if (
+          c0 && c1 &&
+          typeof c0.getAttribute === "function" &&
+          typeof c1.getAttribute === "function" &&
+          c0.getAttribute("data-ces-part") === namePart &&
+          c1.getAttribute("data-ces-part") === effortPart
+        ) {
+          nameNode = c0;
+          effortNode = c1;
+        }
+      }
+      if (!nameNode || !effortNode) {
+        hostSpan.textContent = "";
+        if (hostSpan.children && hostSpan.children.length > 0 && typeof hostSpan.removeChild === "function") {
+          while (hostSpan.children.length > 0) {
+            hostSpan.removeChild(hostSpan.children[hostSpan.children.length - 1]);
+          }
+        }
+        nameNode = doc.createElement("span");
+        nameNode.setAttribute("data-ces-part", namePart);
+        effortNode = doc.createElement("span");
+        effortNode.setAttribute("data-ces-part", effortPart);
+        hostSpan.appendChild(nameNode);
+        hostSpan.appendChild(effortNode);
+      }
+      if (hostSpan.style) {
+        if (hostSpan.style.opacity !== "1") hostSpan.style.opacity = "1";
+        if (hostSpan.style.color !== "") hostSpan.style.color = "";
+        if (hostSpan.style.fontWeight !== "") hostSpan.style.fontWeight = "";
+      }
+      if (nameNode.style && nameNode.style.opacity !== "0.7") {
+        nameNode.style.opacity = "0.7";
+      }
+      if (nameNode.textContent !== leadingText) {
+        nameNode.textContent = leadingText;
+      }
+      if (effortNode.textContent !== effortLabel) {
+        effortNode.textContent = effortLabel;
+      }
+      if (effortNode.style) {
+        var nextColor = color || "";
+        var nextOpacity = nextColor ? "1" : "";
+        var nextWeight = nextColor ? "600" : "";
+        if (effortNode.style.color !== nextColor) effortNode.style.color = nextColor;
+        if (effortNode.style.opacity !== nextOpacity) effortNode.style.opacity = nextOpacity;
+        if (effortNode.style.fontWeight !== nextWeight) effortNode.style.fontWeight = nextWeight;
+      }
+    }
+
+    function findOrchestratorPickerEffortSpan(row) {
+      if (!row) return null;
+      var leftWrap = row.firstElementChild;
+      if (leftWrap && leftWrap.tagName === "SPAN" && leftWrap.children && leftWrap.children.length >= 2) {
+        var candidate = leftWrap.children[1];
+        if (candidate && candidate.tagName === "SPAN") return candidate;
+      }
+      if (typeof row.querySelector === "function") {
+        var opSpan = row.querySelector("span.opacity-70");
+        if (opSpan) return opSpan;
+      }
+      if (row.children && row.children.length >= 2 && row.children[1] && row.children[1].tagName === "SPAN") {
+        return row.children[1];
+      }
+      return null;
+    }
+
+    function bindOrchestratorSubmenuInteractions(orchMenu) {
+      if (!orchMenu || orchMenu.__cesAgOrchBound) return;
+      orchMenu.__cesAgOrchBound = true;
+
+      function findClickedOrchRow(target) {
+        if (!target || typeof target.closest !== "function") return null;
+        var row = target.closest('[data-testid="orchestrator-picker-row"]');
+        if (!row || (typeof orchMenu.contains === "function" && !orchMenu.contains(row))) return null;
+        return {
+          row: row,
+          base: row.getAttribute ? (row.getAttribute("data-model-base") || "") : "",
+          label: row.getAttribute ? (row.getAttribute("data-model-label") || "") : ""
+        };
+      }
+
+      function onOrchPointerOrMouseUpCapture(ev) {
+        var hit = findClickedOrchRow(ev.target);
+        if (!hit) return;
+        ev.stopPropagation();
+        if (typeof ev.stopImmediatePropagation === "function") ev.stopImmediatePropagation();
+      }
+
+      function onOrchClickCapture(ev) {
+        var hit = findClickedOrchRow(ev.target);
+        if (!hit) return;
+
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (typeof ev.stopImmediatePropagation === "function") ev.stopImmediatePropagation();
+
+        var livePanel = activePanel || findAntigravityPanel(doc);
+        var ctx = getLiveContext(undefined, livePanel || orchMenu);
+        if (!ctx || !ctx.hasOrchestratorPlanners) return;
+
+        var targetOption = null;
+        if (hit.base) {
+          var orchProf = resolveOrchestratorPlannerProfile(ctx, hit.base, perOrchestratorEffortMap, doc);
+          if (orchProf && orchProf.modelOption) {
+            targetOption = orchProf.modelOption;
+          }
+        } else if (hit.label) {
+          var planners = Array.isArray(ctx.orchestratorPlanners) ? ctx.orchestratorPlanners : [];
+          for (var i = 0; i < planners.length; i += 1) {
+            if (planners[i] && planners[i].label === hit.label) {
+              targetOption = planners[i];
+              break;
+            }
+          }
+        }
+
+        if (targetOption) {
+          var parsed = parseModelLabel(targetOption.label);
+          if (parsed) {
+            perOrchestratorEffortMap.set(parsed.base, parsed.effort);
+          }
+          activeOrchestratorMode = true;
+          activeOrchestratorPlannerOverride = targetOption;
+          activeBaseOverride = null;
+          activeModelOptionOverride = ctx.orchestratorModelOption || null;
+
+          tracePush("ag-select-orchestrator-planner", { label: targetOption.label });
+          commitOrchestratorPlannerOption(ctx, targetOption, !ctx.isOrchestratorSelected);
+          runInternalMutation(function () {
+            var nextProf = resolveOrchestratorPlannerProfile(ctx, targetOption, perOrchestratorEffortMap, doc);
+            syncAntigravityDomDecorations(ctx, nextProf, undefined, livePanel, orchMenu);
+            notifySeatListeners();
+          });
+        }
+      }
+
+      orchMenu.addEventListener("pointerup", onOrchPointerOrMouseUpCapture, true);
+      orchMenu.addEventListener("mouseup", onOrchPointerOrMouseUpCapture, true);
+      orchMenu.addEventListener("click", onOrchClickCapture, true);
+    }
+
+    function syncOrchestratorSubmenuDecorations(ctx, activeProfile, orchMenuHint) {
+      var profile = activeProfile || getActiveProfile(ctx);
+      var orchMenu = resolveOrchSubmenuForSync(orchMenuHint, profile);
+      if (!orchMenu || !ctx || !ctx.hasOrchestratorPlanners) {
+        lastOrchSubmenuEl = null;
+        lastOrchSubmenuSig = "";
+        orchSubmenuDirty = true;
+        return;
+      }
+      if (orchMenu.classList && !orchMenu.classList.contains("ces-ag-orch-submenu")) {
+        orchMenu.classList.add("ces-ag-orch-submenu");
+      }
+      bindOrchestratorSubmenuInteractions(orchMenu);
+
+      var rows = orchMenu.querySelectorAll ? orchMenu.querySelectorAll('[data-testid="orchestrator-picker-row"]') : [];
+      var curOrchPlanner = resolveCurrentOrchestratorPlanner(ctx, doc);
+      var curOrchParsed = curOrchPlanner && curOrchPlanner.label ? parseModelLabel(curOrchPlanner.label) : null;
+      var activePlannerBase =
+        profile && profile.isOrchestrator
+          ? profile.baseName
+          : (curOrchParsed ? curOrchParsed.base : (curOrchPlanner && curOrchPlanner.label) || "");
+      var activePlannerLabel =
+        profile && profile.isOrchestrator
+          ? profile.currentLabel
+          : (curOrchParsed ? curOrchParsed.effortLabel : "");
+
+      var submenuSig =
+        (profile && profile.isOrchestrator ? "O" : "M") +
+        "|" +
+        activePlannerBase +
+        "|" +
+        activePlannerLabel +
+        "|" +
+        rows.length +
+        "|" +
+        (ctx.orchestratorPick ? String(ctx.orchestratorPick.model) : "");
+
+      if (!orchSubmenuDirty && orchMenu === lastOrchSubmenuEl && submenuSig === lastOrchSubmenuSig) {
+        return;
+      }
+
+      for (var rIdx = 0; rIdx < rows.length; rIdx += 1) {
+        var rowEl = rows[rIdx];
+        var rBase = rowEl.getAttribute ? (rowEl.getAttribute("data-model-base") || "") : "";
+        var rLabel = rowEl.getAttribute ? (rowEl.getAttribute("data-model-label") || "") : "";
+        if (rBase) {
+          var rowProf = resolveOrchestratorPlannerProfile(ctx, rBase, perOrchestratorEffortMap, doc);
+          if (!rowProf) continue;
+          var isRowSelected = Boolean(profile && profile.isOrchestrator && activePlannerBase === rBase);
+          var nextAttr = isRowSelected ? "true" : "false";
+          if (rowEl.getAttribute("data-ces-model-selected") !== nextAttr) {
+            rowEl.setAttribute("data-ces-model-selected", nextAttr);
+          }
+          if (rowEl.classList) {
+            if (isRowSelected) {
+              if (rowEl.classList.contains("text-secondary-foreground")) rowEl.classList.remove("text-secondary-foreground");
+              if (!rowEl.classList.contains("text-foreground")) rowEl.classList.add("text-foreground");
+            } else {
+              if (rowEl.classList.contains("text-foreground")) rowEl.classList.remove("text-foreground");
+              if (!rowEl.classList.contains("text-secondary-foreground")) rowEl.classList.add("text-secondary-foreground");
+            }
+          }
+          var effSpan = findOrchestratorPickerEffortSpan(rowEl);
+          if (effSpan) {
+            var dispLabel = isRowSelected ? profile.currentLabel : rowProf.currentLabel;
+            var dispIdx = isRowSelected ? profile.currentIndex : rowProf.currentIndex;
+            var dispCount = rowProf.levels.length;
+            var dispMax = dispCount > 1 && dispIdx === dispCount - 1 && !isOffLevel(dispLabel);
+            if (effSpan.textContent !== dispLabel) {
+              effSpan.textContent = dispLabel;
+            }
+            var rColor = valueColorFor(dispLabel, dispIdx, dispCount, dispMax, false, rowProf.isClaude) || "";
+            if (effSpan.style) {
+              if (effSpan.style.color !== rColor) effSpan.style.color = rColor;
+              var rOpacity = rColor ? "1" : "";
+              if (effSpan.style.opacity !== rOpacity) effSpan.style.opacity = rOpacity;
+              var rWeight = rColor ? "600" : "";
+              if (effSpan.style.fontWeight !== rWeight) effSpan.style.fontWeight = rWeight;
+            }
+          }
+        } else if (rLabel) {
+          var isSingleSel = Boolean(
+            profile &&
+            profile.isOrchestrator &&
+            ((profile.modelOption && profile.modelOption.label === rLabel) || activePlannerBase === rLabel)
+          );
+          var nextSingleOrchAttr = isSingleSel ? "true" : "false";
+          if (rowEl.getAttribute && rowEl.getAttribute("data-ces-model-selected") !== nextSingleOrchAttr) {
+            rowEl.setAttribute("data-ces-model-selected", nextSingleOrchAttr);
+          }
+          if (rowEl.classList) {
+            if (isSingleSel) {
+              if (rowEl.classList.contains("text-secondary-foreground")) rowEl.classList.remove("text-secondary-foreground");
+              if (!rowEl.classList.contains("text-foreground")) rowEl.classList.add("text-foreground");
+            } else {
+              if (rowEl.classList.contains("text-foreground")) rowEl.classList.remove("text-foreground");
+              if (!rowEl.classList.contains("text-secondary-foreground")) rowEl.classList.add("text-secondary-foreground");
+            }
+          }
+        }
+      }
+
+      lastOrchSubmenuEl = orchMenu;
+      lastOrchSubmenuSig = submenuSig;
+      orchSubmenuDirty = false;
+    }
+
+    function syncAntigravityDomDecorations(ctx, activeProfile, triggerHint, panelHint, orchMenuHint) {
       if (!ctx) return;
       var profile = activeProfile || getActiveProfile(ctx);
       if (!profile) return;
 
       if (!profile.locked && profile.baseName && profile.currentEffort) {
-        perModelEffortMap.set(profile.baseName, profile.currentEffort);
+        if (profile.isOrchestrator) {
+          perOrchestratorEffortMap.set(profile.baseName, profile.currentEffort);
+        } else {
+          perModelEffortMap.set(profile.baseName, profile.currentEffort);
+        }
       }
 
       var count = profile.levels.length;
@@ -4322,6 +5176,8 @@
 
       var triggerBtn = triggerHint !== undefined ? triggerHint : findAntigravityTrigger(doc);
       var triggerSig =
+        (profile.isOrchestrator ? "O" : "M") +
+        "|" +
         (profile.locked ? "1" : "0") +
         "|" +
         (profile.baseName || "") +
@@ -4349,14 +5205,39 @@
             var effortSpan = outerSpan.querySelector
               ? outerSpan.querySelector("span.opacity-70, [data-ces-part='trigger-effort']")
               : null;
-            if (!profile.locked && profile.baseName) {
+            if (profile.isOrchestrator && profile.baseName) {
+              var orchFirstNode = outerSpan.firstChild;
+              if (orchFirstNode && orchFirstNode.nodeType === 3 && orchFirstNode.nodeValue !== "Orchestrator") {
+                orchFirstNode.nodeValue = "Orchestrator";
+              }
+              if (effortSpan) {
+                var trigOrchColor = profile.locked
+                  ? ""
+                  : valueColorFor(profile.currentLabel, idx, count, isMax, false, profile.isClaude) || "";
+                renderSplitEffortSpan(
+                  effortSpan,
+                  " " + profile.baseName + " ",
+                  profile.currentLabel,
+                  trigOrchColor,
+                  "trigger-orch-name",
+                  "trigger-orch-effort"
+                );
+              }
+            } else if (!profile.locked && profile.baseName) {
               var firstNode = outerSpan.firstChild;
               if (firstNode && firstNode.nodeType === 3 && firstNode.nodeValue !== profile.baseName) {
                 firstNode.nodeValue = profile.baseName;
               }
               if (effortSpan) {
                 var nextEffortText = " " + profile.currentLabel;
-                if (effortSpan.textContent !== nextEffortText) {
+                if (effortSpan.querySelector && effortSpan.querySelector('[data-ces-part="trigger-orch-name"]')) {
+                  effortSpan.textContent = nextEffortText;
+                  if (effortSpan.children && effortSpan.children.length > 0 && typeof effortSpan.removeChild === "function") {
+                    while (effortSpan.children.length > 0) {
+                      effortSpan.removeChild(effortSpan.children[effortSpan.children.length - 1]);
+                    }
+                  }
+                } else if (effortSpan.textContent !== nextEffortText) {
                   effortSpan.textContent = nextEffortText;
                 }
               }
@@ -4379,11 +5260,49 @@
         lastPanelSig = "";
         cachedGroupSpans = null;
         cachedSingleItems = null;
+        cachedOrchRow = null;
         panelRowsDirty = true;
+        syncOrchestratorSubmenuDecorations(ctx, profile, orchMenuHint);
         return;
       }
 
+      var orchRowProf = null;
+      var orchRowSig = "";
+      if (ctx.hasOrchestratorPlanners) {
+        if (profile.isOrchestrator) {
+          orchRowProf = profile;
+          orchRowSig = orchRowProf.baseName + ":" + orchRowProf.currentLabel;
+        } else if (
+          ctx.orchestratorPick &&
+          (ctx.orchestratorPick.model === 0 || ctx.orchestratorPick.model === undefined) &&
+          !panelRowsDirty &&
+          !panelDecorDirty &&
+          cachedOrchRow
+        ) {
+          var cachedOrchModelSpan = cachedOrchRow.querySelector
+            ? cachedOrchRow.querySelector('[data-testid="model-selector-orchestrator-model"]')
+            : null;
+          var cBase = cachedOrchModelSpan && cachedOrchModelSpan.getAttribute
+            ? (cachedOrchModelSpan.getAttribute("data-ces-planner-base") || "")
+            : "";
+          var cEffort = cachedOrchModelSpan && cachedOrchModelSpan.getAttribute
+            ? (cachedOrchModelSpan.getAttribute("data-ces-planner-effort") || "")
+            : "";
+          if (cBase && cEffort) {
+            orchRowSig = cBase + ":" + (AG_EFFORT_LABELS[normalizeEffortKey(cEffort)] || cEffort);
+          }
+        }
+        if (!orchRowSig) {
+          orchRowProf = resolveOrchestratorPlannerProfile(ctx, null, perOrchestratorEffortMap, doc);
+          orchRowSig = orchRowProf ? (orchRowProf.baseName + ":" + orchRowProf.currentLabel) : "";
+        }
+      }
+
       var panelSig =
+        (profile.isOrchestrator ? "O" : "M") +
+        "|" +
+        orchRowSig +
+        "|" +
         (profile.baseName || "") +
         "|" +
         (profile.currentLabel || "") +
@@ -4401,13 +5320,65 @@
         (ctx.effortIndex instanceof Map ? ctx.effortIndex.size : 0);
 
       if (!panelDecorDirty && !panelRowsDirty && panel === lastPanelEl && panelSig === lastPanelSig) {
+        syncOrchestratorSubmenuDecorations(ctx, profile, orchMenuHint);
         return;
       }
 
       if (panelRowsDirty || panel !== lastPanelEl || !cachedGroupSpans || !cachedSingleItems || typeof MO !== "function") {
         cachedGroupSpans = panel.querySelectorAll('[data-testid="model-selector-effort-group"]');
         cachedSingleItems = panel.querySelectorAll('[data-testid="model-selector-item"]');
+        cachedOrchRow = panel.querySelector('[data-testid="model-selector-orchestrator"]');
         panelRowsDirty = false;
+      }
+
+      if (cachedOrchRow && orchRowProf) {
+        var isOrchRowSelected = Boolean(profile.isOrchestrator);
+        var nextOrchAttr = isOrchRowSelected ? "true" : "false";
+        if (cachedOrchRow.getAttribute("data-ces-model-selected") !== nextOrchAttr) {
+          cachedOrchRow.setAttribute("data-ces-model-selected", nextOrchAttr);
+        }
+        if (cachedOrchRow.classList) {
+          if (isOrchRowSelected) {
+            if (cachedOrchRow.classList.contains("text-secondary-foreground")) {
+              cachedOrchRow.classList.remove("text-secondary-foreground");
+            }
+            if (!cachedOrchRow.classList.contains("text-foreground")) {
+              cachedOrchRow.classList.add("text-foreground");
+            }
+          } else {
+            if (cachedOrchRow.classList.contains("text-foreground")) {
+              cachedOrchRow.classList.remove("text-foreground");
+            }
+            if (!cachedOrchRow.classList.contains("text-secondary-foreground")) {
+              cachedOrchRow.classList.add("text-secondary-foreground");
+            }
+          }
+        }
+        var orchModelSpan = cachedOrchRow.querySelector
+          ? cachedOrchRow.querySelector('[data-testid="model-selector-orchestrator-model"]')
+          : null;
+        if (orchModelSpan) {
+          if (orchRowProf.baseName && orchModelSpan.getAttribute("data-ces-planner-base") !== orchRowProf.baseName) {
+            orchModelSpan.setAttribute("data-ces-planner-base", orchRowProf.baseName);
+          }
+          if (orchRowProf.currentEffort && orchModelSpan.getAttribute("data-ces-planner-effort") !== orchRowProf.currentEffort) {
+            orchModelSpan.setAttribute("data-ces-planner-effort", orchRowProf.currentEffort);
+          }
+          var orchRowCount = orchRowProf.levels.length;
+          var orchRowIdx = orchRowProf.currentIndex;
+          var orchRowMax = !orchRowProf.locked && orchRowCount > 1 && orchRowIdx === orchRowCount - 1 && !isOffLevel(orchRowProf.currentLabel);
+          var orchRowColor = orchRowProf.locked
+            ? ""
+            : valueColorFor(orchRowProf.currentLabel, orchRowIdx, orchRowCount, orchRowMax, false, orchRowProf.isClaude) || "";
+          renderSplitEffortSpan(
+            orchModelSpan,
+            orchRowProf.baseName + " ",
+            orchRowProf.currentLabel,
+            orchRowColor,
+            "orch-model-name",
+            "orch-effort"
+          );
+        }
       }
 
       var groupSpans = cachedGroupSpans;
@@ -4415,10 +5386,10 @@
         var gSpan = groupSpans[i];
         var base = gSpan.getAttribute("data-model-base") || (gSpan.textContent || "").trim();
         var menuItem = gSpan.closest('[role="menuitem"]');
-        var rowProf = resolveModelEffortProfile(ctx, base, perModelEffortMap);
+        var rowProf = resolveModelEffortProfile(ctx, base, perModelEffortMap, perOrchestratorEffortMap, doc);
         if (!rowProf) continue;
 
-        var isSelectedModel = profile.baseName === base;
+        var isSelectedModel = !profile.isOrchestrator && profile.baseName === base;
         if (menuItem) {
           var nextSelectedAttr = isSelectedModel ? "true" : "false";
           if (menuItem.getAttribute("data-ces-model-selected") !== nextSelectedAttr) {
@@ -4446,11 +5417,11 @@
           var displayEffort = isSelectedModel ? profile.currentLabel : rowProf.currentLabel;
           var displayIdx = isSelectedModel ? profile.currentIndex : rowProf.currentIndex;
           var displayCount = rowProf.levels.length;
-          var displayMax = displayCount > 1 && displayIdx === displayCount - 1;
+          var displayMax = displayCount > 1 && displayIdx === displayCount - 1 && !isOffLevel(displayEffort);
           if (sib.textContent !== displayEffort) {
             sib.textContent = displayEffort;
           }
-          var rowColor = valueColorFor(displayEffort, displayIdx, displayCount, displayMax, false) || "";
+          var rowColor = valueColorFor(displayEffort, displayIdx, displayCount, displayMax, false, rowProf.isClaude) || "";
           if (sib.style.color !== rowColor) sib.style.color = rowColor;
           var rowOpacity = rowColor ? "1" : "";
           if (sib.style.opacity !== rowOpacity) sib.style.opacity = rowOpacity;
@@ -4464,8 +5435,9 @@
         var sItem = singleItems[j];
         var sLabel = sItem.getAttribute("data-model-label") || "";
         var isSingleSelected =
-          (profile.modelOption && profile.modelOption.label === sLabel) ||
-          profile.baseName === sLabel;
+          !profile.isOrchestrator &&
+          ((profile.modelOption && profile.modelOption.label === sLabel) ||
+            profile.baseName === sLabel);
         var nextSingleAttr = isSingleSelected ? "true" : "false";
         if (sItem.getAttribute("data-ces-model-selected") !== nextSingleAttr) {
           sItem.setAttribute("data-ces-model-selected", nextSingleAttr);
@@ -4490,6 +5462,7 @@
       lastPanelEl = panel;
       lastPanelSig = panelSig;
       panelDecorDirty = false;
+      syncOrchestratorSubmenuDecorations(ctx, profile, orchMenuHint);
     }
 
     var agSeatAdapter = {
@@ -4534,7 +5507,39 @@
         var targetOpt = levelItem.modelOption || (levelItem.raw && levelItem.raw.modelOption);
         if (!targetOpt) return;
 
+        var curProf = getActiveProfile(ctx);
+        var isOrchMode = Boolean(curProf && curProf.isOrchestrator && ctx.hasOrchestratorPlanners);
         var parsed = parseModelLabel(targetOpt.label);
+
+        if (isOrchMode) {
+          if (parsed) {
+            perOrchestratorEffortMap.set(parsed.base, parsed.effort);
+          }
+          activeOrchestratorMode = true;
+          activeOrchestratorPlannerOverride = targetOpt;
+          if (!ctx.isOrchestratorSelected && ctx.orchestratorModelOption) {
+            activeModelOptionOverride = ctx.orchestratorModelOption;
+            activeBaseOverride = null;
+          }
+          commitOrchestratorPlannerOption(ctx, targetOpt, !ctx.isOrchestratorSelected);
+          runInternalMutation(function () {
+            var updatedProfile = resolveOrchestratorPlannerProfile(ctx, targetOpt, perOrchestratorEffortMap, doc);
+            syncAntigravityDomDecorations(
+              ctx,
+              updatedProfile,
+              observedTriggerEl || undefined,
+              activePanel || undefined,
+              observedOrchSubmenuEl || null
+            );
+            lastCommittedSyncKey = updatedProfile
+              ? ("O|" + (updatedProfile.baseName || "") + "|" + (updatedProfile.currentLabel || ""))
+              : "";
+          });
+          return;
+        }
+
+        activeOrchestratorMode = false;
+        activeOrchestratorPlannerOverride = null;
         if (parsed) {
           perModelEffortMap.set(parsed.base, parsed.effort);
           activeBaseOverride = parsed.base;
@@ -4544,8 +5549,17 @@
         commitAntigravityModelOption(ctx, targetOpt);
 
         runInternalMutation(function () {
-          var updatedProfile = resolveModelEffortProfile(ctx, targetOpt, perModelEffortMap);
-          syncAntigravityDomDecorations(ctx, updatedProfile);
+          var updatedProfile = resolveModelEffortProfile(ctx, targetOpt, perModelEffortMap, perOrchestratorEffortMap, doc);
+          syncAntigravityDomDecorations(
+            ctx,
+            updatedProfile,
+            observedTriggerEl || undefined,
+            activePanel || undefined,
+            observedOrchSubmenuEl || null
+          );
+          lastCommittedSyncKey = updatedProfile
+            ? ("M|" + (updatedProfile.baseName || "") + "|" + (updatedProfile.currentLabel || ""))
+            : "";
         });
       },
       subscribe: function (fn) {
@@ -4564,6 +5578,12 @@
         if (!target || typeof target.closest !== "function") return null;
         if (target.closest(".ces-ag-section, .ces-set")) return null;
         if (target.closest('button[aria-label="Edit Model"]')) return null;
+        if (target.closest('[data-testid="orchestrator-picker-row"]')) return null;
+
+        var orchRow = target.closest('[data-testid="model-selector-orchestrator"]');
+        if (orchRow && panel.contains(orchRow)) {
+          return { type: "orchestrator", row: orchRow };
+        }
 
         var singleRow = target.closest('[data-testid="model-selector-item"]');
         if (singleRow && panel.contains(singleRow)) {
@@ -4604,9 +5624,38 @@
         var ctx = getLiveContext(undefined, panel);
         if (!ctx) return;
 
+        if (hit.type === "orchestrator") {
+          if (ctx.hasOrchestratorPlanners && ctx.orchestratorModelOption) {
+            var orchProf = resolveOrchestratorPlannerProfile(ctx, null, perOrchestratorEffortMap, doc);
+            activeOrchestratorMode = true;
+            activeOrchestratorPlannerOverride = (orchProf && orchProf.modelOption) || null;
+            activeBaseOverride = null;
+            activeModelOptionOverride = ctx.orchestratorModelOption;
+
+            tracePush("ag-select-orchestrator-in-menu", {
+              label: orchProf ? (orchProf.baseName + " " + orchProf.currentLabel) : ctx.orchestratorModelOption.label
+            });
+            commitAntigravityModelOption(ctx, ctx.orchestratorModelOption);
+            runInternalMutation(function () {
+              var nextProf = resolveOrchestratorPlannerProfile(
+                ctx,
+                activeOrchestratorPlannerOverride,
+                perOrchestratorEffortMap,
+                doc
+              );
+              syncAntigravityDomDecorations(ctx, nextProf, undefined, panel);
+              notifySeatListeners();
+            });
+          }
+          return;
+        }
+
+        activeOrchestratorMode = false;
+        activeOrchestratorPlannerOverride = null;
+
         var targetOption = null;
         if (hit.type === "group" && hit.base) {
-          var prof = resolveModelEffortProfile(ctx, hit.base, perModelEffortMap);
+          var prof = resolveModelEffortProfile(ctx, hit.base, perModelEffortMap, perOrchestratorEffortMap, doc);
           if (prof && prof.modelOption) {
             targetOption = prof.modelOption;
             activeBaseOverride = hit.base;
@@ -4630,7 +5679,7 @@
           tracePush("ag-select-model-in-menu", { label: targetOption.label });
           commitAntigravityModelOption(ctx, targetOption);
           runInternalMutation(function () {
-            var nextProf = resolveModelEffortProfile(ctx, targetOption, perModelEffortMap);
+            var nextProf = resolveModelEffortProfile(ctx, targetOption, perModelEffortMap, perOrchestratorEffortMap, doc);
             syncAntigravityDomDecorations(ctx, nextProf, undefined, panel);
             notifySeatListeners();
           });
@@ -4852,6 +5901,36 @@
       }
     }
 
+    function rebindOrchestratorSubmenuObserver(orchMenu) {
+      if (isStopped) return;
+      if (observedOrchSubmenuEl === orchMenu && (!orchMenu || orchSubmenuObserver)) return;
+      if (orchSubmenuObserver) {
+        orchSubmenuObserver.disconnect();
+        orchSubmenuObserver = null;
+      }
+      observedOrchSubmenuEl = orchMenu || null;
+      if (!observedOrchSubmenuEl || typeof MO !== "function") return;
+      orchSubmenuObserver = new MO(function (records) {
+        if (isStopped || isInternalMutating) return;
+        for (var i = 0; i < records.length; i += 1) {
+          if (!isOwnMutationRecord(records[i])) {
+            orchSubmenuDirty = true;
+            scheduleScan();
+            return;
+          }
+        }
+      });
+      try {
+        orchSubmenuObserver.observe(observedOrchSubmenuEl, {
+          childList: true,
+          subtree: true,
+          characterData: true
+        });
+      } catch (err) {
+        orchSubmenuObserver = null;
+      }
+    }
+
     function unmountActiveSection() {
       if (postMountRafId !== null && win && typeof win.cancelAnimationFrame === "function") {
         win.cancelAnimationFrame(postMountRafId);
@@ -4864,6 +5943,7 @@
         panelResizeObserver = null;
       }
       rebindPanelObserver(null);
+      rebindOrchestratorSubmenuObserver(null);
       if (activePanel && typeof activePanel.__cesAgResetUsageHover === "function") {
         try {
           activePanel.__cesAgResetUsageHover();
@@ -4885,19 +5965,23 @@
         activeSection.parentNode.removeChild(activeSection);
       }
       activeSection = null;
-      activeRow = null;
-      activeValueEl = null;
-      activeHostEl = null;
       activePanel = null;
       activeBaseOverride = null;
       activeModelOptionOverride = null;
+      activeOrchestratorMode = false;
+      activeOrchestratorPlannerOverride = null;
       panelResizeDispatched = false;
       lastPanelEl = null;
       lastPanelSig = "";
       cachedGroupSpans = null;
       cachedSingleItems = null;
+      cachedOrchRow = null;
       panelRowsDirty = true;
       panelDecorDirty = true;
+      lastOrchSubmenuEl = null;
+      lastOrchSubmenuSig = "";
+      orchSubmenuDirty = true;
+      lastCommittedSyncKey = "";
     }
 
     function mountSectionIntoPanel(panel, ctx) {
@@ -4940,12 +6024,27 @@
 
       var title = doc.createElement("span");
       title.className = "ces-ag-effort-title";
-      title.textContent = "推理等级";
+
+      var titleLabel = doc.createElement("span");
+      titleLabel.className = "ces-ag-effort-title-label";
+      titleLabel.textContent = "推理等级";
+
+      var subtitleEl = doc.createElement("span");
+      subtitleEl.className = "ces-ag-effort-subtitle";
+      subtitleEl.setAttribute("data-ces-part", "subtitle");
+
+      var initProf = getActiveProfile(ctx);
+      var initSubtitle = initProf && initProf.isOrchestrator && initProf.baseName ? "· " + initProf.baseName : "";
+      subtitleEl.textContent = initSubtitle;
+      if (!initSubtitle && subtitleEl.style) {
+        subtitleEl.style.display = "none";
+      }
+      title.appendChild(titleLabel);
+      title.appendChild(subtitleEl);
 
       var valueEl = doc.createElement("span");
       valueEl.className = "ces-ag-effort-value";
       valueEl.setAttribute("data-ces-part", "value");
-      var initProf = getActiveProfile(ctx);
       if (initProf && initProf.currentLabel) {
         valueEl.textContent = initProf.currentLabel;
       }
@@ -4970,9 +6069,6 @@
 
       activePanel = panel;
       activeSection = section;
-      activeRow = row;
-      activeValueEl = valueEl;
-      activeHostEl = hostEl;
       panelResizeDispatched = false;
       panelRowsDirty = true;
       panelDecorDirty = true;
@@ -4982,14 +6078,29 @@
         panel: panel,
         row: row,
         valueElement: valueEl,
+        subtitleElement: subtitleEl,
         seat: agSeatAdapter,
         document: doc,
         window: win,
         onVisualChange: function (vState) {
+          if (lastCommittedSyncKey) {
+            var expectedSuffix = "|" + (vState && vState.label ? vState.label : "");
+            if (lastCommittedSyncKey.slice(-expectedSuffix.length) === expectedSuffix) {
+              lastCommittedSyncKey = "";
+              return;
+            }
+            lastCommittedSyncKey = "";
+          }
           runInternalMutation(function () {
-            var liveCtx = getLiveContext(undefined, panel);
+            var liveCtx = getLiveContext(observedTriggerEl || undefined, panel);
             if (liveCtx) {
-              syncAntigravityDomDecorations(liveCtx, getActiveProfile(liveCtx), undefined, panel);
+              syncAntigravityDomDecorations(
+                liveCtx,
+                getActiveProfile(liveCtx),
+                observedTriggerEl || undefined,
+                panel,
+                observedOrchSubmenuEl || null
+              );
             } else {
               syncTriggerColor(doc, vState.label, vState.index, vState.count, vState.isMax, false, undefined, observedTriggerEl);
             }
@@ -5082,7 +6193,7 @@
         }
       }
       if (typeof node.querySelector === "function") {
-        if (node.querySelector('[data-testid="model-selector-panel"]')) return true;
+        if (node.querySelector('[data-testid="model-selector-panel"], [data-testid="orchestrator-picker-row"]')) return true;
         if (!observedTriggerEl && node.querySelector('[data-testid="model-selector-trigger"], button[aria-label^="Select model"]')) {
           return true;
         }
@@ -5192,13 +6303,14 @@
             unmountActiveSection();
           } else {
             rebindPanelObserver(null);
+            rebindOrchestratorSubmenuObserver(null);
           }
           if (trigger && (triggerDomDirty || trigger !== lastTriggerEl || explicitRescan)) {
             var idleCtx = getLiveContext(trigger, null);
             if (idleCtx) {
               syncAntigravityDomDecorations(
                 idleCtx,
-                resolveModelEffortProfile(idleCtx, idleCtx.selectedModel, perModelEffortMap),
+                resolveModelEffortProfile(idleCtx, idleCtx.selectedModel, perModelEffortMap, perOrchestratorEffortMap, doc),
                 trigger,
                 null
               );
@@ -5215,6 +6327,15 @@
             activeBaseOverride = null;
           }
         }
+        if (ctx && ctx.orchestratorPick && activeOrchestratorPlannerOverride) {
+          if (ctx.orchestratorPick.model === activeOrchestratorPlannerOverride.value) {
+            activeOrchestratorPlannerOverride = null;
+          }
+        }
+        if (ctx && activeOrchestratorMode && !activeModelOptionOverride && !ctx.isOrchestratorSelected) {
+          activeOrchestratorMode = false;
+          activeOrchestratorPlannerOverride = null;
+        }
 
         if (activePanel !== panel || !activeSection || !panel.contains(activeSection)) {
           unmountActiveSection();
@@ -5226,12 +6347,19 @@
         if (explicitRescan) {
           panelRowsDirty = true;
           panelDecorDirty = true;
+          orchSubmenuDirty = true;
         }
 
+        var orchMenu = findOrchestratorSubmenu(doc);
         rebindPanelObserver(panel);
+        var needsSeparateOrchObserver = Boolean(
+          orchMenu &&
+          (!observedPanelEl || typeof observedPanelEl.contains !== "function" || !observedPanelEl.contains(orchMenu))
+        );
+        rebindOrchestratorSubmenuObserver(needsSeparateOrchObserver ? orchMenu : null);
 
         if (ctx) {
-          syncAntigravityDomDecorations(ctx, getActiveProfile(ctx), trigger, panel);
+          syncAntigravityDomDecorations(ctx, getActiveProfile(ctx), trigger, panel, orchMenu);
         }
         notifySeatListeners();
       });
@@ -5285,7 +6413,8 @@
           if (rec.removedNodes) {
             if (
               listContainsTarget(rec.removedNodes, activePanel) ||
-              listContainsTarget(rec.removedNodes, observedTriggerEl)
+              listContainsTarget(rec.removedNodes, observedTriggerEl) ||
+              listContainsTarget(rec.removedNodes, observedOrchSubmenuEl)
             ) {
               scheduleScan();
               return;
@@ -5367,12 +6496,17 @@
           panelObserver.disconnect();
           panelObserver = null;
         }
+        if (orchSubmenuObserver) {
+          orchSubmenuObserver.disconnect();
+          orchSubmenuObserver = null;
+        }
         if (bootObserver) {
           bootObserver.disconnect();
           bootObserver = null;
         }
         observedTriggerEl = null;
         observedPanelEl = null;
+        observedOrchSubmenuEl = null;
         unmountActiveSection();
       },
       rescan: function () {
@@ -5433,7 +6567,7 @@
             activeGenericMount = null;
           }
           if (!current || !current.container) return;
-          var seat = opts.seat || findSeatEffort(win);
+          var seat = opts.seat;
           if (!seat) return;
           activeGenericMount = mountCodexEffortSlider({
             container: current.container,
@@ -5475,10 +6609,7 @@
     !window.__agCodexEffortSliderDisableAutoBoot
   ) {
     var boot = function () {
-      if (document.body && (findAntigravityTrigger(document) || window.__agCodexEffortSliderForceBoot)) {
-        installCodexEffortSlider({ document: document, window: window });
-      } else if (document.body) {
-
+      if (document.body) {
         installCodexEffortSlider({ document: document, window: window });
       }
     };
@@ -5498,10 +6629,16 @@
     findEffortTrigger: findEffortTrigger,
     findAntigravityTrigger: findAntigravityTrigger,
     findAntigravityPanel: findAntigravityPanel,
+    findOrchestratorSubmenu: findOrchestratorSubmenu,
     readAntigravityFiberContext: readAntigravityFiberContext,
     resolveModelEffortProfile: resolveModelEffortProfile,
+    resolveCurrentOrchestratorPlanner: resolveCurrentOrchestratorPlanner,
+    resolveOrchestratorPlannerProfile: resolveOrchestratorPlannerProfile,
     commitAntigravityModelOption: commitAntigravityModelOption,
+    commitOrchestratorPlannerOption: commitOrchestratorPlannerOption,
     parseModelLabel: parseModelLabel,
+    parseModelDisplayText: parseModelDisplayText,
+    isOrchestratorOption: isOrchestratorOption,
     syncTriggerColor: syncTriggerColor,
     pctFromIndex: pctFromIndex,
     indexFromPct: indexFromPct,
@@ -5546,12 +6683,10 @@
     valueColorFor: valueColorFor,
     isOffLevel: isOffLevel,
     findValueElement: findValueElement,
-    findSeatEffort: findSeatEffort,
     knobOffsetOf: knobOffsetOf,
     KNOB_RADIUS: KNOB_RADIUS,
     KNOB_SIZE: KNOB_SIZE,
     TRACK_HEIGHT: TRACK_HEIGHT,
-    BASE_SPEEDUP: BASE_SPEEDUP,
     ENERGY_START: ENERGY_START,
     ENERGY_END: ENERGY_END,
     clamp01: clamp01,
@@ -5564,6 +6699,7 @@
     POINTER_SPEED_EMA: POINTER_SPEED_EMA,
     POINTER_STALE_S: POINTER_STALE_S,
     POINTER_SPEED_TAU: POINTER_SPEED_TAU,
+    DRAG_THRESHOLD_PX: DRAG_THRESHOLD_PX,
     motionStep: motionStep,
     motionSettled: motionSettled,
     decayPointerSpeed: decayPointerSpeed,
@@ -5718,37 +6854,71 @@
       if (themeText) themeText.textContent = t.themeDark;
 
       var modelOptions = [
-        { label: "Gemini 4 Carbon (Low)", value: 1429 },
-        { label: "Gemini 4 Carbon (Medium)", value: 1428 },
-        { label: "Gemini 4 Carbon (High)", value: 1427 },
-        { label: "Gemini 4 Argon (Low)", value: 1419 },
-        { label: "Gemini 4 Argon (Medium)", value: 1418 },
-        { label: "Gemini 4 Argon (High)", value: 1417 },
-        { label: "Gemini 4 Hydrogen (Low)", value: 1439 },
-        { label: "Gemini 4 Hydrogen (Medium)", value: 1438 },
-        { label: "Gemini 4 Hydrogen (High)", value: 1437 },
-        { label: "Gemini 4 Hydrogen (Extra)", value: 1436 },
-        { label: "Gemini 3.8 Flash (Low)", value: 1320 },
-        { label: "Gemini 3.8 Flash (Medium)", value: 1319 },
-        { label: "Gemini 3.8 Flash (High)", value: 1318 },
-        { label: "Claude Opus 5.5 (Low)", value: 1400 },
-        { label: "Claude Opus 5.5 (Medium)", value: 1401 },
-        { label: "Claude Opus 5.5 (High)", value: 1402 },
-        { label: "Claude Sonnet 5.5 (Low)", value: 1403 },
-        { label: "Claude Sonnet 5.5 (Medium)", value: 1404 },
-        { label: "Claude Sonnet 5.5 (High)", value: 1405 },
+        { label: "Orchestrator", modelId: "gemini-pro-orchestrator", value: 1600 },
+        { label: "Gemini 4 Neon (Low)", modelId: "gemini-4-neon-low", value: 1450 },
+        { label: "Gemini 4 Neon (Medium)", modelId: "gemini-4-neon-medium", value: 1451 },
+        { label: "Gemini 4 Neon (High)", modelId: "gemini-4-neon-high", value: 1452 },
+        { label: "Gemini 4 Neon (Extra High)", modelId: "gemini-4-neon-xhigh", value: 1453 },
+        { label: "Gemini 4 Argon (Low)", modelId: "gemini-4-argon-low", value: 1419 },
+        { label: "Gemini 4 Argon (Medium)", modelId: "gemini-4-argon-medium", value: 1418 },
+        { label: "Gemini 4 Argon (High)", modelId: "gemini-4-argon-high", value: 1417 },
+        { label: "Gemini 4 Hydrogen (Low)", modelId: "gemini-4-hydrogen-low", value: 1439 },
+        { label: "Gemini 4 Hydrogen (Medium)", modelId: "gemini-4-hydrogen-medium", value: 1438 },
+        { label: "Gemini 4 Hydrogen (High)", modelId: "gemini-4-hydrogen-high", value: 1437 },
+        { label: "Gemini 4 Hydrogen (Extra)", modelId: "gemini-4-hydrogen-xhigh", value: 1436 },
+        { label: "Gemini 3.8 Flash (Low)", modelId: "gemini-3.8-flash-low", value: 1320 },
+        { label: "Gemini 3.8 Flash (Medium)", modelId: "gemini-3.8-flash-medium", value: 1319 },
+        { label: "Gemini 3.8 Flash (High)", modelId: "gemini-3.8-flash-high", value: 1318 },
+        { label: "Claude Opus 5.5 (Low)", modelId: "claude-opus-5-5-low", value: 1400 },
+        { label: "Claude Opus 5.5 (Medium)", modelId: "claude-opus-5-5-medium", value: 1401 },
+        { label: "Claude Opus 5.5 (High)", modelId: "claude-opus-5-5-high", value: 1402 },
+        { label: "Claude Sonnet 5.5 (Low)", modelId: "claude-sonnet-5-5-low", value: 1403 },
+        { label: "Claude Sonnet 5.5 (Medium)", modelId: "claude-sonnet-5-5-medium", value: 1404 },
+        { label: "Claude Sonnet 5.5 (High)", modelId: "claude-sonnet-5-5-high", value: 1405 },
         { label: "GPT-OSS 120B (Medium)", value: 342 }
       ];
 
+      var orchestratorPlanners = [
+        modelOptions[1], modelOptions[2], modelOptions[3], modelOptions[4],
+        modelOptions[5], modelOptions[6], modelOptions[7],
+        modelOptions[15], modelOptions[16], modelOptions[17]
+      ];
+      var orchestratorPlannerIndex = new Map([
+        ["gemini-4-neon", new Map([
+          ["low", modelOptions[1]],
+          ["medium", modelOptions[2]],
+          ["high", modelOptions[3]],
+          ["xhigh", modelOptions[4]]
+        ])],
+        ["gemini-4-argon", new Map([
+          ["low", modelOptions[5]],
+          ["medium", modelOptions[6]],
+          ["high", modelOptions[7]]
+        ])],
+        ["claude-opus-5-5", new Map([
+          ["low", modelOptions[15]],
+          ["medium", modelOptions[16]],
+          ["high", modelOptions[17]]
+        ])]
+      ]);
+      var orchestratorPick = {
+        model: modelOptions[4].value,
+        select: function (nextVal) {
+          orchestratorPick.model = nextVal;
+        }
+      };
+
       var triggerEl = document.getElementById("ag-trigger");
       var panelEl = document.getElementById("ag-panel");
+      var orchRowEl = document.getElementById("ag-orch-row");
       var pills = document.querySelectorAll(".ag-pill");
-      var styleGroups = document.querySelectorAll(".ag-model-group[data-style-group]");
+      var styleGroups = document.querySelectorAll(".ag-model-group[data-style-group], .ag-orch-row[data-style-group]");
       var flashHoldTimer = null;
       var flashFadeTimer = null;
 
       function getStyleGroupForLabel(modelLabel) {
-        var match = String(modelLabel || "").match(/^(.*?)\s*\((Off|Low|Medium|High|Extra|xhigh|Max)\)$/i);
+        if (/^orchestrator/i.test(String(modelLabel || "").trim())) return "orchestrator";
+        var match = String(modelLabel || "").match(/^(.*?)\s*\((Off|Low|Medium|High|Extra\s+High|Extra|xhigh|Max)\)$/i);
         var base = match ? match[1] : String(modelLabel || "");
         if (/claude/i.test(base)) return "claude";
         if (/gemini/i.test(base)) return "codex";
@@ -5821,12 +6991,13 @@
 
       var mockContextValue = {
         visibleModelConfigs: modelOptions,
-        currentModelConfig: modelOptions[1],
+        currentModelConfig: modelOptions[0],
         setModelConfigByLabelForConversation: function (label, convId, persist) {
           var found = modelOptions.find(function (m) { return m.label === label; });
           if (found) {
             mockContextValue.currentModelConfig = found;
             mockPopoverProps.selectedModel = found;
+            mockProviderValue.selectedModel = found;
           }
         }
       };
@@ -5835,12 +7006,24 @@
         open: true,
         setIsOpen: function () {},
         modelOptions: modelOptions,
-        selectedModel: modelOptions[1],
+        selectedModel: modelOptions[0],
+        orchestratorPick: orchestratorPick,
         setSelectedModel: function (opt) {
           if (opt && opt.label) {
             mockContextValue.setModelConfigByLabelForConversation(opt.label, "preview-conv", true);
           }
         }
+      };
+
+      var mockProviderValue = {
+        effortIndex: new Map(),
+        modelOptions: modelOptions,
+        selectedModel: modelOptions[0],
+        groups: [],
+        orchestratorPlanners: orchestratorPlanners,
+        orchestratorPlannerIndex: orchestratorPlannerIndex,
+        orchestratorDefaultPlanner: modelOptions[4],
+        orchestratorPick: orchestratorPick
       };
 
       var rootFiber = {
@@ -5855,9 +7038,118 @@
         memoizedProps: mockPopoverProps,
         return: convFiber
       };
+      var providerFiber = {
+        memoizedProps: { value: mockProviderValue },
+        return: popoverFiber
+      };
 
-      triggerEl.__reactFiber$preview = popoverFiber;
-      panelEl.__reactFiber$preview = popoverFiber;
+      triggerEl.__reactFiber$preview = providerFiber;
+      panelEl.__reactFiber$preview = providerFiber;
+
+      var orchSubmenuEl = null;
+      var orchCloseTimer = null;
+
+      function positionOrchSubmenu() {
+        if (!orchSubmenuEl || !orchRowEl) return;
+        var rect = orchRowEl.getBoundingClientRect();
+        var vw = window.innerWidth || 800;
+        var menuWidth = 228;
+        if (rect.right + 6 + menuWidth <= vw - 8) {
+          orchSubmenuEl.style.left = (rect.right + 6) + "px";
+          orchSubmenuEl.style.top = rect.top + "px";
+        } else {
+          orchSubmenuEl.style.left = Math.max(8, vw - menuWidth - 8) + "px";
+          orchSubmenuEl.style.top = (rect.bottom + 4) + "px";
+        }
+      }
+
+      function buildOrchSubmenu() {
+        var menu = document.createElement("div");
+        menu.setAttribute("role", "menu");
+        menu.className = "ag-orch-submenu";
+        var items = [
+          { base: "Gemini 4 Neon", label: "Extra" },
+          { base: "Gemini 4 Argon", label: "Medium" },
+          { base: "Claude Opus 5.5", label: "Medium" }
+        ];
+        items.forEach(function (it) {
+          var row = document.createElement("div");
+          row.setAttribute("role", "menuitem");
+          row.setAttribute("data-testid", "orchestrator-picker-row");
+          row.setAttribute("data-model-base", it.base);
+          row.className = "text-secondary-foreground";
+          var left = document.createElement("span");
+          left.className = "ag-row-left";
+          var nameS = document.createElement("span");
+          nameS.textContent = it.base;
+          var effS = document.createElement("span");
+          effS.className = "shrink-0 opacity-70 text-xs";
+          effS.textContent = it.label;
+          left.appendChild(nameS);
+          left.appendChild(effS);
+          var arrowS = document.createElement("span");
+          arrowS.className = "flex shrink-0 pl-1 opacity-50";
+          arrowS.textContent = "›";
+          row.appendChild(left);
+          row.appendChild(arrowS);
+          menu.appendChild(row);
+        });
+        menu.__reactFiber$preview = providerFiber;
+        menu.addEventListener("pointerenter", cancelOrchClose);
+        menu.addEventListener("pointerleave", scheduleOrchClose);
+        return menu;
+      }
+
+      function openOrchSubmenu() {
+        cancelOrchClose();
+        if (!orchSubmenuEl) {
+          orchSubmenuEl = buildOrchSubmenu();
+          document.body.appendChild(orchSubmenuEl);
+        }
+        positionOrchSubmenu();
+      }
+
+      function closeOrchSubmenu() {
+        cancelOrchClose();
+        if (orchSubmenuEl && orchSubmenuEl.parentNode) {
+          orchSubmenuEl.parentNode.removeChild(orchSubmenuEl);
+        }
+        orchSubmenuEl = null;
+      }
+
+      function cancelOrchClose() {
+        if (orchCloseTimer) {
+          clearTimeout(orchCloseTimer);
+          orchCloseTimer = null;
+        }
+      }
+
+      function scheduleOrchClose() {
+        cancelOrchClose();
+        orchCloseTimer = setTimeout(function () {
+          orchCloseTimer = null;
+          closeOrchSubmenu();
+        }, 160);
+      }
+
+      if (orchRowEl) {
+        orchRowEl.addEventListener("pointerenter", openOrchSubmenu);
+        orchRowEl.addEventListener("pointerleave", scheduleOrchClose);
+        orchRowEl.addEventListener("pointerdown", openOrchSubmenu);
+      }
+      document.addEventListener("pointerdown", function (ev) {
+        if (!orchSubmenuEl) return;
+        var t = ev.target;
+        if (
+          (orchRowEl && orchRowEl.contains(t)) ||
+          (orchSubmenuEl && orchSubmenuEl.contains(t)) ||
+          (t && t.closest && (t.closest(".ces-ag-section") || t.closest("#pill-orchestrator")))
+        ) {
+          return;
+        }
+        closeOrchSubmenu();
+      });
+      window.addEventListener("resize", positionOrchSubmenu);
 
       window.AntigravityCodexEffortSlider.installCodexEffortSlider({
         document: document,
@@ -5928,6 +7220,14 @@
           var targetBase = pill.getAttribute("data-target-base");
           var currentGroup = getStyleGroupForLabel(mockContextValue.currentModelConfig.label);
           triggerStyleFlash(targetGroup);
+          if (targetGroup === "orchestrator") {
+            if (orchRowEl) {
+              orchRowEl.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+            }
+            openOrchSubmenu();
+            return;
+          }
+          closeOrchSubmenu();
           if (currentGroup !== targetGroup) {
             var row = document.querySelector('[data-model-row="' + targetBase + '"]');
             if (row) {

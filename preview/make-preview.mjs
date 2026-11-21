@@ -170,10 +170,51 @@ const html = `<!DOCTYPE html>
       transition: color 0.8s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.8s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.8s cubic-bezier(0.22, 1, 0.36, 1);
     }
     .ag-stage {
+      position: relative;
       width: 320px;
       display: flex;
       flex-direction: column;
       gap: 12px;
+    }
+    .ag-orch-submenu {
+      position: fixed;
+      z-index: 6000;
+      min-width: 224px;
+      padding: 4px;
+      border-radius: 10px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    html.dark .ag-orch-submenu {
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+    }
+    .ag-orch-row {
+      position: relative;
+      border-radius: 9px;
+    }
+    .ag-orch-row::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: 9px;
+      pointer-events: none;
+      opacity: 0;
+      border: 1.5px solid rgba(139, 92, 246, 0.72);
+      background: rgba(139, 92, 246, 0.05);
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.16);
+      transition: none;
+    }
+    .ag-orch-row.is-highlighted::after {
+      opacity: 1;
+      transition: none;
+    }
+    .ag-orch-row.is-fading::after {
+      opacity: 0;
+      transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1);
     }
     .ag-menu-popup {
       background: var(--card);
@@ -336,7 +377,10 @@ const html = `<!DOCTYPE html>
     </header>
 
     <div class="ag-style-pills">
-      <button type="button" class="ag-pill" id="pill-codex" data-style-group="codex" data-target-base="Gemini 4 Carbon">
+      <button type="button" class="ag-pill" id="pill-orchestrator" data-style-group="orchestrator" data-target-base="Orchestrator">
+        Orchestrator
+      </button>
+      <button type="button" class="ag-pill" id="pill-codex" data-style-group="codex" data-target-base="Gemini 4 Neon">
         Codex 样式
       </button>
       <button type="button" class="ag-pill" id="pill-claude" data-style-group="claude" data-target-base="Claude Sonnet 5.5">
@@ -350,10 +394,20 @@ const html = `<!DOCTYPE html>
           <div class="relative flex flex-col flex-grow min-h-0">
             <div data-testid="model-selector-header">Model</div>
             <div class="ag-model-list">
-              <div class="ag-model-group" data-style-group="codex">
-                <div role="menuitem" class="text-foreground" data-model-row="Gemini 4 Carbon">
+              <div class="ag-orch-row" data-style-group="orchestrator">
+                <div role="menuitem" class="text-foreground" data-testid="model-selector-orchestrator" data-model-label="Orchestrator" id="ag-orch-row">
                   <span class="ag-row-left">
-                    <span data-testid="model-selector-effort-group" data-model-base="Gemini 4 Carbon">Gemini 4 Carbon</span>
+                    <span class="shrink-0">Orchestrator</span>
+                    <span data-testid="model-selector-orchestrator-model" class="opacity-70 text-xs" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Gemini 4 Neon Extra High</span>
+                    <span class="ag-badge">New</span>
+                  </span>
+                  <span class="flex shrink-0 pl-1 opacity-50">›</span>
+                </div>
+              </div>
+              <div class="ag-model-group" data-style-group="codex">
+                <div role="menuitem" class="text-secondary-foreground" data-model-row="Gemini 4 Neon">
+                  <span class="ag-row-left">
+                    <span data-testid="model-selector-effort-group" data-model-base="Gemini 4 Neon">Gemini 4 Neon</span>
                     <span class="shrink-0 opacity-70 text-xs">Medium</span>
                     <span class="ag-badge">New</span>
                   </span>
@@ -422,7 +476,7 @@ const html = `<!DOCTYPE html>
 
       <div class="ag-composer-bar">
         <button type="button" data-testid="model-selector-trigger" id="ag-trigger" aria-label="Select model">
-          <span class="min-w-0">Gemini 4 Carbon<span class="opacity-70"> Medium</span></span>
+          <span class="min-w-0">Orchestrator<span class="opacity-70"> Gemini 4 Neon Extra High</span></span>
         </button>
       </div>
     </main>
@@ -565,37 +619,71 @@ ${clientCode}
       if (themeText) themeText.textContent = t.themeDark;
 
       var modelOptions = [
-        { label: "Gemini 4 Carbon (Low)", value: 1429 },
-        { label: "Gemini 4 Carbon (Medium)", value: 1428 },
-        { label: "Gemini 4 Carbon (High)", value: 1427 },
-        { label: "Gemini 4 Argon (Low)", value: 1419 },
-        { label: "Gemini 4 Argon (Medium)", value: 1418 },
-        { label: "Gemini 4 Argon (High)", value: 1417 },
-        { label: "Gemini 4 Hydrogen (Low)", value: 1439 },
-        { label: "Gemini 4 Hydrogen (Medium)", value: 1438 },
-        { label: "Gemini 4 Hydrogen (High)", value: 1437 },
-        { label: "Gemini 4 Hydrogen (Extra)", value: 1436 },
-        { label: "Gemini 3.8 Flash (Low)", value: 1320 },
-        { label: "Gemini 3.8 Flash (Medium)", value: 1319 },
-        { label: "Gemini 3.8 Flash (High)", value: 1318 },
-        { label: "Claude Opus 5.5 (Low)", value: 1400 },
-        { label: "Claude Opus 5.5 (Medium)", value: 1401 },
-        { label: "Claude Opus 5.5 (High)", value: 1402 },
-        { label: "Claude Sonnet 5.5 (Low)", value: 1403 },
-        { label: "Claude Sonnet 5.5 (Medium)", value: 1404 },
-        { label: "Claude Sonnet 5.5 (High)", value: 1405 },
+        { label: "Orchestrator", modelId: "gemini-pro-orchestrator", value: 1600 },
+        { label: "Gemini 4 Neon (Low)", modelId: "gemini-4-neon-low", value: 1450 },
+        { label: "Gemini 4 Neon (Medium)", modelId: "gemini-4-neon-medium", value: 1451 },
+        { label: "Gemini 4 Neon (High)", modelId: "gemini-4-neon-high", value: 1452 },
+        { label: "Gemini 4 Neon (Extra High)", modelId: "gemini-4-neon-xhigh", value: 1453 },
+        { label: "Gemini 4 Argon (Low)", modelId: "gemini-4-argon-low", value: 1419 },
+        { label: "Gemini 4 Argon (Medium)", modelId: "gemini-4-argon-medium", value: 1418 },
+        { label: "Gemini 4 Argon (High)", modelId: "gemini-4-argon-high", value: 1417 },
+        { label: "Gemini 4 Hydrogen (Low)", modelId: "gemini-4-hydrogen-low", value: 1439 },
+        { label: "Gemini 4 Hydrogen (Medium)", modelId: "gemini-4-hydrogen-medium", value: 1438 },
+        { label: "Gemini 4 Hydrogen (High)", modelId: "gemini-4-hydrogen-high", value: 1437 },
+        { label: "Gemini 4 Hydrogen (Extra)", modelId: "gemini-4-hydrogen-xhigh", value: 1436 },
+        { label: "Gemini 3.8 Flash (Low)", modelId: "gemini-3.8-flash-low", value: 1320 },
+        { label: "Gemini 3.8 Flash (Medium)", modelId: "gemini-3.8-flash-medium", value: 1319 },
+        { label: "Gemini 3.8 Flash (High)", modelId: "gemini-3.8-flash-high", value: 1318 },
+        { label: "Claude Opus 5.5 (Low)", modelId: "claude-opus-5-5-low", value: 1400 },
+        { label: "Claude Opus 5.5 (Medium)", modelId: "claude-opus-5-5-medium", value: 1401 },
+        { label: "Claude Opus 5.5 (High)", modelId: "claude-opus-5-5-high", value: 1402 },
+        { label: "Claude Sonnet 5.5 (Low)", modelId: "claude-sonnet-5-5-low", value: 1403 },
+        { label: "Claude Sonnet 5.5 (Medium)", modelId: "claude-sonnet-5-5-medium", value: 1404 },
+        { label: "Claude Sonnet 5.5 (High)", modelId: "claude-sonnet-5-5-high", value: 1405 },
         { label: "GPT-OSS 120B (Medium)", value: 342 }
       ];
 
+      var orchestratorPlanners = [
+        modelOptions[1], modelOptions[2], modelOptions[3], modelOptions[4],
+        modelOptions[5], modelOptions[6], modelOptions[7],
+        modelOptions[15], modelOptions[16], modelOptions[17]
+      ];
+      var orchestratorPlannerIndex = new Map([
+        ["gemini-4-neon", new Map([
+          ["low", modelOptions[1]],
+          ["medium", modelOptions[2]],
+          ["high", modelOptions[3]],
+          ["xhigh", modelOptions[4]]
+        ])],
+        ["gemini-4-argon", new Map([
+          ["low", modelOptions[5]],
+          ["medium", modelOptions[6]],
+          ["high", modelOptions[7]]
+        ])],
+        ["claude-opus-5-5", new Map([
+          ["low", modelOptions[15]],
+          ["medium", modelOptions[16]],
+          ["high", modelOptions[17]]
+        ])]
+      ]);
+      var orchestratorPick = {
+        model: modelOptions[4].value,
+        select: function (nextVal) {
+          orchestratorPick.model = nextVal;
+        }
+      };
+
       var triggerEl = document.getElementById("ag-trigger");
       var panelEl = document.getElementById("ag-panel");
+      var orchRowEl = document.getElementById("ag-orch-row");
       var pills = document.querySelectorAll(".ag-pill");
-      var styleGroups = document.querySelectorAll(".ag-model-group[data-style-group]");
+      var styleGroups = document.querySelectorAll(".ag-model-group[data-style-group], .ag-orch-row[data-style-group]");
       var flashHoldTimer = null;
       var flashFadeTimer = null;
 
       function getStyleGroupForLabel(modelLabel) {
-        var match = String(modelLabel || "").match(/^(.*?)\\s*\\((Off|Low|Medium|High|Extra|xhigh|Max)\\)$/i);
+        if (/^orchestrator/i.test(String(modelLabel || "").trim())) return "orchestrator";
+        var match = String(modelLabel || "").match(/^(.*?)\\s*\\((Off|Low|Medium|High|Extra\\s+High|Extra|xhigh|Max)\\)$/i);
         var base = match ? match[1] : String(modelLabel || "");
         if (/claude/i.test(base)) return "claude";
         if (/gemini/i.test(base)) return "codex";
@@ -668,12 +756,13 @@ ${clientCode}
 
       var mockContextValue = {
         visibleModelConfigs: modelOptions,
-        currentModelConfig: modelOptions[1],
+        currentModelConfig: modelOptions[0],
         setModelConfigByLabelForConversation: function (label, convId, persist) {
           var found = modelOptions.find(function (m) { return m.label === label; });
           if (found) {
             mockContextValue.currentModelConfig = found;
             mockPopoverProps.selectedModel = found;
+            mockProviderValue.selectedModel = found;
           }
         }
       };
@@ -682,12 +771,24 @@ ${clientCode}
         open: true,
         setIsOpen: function () {},
         modelOptions: modelOptions,
-        selectedModel: modelOptions[1],
+        selectedModel: modelOptions[0],
+        orchestratorPick: orchestratorPick,
         setSelectedModel: function (opt) {
           if (opt && opt.label) {
             mockContextValue.setModelConfigByLabelForConversation(opt.label, "preview-conv", true);
           }
         }
+      };
+
+      var mockProviderValue = {
+        effortIndex: new Map(),
+        modelOptions: modelOptions,
+        selectedModel: modelOptions[0],
+        groups: [],
+        orchestratorPlanners: orchestratorPlanners,
+        orchestratorPlannerIndex: orchestratorPlannerIndex,
+        orchestratorDefaultPlanner: modelOptions[4],
+        orchestratorPick: orchestratorPick
       };
 
       var rootFiber = {
@@ -702,9 +803,118 @@ ${clientCode}
         memoizedProps: mockPopoverProps,
         return: convFiber
       };
+      var providerFiber = {
+        memoizedProps: { value: mockProviderValue },
+        return: popoverFiber
+      };
 
-      triggerEl.__reactFiber$preview = popoverFiber;
-      panelEl.__reactFiber$preview = popoverFiber;
+      triggerEl.__reactFiber$preview = providerFiber;
+      panelEl.__reactFiber$preview = providerFiber;
+
+      var orchSubmenuEl = null;
+      var orchCloseTimer = null;
+
+      function positionOrchSubmenu() {
+        if (!orchSubmenuEl || !orchRowEl) return;
+        var rect = orchRowEl.getBoundingClientRect();
+        var vw = window.innerWidth || 800;
+        var menuWidth = 228;
+        if (rect.right + 6 + menuWidth <= vw - 8) {
+          orchSubmenuEl.style.left = (rect.right + 6) + "px";
+          orchSubmenuEl.style.top = rect.top + "px";
+        } else {
+          orchSubmenuEl.style.left = Math.max(8, vw - menuWidth - 8) + "px";
+          orchSubmenuEl.style.top = (rect.bottom + 4) + "px";
+        }
+      }
+
+      function buildOrchSubmenu() {
+        var menu = document.createElement("div");
+        menu.setAttribute("role", "menu");
+        menu.className = "ag-orch-submenu";
+        var items = [
+          { base: "Gemini 4 Neon", label: "Extra" },
+          { base: "Gemini 4 Argon", label: "Medium" },
+          { base: "Claude Opus 5.5", label: "Medium" }
+        ];
+        items.forEach(function (it) {
+          var row = document.createElement("div");
+          row.setAttribute("role", "menuitem");
+          row.setAttribute("data-testid", "orchestrator-picker-row");
+          row.setAttribute("data-model-base", it.base);
+          row.className = "text-secondary-foreground";
+          var left = document.createElement("span");
+          left.className = "ag-row-left";
+          var nameS = document.createElement("span");
+          nameS.textContent = it.base;
+          var effS = document.createElement("span");
+          effS.className = "shrink-0 opacity-70 text-xs";
+          effS.textContent = it.label;
+          left.appendChild(nameS);
+          left.appendChild(effS);
+          var arrowS = document.createElement("span");
+          arrowS.className = "flex shrink-0 pl-1 opacity-50";
+          arrowS.textContent = "›";
+          row.appendChild(left);
+          row.appendChild(arrowS);
+          menu.appendChild(row);
+        });
+        menu.__reactFiber$preview = providerFiber;
+        menu.addEventListener("pointerenter", cancelOrchClose);
+        menu.addEventListener("pointerleave", scheduleOrchClose);
+        return menu;
+      }
+
+      function openOrchSubmenu() {
+        cancelOrchClose();
+        if (!orchSubmenuEl) {
+          orchSubmenuEl = buildOrchSubmenu();
+          document.body.appendChild(orchSubmenuEl);
+        }
+        positionOrchSubmenu();
+      }
+
+      function closeOrchSubmenu() {
+        cancelOrchClose();
+        if (orchSubmenuEl && orchSubmenuEl.parentNode) {
+          orchSubmenuEl.parentNode.removeChild(orchSubmenuEl);
+        }
+        orchSubmenuEl = null;
+      }
+
+      function cancelOrchClose() {
+        if (orchCloseTimer) {
+          clearTimeout(orchCloseTimer);
+          orchCloseTimer = null;
+        }
+      }
+
+      function scheduleOrchClose() {
+        cancelOrchClose();
+        orchCloseTimer = setTimeout(function () {
+          orchCloseTimer = null;
+          closeOrchSubmenu();
+        }, 160);
+      }
+
+      if (orchRowEl) {
+        orchRowEl.addEventListener("pointerenter", openOrchSubmenu);
+        orchRowEl.addEventListener("pointerleave", scheduleOrchClose);
+        orchRowEl.addEventListener("pointerdown", openOrchSubmenu);
+      }
+      document.addEventListener("pointerdown", function (ev) {
+        if (!orchSubmenuEl) return;
+        var t = ev.target;
+        if (
+          (orchRowEl && orchRowEl.contains(t)) ||
+          (orchSubmenuEl && orchSubmenuEl.contains(t)) ||
+          (t && t.closest && (t.closest(".ces-ag-section") || t.closest("#pill-orchestrator")))
+        ) {
+          return;
+        }
+        closeOrchSubmenu();
+      });
+      window.addEventListener("resize", positionOrchSubmenu);
 
       window.AntigravityCodexEffortSlider.installCodexEffortSlider({
         document: document,
@@ -775,6 +985,14 @@ ${clientCode}
           var targetBase = pill.getAttribute("data-target-base");
           var currentGroup = getStyleGroupForLabel(mockContextValue.currentModelConfig.label);
           triggerStyleFlash(targetGroup);
+          if (targetGroup === "orchestrator") {
+            if (orchRowEl) {
+              orchRowEl.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+            }
+            openOrchSubmenu();
+            return;
+          }
+          closeOrchSubmenu();
           if (currentGroup !== targetGroup) {
             var row = document.querySelector('[data-model-row="' + targetBase + '"]');
             if (row) {
