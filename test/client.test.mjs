@@ -455,13 +455,13 @@ test("5. 拖动滑条跨边界即时切档（pointerdown + pointermove 无需等
   // 3. 继续按住不松手，向右拖动到 70% (clientX = 14 + 200 * 0.70 = 154)
   //    已越过 Medium -> High 的 1/3 边界 (66.7%)，应当立即触发 selectEffort("high", 2)！
   //    视觉位置同样 1:1 跟手在 70% (0.7)
-  //    ★ 触发最高档物理反馈：安全无抖动（不注入 ces-panel-shaking）+ High 模糊光斑爆散 (is-glowing)
+  //    ★ 触发最高档物理反馈：面板微震颤 (ces-panel-shaking) + High 模糊光斑爆散 (is-glowing)
   trackEl.dispatch("pointermove", { clientX: 154 });
   assert.equal(dragCommits.length, 2);
   assert.deepEqual(dragCommits[1], { effort: "high", index: 2 });
   assert.equal(currentEffort, "high");
   assert.equal(trackEl.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(0.7, 14));
-  assert.equal(mockPanel.classList.contains("ces-panel-shaking"), false, "滑动至最高档面板保持平稳无晃动抖动");
+  assert.equal(mockPanel.classList.contains("ces-panel-shaking"), true, "滑动至最高档面板应触发轻微震颤");
   assert.equal(mockValueEl.classList.contains("is-glowing"), true, "滑动至最高档 High 应闪出模糊光斑");
   assert.equal(mockValueEl.classList.contains("ces-text-rise"), true, "滑动至最高档 High 应触发文字向上翻转");
   assert.equal(mockValueEl.style.getPropertyValue("--ces-glow-color"), "rgba(168, 85, 247, 0.9)");
@@ -472,13 +472,14 @@ test("5. 拖动滑条跨边界即时切档（pointerdown + pointermove 无需等
   assert.equal(dragCommits.length, 2, "在 High 区间内微移不重复触发 commit");
 
   // 4. 依然按住不松手，向左回拖到 25% (clientX = 14 + 200 * 0.25 = 64)
-  //    直接退回 Low 区间，立即触发 selectEffort("low", 0) 并清理 is-glowing！
+  //    直接退回 Low 区间，立即触发 selectEffort("low", 0) 并清理 is-glowing 与 ces-panel-shaking！
   trackEl.dispatch("pointermove", { clientX: 64 });
   assert.equal(dragCommits.length, 3);
   assert.deepEqual(dragCommits[2], { effort: "low", index: 0 });
   assert.equal(currentEffort, "low");
   assert.equal(trackEl.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(0.25, 14));
   assert.equal(mockValueEl.classList.contains("is-glowing"), false, "回退到低档位应清除光斑效果");
+  assert.equal(mockPanel.classList.contains("ces-panel-shaking"), false, "回退到低档位应清除面板震颤状态");
 
   // 5. 最后在当前位置松手 pointerup，因为已经在拖动途中同步切到了 low，不会产生多余的重复提交
   trackEl.dispatch("pointerup", { clientX: 64 });
@@ -740,7 +741,7 @@ test("6. Claude 模型识别、原生三档映射、Ultracode 像素点阵抖动
   trackEl.dispatch("pointermove", { clientX: 160 });
   assert.equal(claudeCommits.length, 2);
   assert.deepEqual(claudeCommits[1], { effort: "high", index: 2 });
-  assert.equal(claudePanel.classList.contains("ces-panel-shaking"), false, "Claude 模型滑到最高档面板保持平稳无晃动抖动");
+  assert.equal(claudePanel.classList.contains("ces-panel-shaking"), true, "Claude 模型滑到最高档面板应触发轻微震颤");
   assert.equal(claudeValueEl.classList.contains("is-glowing"), true, "Claude 模型滑到最高档 High 应闪烁光斑");
   assert.equal(claudeValueEl.classList.contains("ces-text-rise"), true, "Claude 模型滑到最高档 High 应触发文字向上翻转");
   assert.equal(claudeValueEl.style.getPropertyValue("--ces-glow-color"), "rgba(196, 181, 253, 0.9)");
@@ -1290,6 +1291,1246 @@ test("10. 模型行 √ 稳态显示、未选中行等宽占位及面板防收�
   assert.equal(popup.getAttribute("data-ces-locked-width"), null);
   assert.equal(popup.style.minWidth, "");
   assert.equal(panel.style.minWidth, "");
+  obs.stop();
+});
+
+function createPerfTestEnv(opts = {}) {
+  const attrsMap = new WeakMap();
+  function matchSimpleSelector(el, sel) {
+    if (!el || el.nodeType !== 1) return false;
+    const s = sel.trim();
+    if (!s) return false;
+    if (s.startsWith("#")) return el.id === s.slice(1);
+    if (s.startsWith(".")) return el.classList.contains(s.slice(1));
+    const tagClassMatch = /^([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_-]+)$/.exec(s);
+    if (tagClassMatch) {
+      return el.tagName === tagClassMatch[1].toUpperCase() && el.classList.contains(tagClassMatch[2]);
+    }
+    const attrMatch = /^([a-zA-Z0-9_-]*)\[([a-zA-Z0-9_-]+)(?:(\^?=)["']([^"']*)["'])?\]$/.exec(s);
+    if (attrMatch) {
+      const tag = attrMatch[1];
+      const attrName = attrMatch[2];
+      const op = attrMatch[3];
+      const expected = attrMatch[4];
+      if (tag && el.tagName !== tag.toUpperCase()) return false;
+      const val = el.getAttribute(attrName);
+      if (val === null) return false;
+      if (!op) return true;
+      if (op === "=") return val === expected;
+      if (op === "^=") return val.startsWith(expected);
+    }
+    return el.tagName === s.toUpperCase();
+  }
+
+  function matchesSelectorList(el, selectorList) {
+    const parts = selectorList.split(",");
+    for (const part of parts) {
+      if (matchSimpleSelector(el, part)) return true;
+    }
+    return false;
+  }
+
+  function makeNode(tag) {
+    const attrs = new Map();
+    const classes = new Set();
+    const listeners = new Map();
+    const styleProps = new Map();
+    let connected = false;
+    const node = {
+      nodeType: 1,
+      tagName: String(tag || "div").toUpperCase(),
+      id: "",
+      textContent: "",
+      children: [],
+      parentNode: null,
+      parentElement: null,
+      ownerDocument: null,
+      width: 280,
+      height: 28,
+      get isConnected() {
+        return connected;
+      },
+      set isConnected(v) {
+        connected = Boolean(v);
+        for (const ch of node.children) ch.isConnected = connected;
+      },
+      style: {
+        setProperty(k, v) { styleProps.set(k, String(v)); },
+        getPropertyValue(k) { return styleProps.get(k) || ""; },
+        color: "",
+        opacity: "",
+        fontWeight: "",
+        display: "",
+        minWidth: "",
+        width: "",
+        left: "",
+        top: "",
+        background: "",
+        animationDuration: "",
+        animationDelay: ""
+      },
+      classList: {
+        add(c) { classes.add(c); },
+        remove(c) { classes.delete(c); },
+        contains(c) { return classes.has(c); }
+      },
+      setAttribute(k, v) { attrs.set(k, String(v)); },
+      getAttribute(k) { return attrs.has(k) ? attrs.get(k) : null; },
+      hasAttribute(k) { return attrs.has(k); },
+      removeAttribute(k) { attrs.delete(k); },
+      appendChild(child) {
+        child.parentNode = node;
+        child.parentElement = node;
+        node.children.push(child);
+        if (connected) child.isConnected = true;
+        return child;
+      },
+      insertBefore(child, before) {
+        child.parentNode = node;
+        child.parentElement = node;
+        const idx = node.children.indexOf(before);
+        if (idx >= 0) node.children.splice(idx, 0, child);
+        else node.children.push(child);
+        if (connected) child.isConnected = true;
+        return child;
+      },
+      removeChild(child) {
+        const idx = node.children.indexOf(child);
+        if (idx >= 0) node.children.splice(idx, 1);
+        child.parentNode = null;
+        child.parentElement = null;
+        child.isConnected = false;
+        return child;
+      },
+      addEventListener(type, fn) {
+        if (!listeners.has(type)) listeners.set(type, []);
+        listeners.get(type).push(fn);
+      },
+      removeEventListener(type, fn) {
+        const arr = listeners.get(type) || [];
+        const idx = arr.indexOf(fn);
+        if (idx >= 0) arr.splice(idx, 1);
+      },
+      dispatch(type, eventInit = {}) {
+        const arr = (listeners.get(type) || []).slice();
+        for (const fn of arr) {
+          fn({
+            type,
+            target: node,
+            button: 0,
+            buttons: 1,
+            pointerId: 1,
+            stopPropagation() {},
+            stopImmediatePropagation() {},
+            preventDefault() {},
+            ...eventInit
+          });
+        }
+      },
+      querySelector(sel) {
+        for (const ch of node.children) {
+          if (matchesSelectorList(ch, sel)) return ch;
+          const nested = ch.querySelector(sel);
+          if (nested) return nested;
+        }
+        return null;
+      },
+      querySelectorAll(sel) {
+        const out = [];
+        for (const ch of node.children) {
+          if (matchesSelectorList(ch, sel)) out.push(ch);
+          out.push(...ch.querySelectorAll(sel));
+        }
+        return out;
+      },
+      closest(sel) {
+        let cur = node;
+        while (cur) {
+          if (matchesSelectorList(cur, sel)) return cur;
+          cur = cur.parentElement;
+        }
+        return null;
+      },
+      contains(target) {
+        let cur = target;
+        while (cur) {
+          if (cur === node) return true;
+          cur = cur.parentElement;
+        }
+        return false;
+      },
+      getBoundingClientRect() {
+        return { left: 0, top: 0, right: 228, bottom: 28, width: 228, height: 28 };
+      }
+    };
+    Object.defineProperty(node, "className", {
+      get() { return Array.from(classes).join(" "); },
+      set(val) {
+        classes.clear();
+        String(val || "").split(/\s+/).filter(Boolean).forEach((c) => classes.add(c));
+      }
+    });
+    Object.defineProperty(node, "firstElementChild", {
+      get() { return node.children[0] || null; }
+    });
+    Object.defineProperty(node, "nextSibling", {
+      get() {
+        if (!node.parentNode) return null;
+        const idx = node.parentNode.children.indexOf(node);
+        return idx >= 0 ? node.parentNode.children[idx + 1] || null : null;
+      }
+    });
+    Object.defineProperty(node, "nextElementSibling", {
+      get() {
+        return node.nextSibling;
+      }
+    });
+    Object.defineProperty(node, "innerHTML", {
+      get() { return ""; },
+      set() {
+        for (const ch of node.children) ch.isConnected = false;
+        node.children = [];
+      }
+    });
+    attrsMap.set(node, attrs);
+    return node;
+  }
+
+  const head = makeNode("head");
+  const body = makeNode("body");
+  const documentElement = makeNode("html");
+  documentElement.appendChild(head);
+  documentElement.appendChild(body);
+  documentElement.isConnected = true;
+
+  const docListeners = new Map();
+  const doc = {
+    head,
+    body,
+    documentElement,
+    activeElement: null,
+    createElement(tag) {
+      const el = makeNode(tag);
+      el.ownerDocument = doc;
+      return el;
+    },
+    getElementById(id) {
+      return head.querySelector("#" + id) || body.querySelector("#" + id);
+    },
+    querySelector(sel) {
+      return body.querySelector(sel);
+    },
+    querySelectorAll(sel) {
+      return body.querySelectorAll(sel);
+    },
+    addEventListener(type, fn, capture) {
+      const key = type + (capture ? ":c" : ":b");
+      if (!docListeners.has(key)) docListeners.set(key, []);
+      docListeners.get(key).push(fn);
+    },
+    removeEventListener(type, fn, capture) {
+      const key = type + (capture ? ":c" : ":b");
+      const arr = docListeners.get(key) || [];
+      const idx = arr.indexOf(fn);
+      if (idx >= 0) arr.splice(idx, 1);
+    },
+    dispatchEvent(ev) {
+      const cap = (docListeners.get(ev.type + ":c") || []).slice();
+      for (const fn of cap) fn(ev);
+      const bub = (docListeners.get(ev.type + ":b") || []).slice();
+      for (const fn of bub) fn(ev);
+      return true;
+    }
+  };
+
+  let rafSeq = 1;
+  let rafQueue = [];
+  const winListeners = new Map();
+  const moInstances = [];
+  const roInstances = [];
+  let settingsJson = opts.settingsJson || JSON.stringify({ v: 1, motion: "fast", ticks: "highlight" });
+  let nowTick = 100;
+
+  class MockMutationObserver {
+    constructor(cb) {
+      this.cb = cb;
+      this.target = null;
+      this.options = null;
+      this.disconnected = false;
+      this.takeRecordsCount = 0;
+      moInstances.push(this);
+    }
+    observe(target, options) {
+      this.target = target;
+      this.options = options;
+      this.disconnected = false;
+    }
+    disconnect() {
+      this.disconnected = true;
+    }
+    takeRecords() {
+      this.takeRecordsCount += 1;
+      return [];
+    }
+    trigger(records) {
+      if (!this.disconnected) this.cb(records);
+    }
+  }
+
+  class MockResizeObserver {
+    constructor(cb) {
+      this.cb = cb;
+      this.targets = [];
+      this.disconnected = false;
+      roInstances.push(this);
+    }
+    observe(target) {
+      this.targets.push(target);
+    }
+    disconnect() {
+      this.disconnected = true;
+    }
+    trigger(target, width, height = 28) {
+      if (!this.disconnected) {
+        this.cb([{
+          target,
+          borderBoxSize: [{ inlineSize: width, blockSize: height }],
+          contentRect: { width, height }
+        }]);
+      }
+    }
+  }
+
+  const win = {
+    innerWidth: 1200,
+    innerHeight: 800,
+    performance: { now: () => (nowTick += 16) },
+    Event: function (type) { this.type = type; },
+    CustomEvent: function (type, init) { this.type = type; this.detail = init && init.detail; },
+    MutationObserver: opts.withMO ? MockMutationObserver : undefined,
+    ResizeObserver: opts.withRO ? MockResizeObserver : undefined,
+    matchMedia: () => ({ matches: Boolean(opts.reducedMotion), addEventListener() {}, removeEventListener() {} }),
+    localStorage: {
+      getItem() { return settingsJson; },
+      setItem(_k, v) { settingsJson = v; }
+    },
+    requestAnimationFrame(cb) {
+      const id = rafSeq++;
+      rafQueue.push({ id, cb });
+      return id;
+    },
+    cancelAnimationFrame(id) {
+      rafQueue = rafQueue.filter((item) => item.id !== id);
+    },
+    addEventListener(type, fn) {
+      if (!winListeners.has(type)) winListeners.set(type, []);
+      winListeners.get(type).push(fn);
+    },
+    removeEventListener(type, fn) {
+      const arr = winListeners.get(type) || [];
+      const idx = arr.indexOf(fn);
+      if (idx >= 0) arr.splice(idx, 1);
+    },
+    dispatchEvent(ev) {
+      const arr = (winListeners.get(ev.type) || []).slice();
+      for (const fn of arr) fn(ev);
+      return true;
+    }
+  };
+  doc.defaultView = win;
+
+  function flushRaf() {
+    let guard = 0;
+    while (rafQueue.length > 0 && guard < 10) {
+      guard += 1;
+      const batch = rafQueue.splice(0, rafQueue.length);
+      for (const item of batch) {
+        item.cb(nowTick += 16);
+      }
+    }
+  }
+
+  return { doc, win, body, head, makeNode, moInstances, roInstances, flushRaf, setSettingsJson(v) { settingsJson = v; } };
+}
+
+test("11. 最高档面板微震颤：独立 translate 属性、四档 Extra、简洁模式与减弱动画静默", () => {
+  // 1. CSS 使用独立 translate 属性（@keyframes ces-panel-shake 内不写 transform: translateX）
+  const env = createPerfTestEnv();
+  const styleEl = slider.installStyles(env.doc);
+  const shakeBlockMatch = /@keyframes ces-panel-shake\s*\{[\s\S]*?\n\}/.exec(styleEl.textContent);
+  assert.ok(shakeBlockMatch, "应包含 ces-panel-shake 关键帧");
+  assert.ok(shakeBlockMatch[0].includes("translate: 2.5px 0;"), "微震颤应使用独立 CSS translate 属性");
+  assert.ok(!shakeBlockMatch[0].includes("transform: translateX"), "ces-panel-shake 不应使用 transform: translateX 覆盖弹层定位");
+
+  // 2. 四档模型 (Gemini 4 Hydrogen: Low / Medium / High / Extra)，仅到达 Extra 时震颤
+  const levels4 = [
+    { effort: "low", label: "Low" },
+    { effort: "medium", label: "Medium" },
+    { effort: "high", label: "High" },
+    { effort: "xhigh", label: "Extra" }
+  ];
+  let cur4 = "low";
+  const seat4 = {
+    effortLevels: levels4,
+    get currentEffort() { return cur4; },
+    selectEffort(item) { cur4 = item.effort; }
+  };
+  const panel4 = env.makeNode("div");
+  panel4.setAttribute("data-testid", "model-selector-panel");
+  const val4 = env.makeNode("span");
+  val4.className = "ces-ag-effort-value";
+  const container4 = env.makeNode("div");
+
+  const mounted4 = slider.mountCodexEffortSlider({
+    container: container4,
+    panel: panel4,
+    valueElement: val4,
+    seat: seat4,
+    document: env.doc,
+    window: env.win
+  });
+  const track4 = container4.children[0].children[0];
+
+  track4.dispatch("pointerdown", { clientX: 14 });
+  // 移动到 High (66.7% -> clientX = 14 + 200 * 0.67 = 148)：非最高档不震颤
+  track4.dispatch("pointermove", { clientX: 148 });
+  assert.equal(cur4, "high");
+  assert.equal(panel4.classList.contains("ces-panel-shaking"), false, "四档模型到达 High 不应提前震颤");
+  // 移动到 Extra (90% -> clientX = 14 + 200 * 0.9 = 194)：最高档触发震颤
+  track4.dispatch("pointermove", { clientX: 194 });
+  assert.equal(cur4, "xhigh");
+  assert.equal(panel4.classList.contains("ces-panel-shaking"), true, "四档模型到达 Extra 应触发面板微震颤");
+  // 回退到 High：立即清理震颤类名
+  track4.dispatch("pointermove", { clientX: 148 });
+  assert.equal(cur4, "high");
+  assert.equal(panel4.classList.contains("ces-panel-shaking"), false, "回退低档应立即清除面板震颤");
+  mounted4.unmount();
+
+  // 3. 简洁动画模式 (motion: "quick") 下不触发面板微震颤
+  const quickEnv = createPerfTestEnv({ settingsJson: JSON.stringify({ v: 1, motion: "quick", ticks: "highlight" }) });
+  let cur3 = "low";
+  const seat3 = {
+    effortLevels: [{ effort: "low", label: "Low" }, { effort: "medium", label: "Medium" }, { effort: "high", label: "High" }],
+    get currentEffort() { return cur3; },
+    selectEffort(item) { cur3 = item.effort; }
+  };
+  const panelQ = quickEnv.makeNode("div");
+  const containerQ = quickEnv.makeNode("div");
+  const mountedQ = slider.mountCodexEffortSlider({
+    container: containerQ,
+    panel: panelQ,
+    seat: seat3,
+    document: quickEnv.doc,
+    window: quickEnv.win
+  });
+  const trackQ = containerQ.children[0].children[0];
+  trackQ.dispatch("pointerdown", { clientX: 14 });
+  trackQ.dispatch("pointermove", { clientX: 180 });
+  assert.equal(cur3, "high");
+  assert.equal(panelQ.classList.contains("ces-panel-shaking"), false, "简洁动画模式下最高档应静默不震颤");
+  mountedQ.unmount();
+
+  // 4. prefers-reduced-motion 下不触发微震颤与光斑；已在最高档时按 ArrowRight 不震颤
+  const rmEnv = createPerfTestEnv({ reducedMotion: true });
+  let curRm = "low";
+  const seatRm = {
+    effortLevels: [{ effort: "low", label: "Low" }, { effort: "medium", label: "Medium" }, { effort: "high", label: "High" }],
+    get currentEffort() { return curRm; },
+    selectEffort(item) { curRm = item.effort; }
+  };
+  const panelRm = rmEnv.makeNode("div");
+  const valRm = rmEnv.makeNode("span");
+  const containerRm = rmEnv.makeNode("div");
+  const mountedRm = slider.mountCodexEffortSlider({
+    container: containerRm,
+    panel: panelRm,
+    valueElement: valRm,
+    seat: seatRm,
+    document: rmEnv.doc,
+    window: rmEnv.win
+  });
+  const trackRm = containerRm.children[0].children[0];
+  trackRm.dispatch("pointerdown", { clientX: 14 });
+  trackRm.dispatch("pointermove", { clientX: 180 });
+  assert.equal(panelRm.classList.contains("ces-panel-shaking"), false, "系统减弱动画模式下不应震颤");
+  assert.equal(valRm.classList.contains("is-glowing"), false, "系统减弱动画模式下不应闪烁光斑");
+  mountedRm.unmount();
+
+  // 已在最高档按 ArrowRight 不误触震颤
+  let curKey = "high";
+  const panelKey = env.makeNode("div");
+  const containerKey = env.makeNode("div");
+  const mountedKey = slider.mountCodexEffortSlider({
+    container: containerKey,
+    panel: panelKey,
+    seat: {
+      effortLevels: [{ effort: "low", label: "Low" }, { effort: "medium", label: "Medium" }, { effort: "high", label: "High" }],
+      get currentEffort() { return curKey; },
+      selectEffort(item) { curKey = item.effort; }
+    },
+    document: env.doc,
+    window: env.win
+  });
+  containerKey.children[0].dispatch("keydown", { key: "ArrowRight" });
+  assert.equal(panelKey.classList.contains("ces-panel-shaking"), false, "已在最高档按右方向键不应误触发震颤");
+  mountedKey.unmount();
+});
+
+test("12. 窄观察器作用域、防异步微任务自激与原生 AGY 停用 installMenuObserver", () => {
+  const env = createPerfTestEnv({ withMO: true, withRO: true });
+  const triggerBtn = env.makeNode("button");
+  triggerBtn.setAttribute("data-testid", "model-selector-trigger");
+  const outerSpan = env.makeNode("span");
+  outerSpan.classList.add("min-w-0");
+  const effortSpan = env.makeNode("span");
+  effortSpan.classList.add("opacity-70");
+  effortSpan.textContent = " Medium";
+  outerSpan.appendChild(effortSpan);
+  triggerBtn.appendChild(outerSpan);
+  env.body.appendChild(triggerBtn);
+
+  // 同时放入一个通用「推理等级」DOM 行，验证原生 AGY 环境下不会误启 installMenuObserver
+  const genericRow = env.makeNode("div");
+  genericRow.textContent = "推理等级";
+  env.body.appendChild(genericRow);
+
+  const optsList = [
+    { label: "Gemini 4 Argon (Low)", value: 1 },
+    { label: "Gemini 4 Argon (Medium)", value: 2 },
+    { label: "Gemini 4 Argon (High)", value: 3 }
+  ];
+  let fiberReads = 0;
+  const popoverFiber = { return: null };
+  const rawProps = {
+    open: false,
+    setIsOpen() {},
+    setSelectedModel() {},
+    modelOptions: optsList,
+    selectedModel: optsList[1]
+  };
+  Object.defineProperty(popoverFiber, "memoizedProps", {
+    get() {
+      fiberReads += 1;
+      return rawProps;
+    }
+  });
+  triggerBtn.__reactFiber$perf = popoverFiber;
+
+  const inst = slider.installCodexEffortSlider({ document: env.doc, window: env.win });
+
+  const bodyObservers = env.moInstances.filter((o) => o.target === env.body);
+  assert.equal(bodyObservers.length, 1, "原生 AGY 下 doc.body 只能挂 1 个 portal 观察器（绝不启用通用 installMenuObserver）");
+  assert.deepEqual(
+    bodyObservers[0].options,
+    { childList: true, subtree: false },
+    "doc.body 必须仅监听浅层 childList（subtree: false）"
+  );
+  const triggerObservers = env.moInstances.filter((o) => o.target === triggerBtn);
+  assert.equal(triggerObservers.length, 1, "应绑定专门的 trigger 窄观察器");
+  assert.ok(triggerObservers[0].takeRecordsCount >= 1, "同步初始化修改后必须调用 triggerObserver.takeRecords");
+  assert.equal(genericRow.querySelector(".ces-inline"), null, "原生 AGY 下不得再运行通用 installMenuObserver");
+
+  // 1. 菜单关闭时注入无关顶层 DOM（如 agy-capsule 浮窗），0 次触发 Fiber 读取
+  fiberReads = 0;
+  const capsulePill = env.makeNode("div");
+  capsulePill.classList.add("agy-capsule-pill");
+  env.body.appendChild(capsulePill);
+  bodyObservers[0].trigger([{ type: "childList", target: env.body, addedNodes: [capsulePill], removedNodes: [] }]);
+  env.flushRaf();
+  assert.equal(fiberReads, 0, "菜单关闭态下无关 DOM 变更绝不应触发 Fiber 遍历");
+
+  // 2. 打开菜单：插入包含 model-selector-panel 的 popup
+  const popup = env.makeNode("div");
+  popup.setAttribute("role", "menu");
+  const panel = env.makeNode("div");
+  panel.setAttribute("data-testid", "model-selector-panel");
+  panel.appendChild(env.makeNode("div"));
+  panel.__reactFiber$perf = popoverFiber;
+  popup.appendChild(panel);
+  env.body.appendChild(popup);
+  bodyObservers[0].trigger([{ type: "childList", target: env.body, addedNodes: [popup], removedNodes: [] }]);
+  env.flushRaf();
+
+  const panelObservers = env.moInstances.filter((o) => o.target === popup || o.target === panel);
+  assert.equal(panelObservers.length, 1, "打开菜单后应挂载 panel 局部观察器");
+  assert.ok(bodyObservers[0].takeRecordsCount >= 1, "面板同步挂载后必须调用 bodyObserver.takeRecords");
+  assert.ok(panelObservers[0].takeRecordsCount >= 1, "面板同步挂载后必须调用 panelObserver.takeRecords");
+
+  // 3. 滑块自身 .ces-ag-section 内变更直接忽略，0 次触发 scan/Fiber
+  fiberReads = 0;
+  const ownSection = panel.querySelector(".ces-ag-section");
+  panelObservers[0].trigger([{ type: "childList", target: ownSection, addedNodes: [env.makeNode("span")], removedNodes: [] }]);
+  env.flushRaf();
+  assert.equal(fiberReads, 0, "自身 .ces-ag-section 内部 DOM 变化应被直接忽略");
+
+  // 4. 同帧连发 20 次非自身面板变更回调：经 rAF 合并为 1 次 scan()
+  fiberReads = 0;
+  const foreignRow = env.makeNode("div");
+  for (let i = 0; i < 20; i += 1) {
+    panelObservers[0].trigger([{ type: "childList", target: panel, addedNodes: [foreignRow], removedNodes: [] }]);
+  }
+  assert.equal(fiberReads, 0, "回调当帧不应同步连跑 20 次 scan");
+  env.flushRaf();
+  const readsPerSingleScan = fiberReads;
+  assert.ok(readsPerSingleScan > 0 && readsPerSingleScan <= 4, `20 次变更应合并为单次 scan (reads=${readsPerSingleScan})`);
+
+  // 5. 关闭菜单：panel 观察器必须立刻断开
+  env.body.removeChild(popup);
+  bodyObservers[0].trigger([{ type: "childList", target: env.body, addedNodes: [], removedNodes: [popup] }]);
+  env.flushRaf();
+  assert.equal(panelObservers[0].disconnected, true, "关闭菜单后必须立刻断开 panel 观察器");
+
+  inst.stop();
+});
+
+test("13. 高频拖动零强制回流、零设置读取与 1× Fiber 快照", () => {
+  const env = createPerfTestEnv({ withMO: true, withRO: true });
+  let offsetWidthReads = 0;
+  let valOffsetWidthReads = 0;
+  let rectReads = 0;
+  let storageReads = 0;
+  let animPlayCount = 0;
+
+  const origCreateElement = env.doc.createElement.bind(env.doc);
+  env.doc.createElement = function (tag) {
+    const el = origCreateElement(tag);
+    if (String(tag).toLowerCase() === "span") {
+      Object.defineProperty(el, "offsetWidth", {
+        get() {
+          if (el.classList.contains("ces-ag-effort-value")) valOffsetWidthReads += 1;
+          return 48;
+        }
+      });
+      el.getAnimations = () => [{
+        animationName: "ces-text-rise",
+        cancel() {},
+        play() { animPlayCount += 1; }
+      }];
+    }
+    return el;
+  };
+
+  const origGetItem = env.win.localStorage.getItem;
+  env.win.localStorage.getItem = function (...args) {
+    storageReads += 1;
+    return origGetItem.apply(this, args);
+  };
+
+  const popup = env.makeNode("div");
+  popup.setAttribute("role", "menu");
+  Object.defineProperty(popup, "offsetWidth", {
+    get() {
+      offsetWidthReads += 1;
+      return 288;
+    }
+  });
+  const panel = env.makeNode("div");
+  panel.setAttribute("data-testid", "model-selector-panel");
+  const listWrap = env.makeNode("div");
+  const rowDiv = env.makeNode("div");
+  rowDiv.setAttribute("role", "menuitem");
+  const gSpan = env.makeNode("span");
+  gSpan.setAttribute("data-testid", "model-selector-effort-group");
+  gSpan.setAttribute("data-model-base", "Gemini 4 Argon");
+  const sibSpan = env.makeNode("span");
+  sibSpan.textContent = "Low";
+  let rowDecorWrites = 0;
+  const origSetAttr = rowDiv.setAttribute.bind(rowDiv);
+  rowDiv.setAttribute = function (k, v) {
+    if (k === "data-ces-model-selected") rowDecorWrites += 1;
+    return origSetAttr(k, v);
+  };
+  rowDiv.appendChild(gSpan);
+  rowDiv.appendChild(sibSpan);
+  listWrap.appendChild(rowDiv);
+  panel.appendChild(listWrap);
+  popup.appendChild(panel);
+  env.body.appendChild(popup);
+
+  const optsList = [
+    { label: "Gemini 4 Argon (Low)", value: 1 },
+    { label: "Gemini 4 Argon (Medium)", value: 2 },
+    { label: "Gemini 4 Argon (High)", value: 3 }
+  ];
+  let currentModel = optsList[0];
+  let fiberReads = 0;
+  const fiberNode = { return: null };
+  Object.defineProperty(fiberNode, "memoizedProps", {
+    get() {
+      fiberReads += 1;
+      return {
+        open: true,
+        setIsOpen() {},
+        setSelectedModel(opt) { currentModel = opt; },
+        modelOptions: optsList,
+        selectedModel: currentModel
+      };
+    }
+  });
+  panel.__reactFiber$drag = fiberNode;
+
+  const obs = slider.installAntigravityObserver({ document: env.doc, window: env.win });
+  env.roInstances[0]?.trigger(popup, 288, 260);
+  env.flushRaf();
+
+  const trackEl = panel.querySelector('[data-ces-part="track"]');
+  trackEl.getBoundingClientRect = function () {
+    rectReads += 1;
+    return { left: 0, top: 0, right: 228, bottom: 28, width: 228, height: 28 };
+  };
+
+  // 清零探针，测试完整拖动过程：pointerdown + 30 次 pointermove + pointerup
+  offsetWidthReads = 0;
+  valOffsetWidthReads = 0;
+  rectReads = 0;
+  storageReads = 0;
+  rowDecorWrites = 0;
+
+  trackEl.dispatch("pointerdown", { clientX: 14 });
+  assert.equal(rectReads, 1, "仅 pointerdown 读取一次轨道 getBoundingClientRect");
+
+  // 统计同档位单次 pointermove 的 Fiber 遍历次数（单次快照应只遍历 1×，而非旧版 6×）
+  fiberReads = 0;
+  trackEl.dispatch("pointermove", { clientX: 20 });
+  assert.equal(fiberReads, 1, "同档位 pointermove 单次快照仅应遍历 Fiber 1 次（非 6×）");
+  assert.equal(rowDecorWrites, 0, "同档位移动不应重复写入面板模型行");
+
+  // 重置 storage 计数器，继续拖动 29 次跨过 Medium -> High -> Low 再松手
+  storageReads = 0;
+  for (let i = 1; i <= 29; i += 1) {
+    const x = i < 15 ? 14 + i * 13 : 200 - (i - 15) * 12;
+    trackEl.dispatch("pointermove", { clientX: x });
+  }
+  trackEl.dispatch("pointerup", { clientX: 24 });
+  env.flushRaf();
+
+  assert.equal(offsetWidthReads, 0, "拖动全过程 popup.offsetWidth 强制回流读取必须为 0 次");
+  assert.equal(valOffsetWidthReads, 0, "切档文本动效重播 valEl.offsetWidth 读取必须为 0 次");
+  assert.equal(rectReads, 1, "30 次 pointermove 与 pointerup 期间不得重复读取 track getBoundingClientRect");
+  assert.equal(storageReads, 0, "pointermove 与 pointerup 期间 localStorage.getItem 必须为 0 次");
+  assert.ok(animPlayCount >= 1, "重复切档时应通过 Web Animations API 无回流重播动画");
+
+  obs.stop();
+});
+
+test("14. 异步 ResizeObserver 单调锁宽与开菜单按需越界 resize", () => {
+  // 1. 正常视口内：0 次 offsetWidth 读取、0 次全局 window.resize、ResizeObserver 单调锁宽 288 -> 270 -> 304
+  const env = createPerfTestEnv({ withMO: true, withRO: true });
+  let resizeDispatches = 0;
+  env.win.addEventListener("resize", () => { resizeDispatches += 1; });
+
+  let offsetWidthReads = 0;
+  const popup = env.makeNode("div");
+  popup.setAttribute("role", "menu");
+  Object.defineProperty(popup, "offsetWidth", {
+    get() {
+      offsetWidthReads += 1;
+      return 288;
+    }
+  });
+  popup.getBoundingClientRect = () => ({ left: 20, top: 100, right: 308, bottom: 380, width: 288, height: 280 });
+
+  const panel = env.makeNode("div");
+  panel.setAttribute("data-testid", "model-selector-panel");
+  panel.appendChild(env.makeNode("div"));
+  popup.appendChild(panel);
+  env.body.appendChild(popup);
+
+  const optsList = [
+    { label: "Gemini 4 Argon (Low)", value: 1 },
+    { label: "Gemini 4 Argon (Medium)", value: 2 },
+    { label: "Gemini 4 Argon (High)", value: 3 }
+  ];
+  panel.__reactFiber$ro = {
+    memoizedProps: { open: true, setIsOpen() {}, setSelectedModel() {}, modelOptions: optsList, selectedModel: optsList[1] },
+    return: null
+  };
+
+  const obs = slider.installAntigravityObserver({ document: env.doc, window: env.win });
+  env.flushRaf();
+
+  assert.equal(resizeDispatches, 0, "弹窗位于视口安全区内时不得派发全局 window.resize");
+  assert.equal(offsetWidthReads, 0, "支持 ResizeObserver 时挂载首帧不得读取 popup.offsetWidth");
+
+  const panelRO = env.roInstances.find((r) => r.targets.includes(popup));
+  assert.ok(panelRO, "应对外层容器注册 ResizeObserver");
+  panelRO.trigger(popup, 288, 280);
+  assert.equal(popup.style.minWidth, "288px");
+  panelRO.trigger(popup, 270, 280);
+  assert.equal(popup.style.minWidth, "288px", "ResizeObserver 回调中宽度锁应单调不收缩");
+  panelRO.trigger(popup, 304, 280);
+  assert.equal(popup.style.minWidth, "304px", "出现更宽测量值时应单调扩大锁定");
+  assert.equal(offsetWidthReads, 0, "ResizeObserver 单调锁宽全程不得读取 offsetWidth");
+  obs.stop();
+
+  // 2. 弹窗超出视口顶边 (top: -12)：首帧 rAF 仅按需派发 1 次 resize 兜底
+  const oobEnv = createPerfTestEnv({ withMO: true, withRO: true });
+  let oobResizeCount = 0;
+  oobEnv.win.addEventListener("resize", () => { oobResizeCount += 1; });
+
+  const oobPopup = oobEnv.makeNode("div");
+  oobPopup.setAttribute("role", "menu");
+  oobPopup.getBoundingClientRect = () => ({ left: 20, top: -12, right: 308, bottom: 268, width: 288, height: 280 });
+  const oobPanel = oobEnv.makeNode("div");
+  oobPanel.setAttribute("data-testid", "model-selector-panel");
+  oobPanel.appendChild(oobEnv.makeNode("div"));
+  oobPanel.__reactFiber$oob = {
+    memoizedProps: { open: true, setIsOpen() {}, setSelectedModel() {}, modelOptions: optsList, selectedModel: optsList[1] },
+    return: null
+  };
+  oobPopup.appendChild(oobPanel);
+  oobEnv.body.appendChild(oobPopup);
+
+  const oobObs = slider.installAntigravityObserver({ document: oobEnv.doc, window: oobEnv.win });
+  assert.equal(oobResizeCount, 0, "挂载同步阶段不应直接派发 resize");
+  oobEnv.flushRaf();
+  assert.equal(oobResizeCount, 1, "视口越界时应在首帧 rAF 按需派发 1 次 resize 兜底");
+  oobObs.stop();
+});
+
+test("15. CSS :has() 限定作用域与 Claude Canvas 60fps 零 Fiber/布局/样式读取", () => {
+  // 1. CSS :has() 收窄校验
+  const env = createPerfTestEnv({ withRO: true });
+  const styleEl = slider.installStyles(env.doc);
+  const groupMatches = styleEl.textContent.match(/^.*\[role='menuitem'\]:has\(\[data-testid='model-selector-effort-group'\]\).*$/gm) || [];
+  assert.ok(groupMatches.length >= 3, "应包含模型行 :has() 稳态规则");
+  for (const line of groupMatches) {
+    assert.ok(line.includes(".ces-ag-panel-enhanced "), `模型行 :has() 规则必须限定在 .ces-ag-panel-enhanced 内: ${line}`);
+  }
+
+  // 2. Claude stepClaudeCanvas 60fps 帧循环解耦验证
+  let snapshotReads = 0;
+  let rectReads = 0;
+  let computedStyleCalls = 0;
+  let canvasDraws = 0;
+
+  env.win.getComputedStyle = () => {
+    computedStyleCalls += 1;
+    return { backgroundColor: "rgb(20, 20, 24)" };
+  };
+
+  let claudeRafCb = null;
+  env.win.requestAnimationFrame = (cb) => {
+    claudeRafCb = cb;
+    return 1;
+  };
+  env.win.cancelAnimationFrame = () => {
+    claudeRafCb = null;
+  };
+
+  const origCreateElement = env.doc.createElement.bind(env.doc);
+  env.doc.createElement = function (tag) {
+    const el = origCreateElement(tag);
+    if (String(tag).toLowerCase() === "canvas") {
+      el.getContext = () => ({
+        globalAlpha: 1,
+        fillStyle: "",
+        clearRect() {},
+        fillRect() { canvasDraws += 1; },
+        createLinearGradient() { return { addColorStop() {} }; },
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        quadraticCurveTo() {},
+        closePath() {},
+        fill() {}
+      });
+    }
+    return el;
+  };
+
+  const container = env.makeNode("div");
+  const seat = {
+    getSnapshot() {
+      snapshotReads += 1;
+      return {
+        baseName: "Claude Opus 5.5",
+        isClaude: true,
+        theme: "claude",
+        locked: false,
+        effortLevels: [
+          { effort: "low", label: "Low" },
+          { effort: "medium", label: "Medium" },
+          { effort: "high", label: "High" }
+        ],
+        currentEffort: "high"
+      };
+    }
+  };
+
+  const mounted = slider.mountCodexEffortSlider({
+    container,
+    seat,
+    document: env.doc,
+    window: env.win
+  });
+
+  const trackEl = container.children[0].children[0];
+  trackEl.getBoundingClientRect = () => {
+    rectReads += 1;
+    return { left: 0, top: 0, width: 228, height: 28 };
+  };
+  env.roInstances[0]?.trigger(trackEl, 228, 28);
+
+  // 先推进首帧完成初始化样式缓存，再清零探针验证后续连续 10 帧零读取
+  assert.ok(typeof claudeRafCb === "function", "应注册 Claude Canvas 首帧 rAF");
+  const warmFn = claudeRafCb;
+  claudeRafCb = null;
+  warmFn(100);
+  assert.equal(computedStyleCalls, 1, "无 dark/light 类时仅首帧懒读一次 getComputedStyle 并缓存");
+
+  snapshotReads = 0;
+  rectReads = 0;
+  computedStyleCalls = 0;
+  canvasDraws = 0;
+
+  for (let frame = 1; frame <= 10; frame += 1) {
+    assert.ok(typeof claudeRafCb === "function", `第 ${frame} 帧应注册下一帧 Claude Canvas rAF`);
+    const fn = claudeRafCb;
+    claudeRafCb = null;
+    fn(100 + frame * 16);
+  }
+
+  assert.equal(snapshotReads, 0, "stepClaudeCanvas 60fps 循环期间绝不应读取 seat/Fiber 快照");
+  assert.equal(rectReads, 0, "stepClaudeCanvas 60fps 循环期间绝不应重复读取 getBoundingClientRect");
+  assert.equal(computedStyleCalls, 0, "stepClaudeCanvas 60fps 循环期间绝不应每帧调用 getComputedStyle");
+  assert.equal(canvasDraws, 10, "10 帧动画应正常持续绘制 Claude 点阵");
+
+  // 切换到 .dark 类后，即使跨过 500ms 缓存窗口也完全不调用 getComputedStyle
+  env.doc.documentElement.classList.add("dark");
+  const darkFn = claudeRafCb;
+  claudeRafCb = null;
+  darkFn(1000);
+  assert.equal(computedStyleCalls, 0, "存在 dark 类时绝不应调用 getComputedStyle");
+
+  mounted.unmount();
+});
+
+test("16. 复审三处修正：trigger-effort 外界改名可响应、Ctrl+C 闭菜单零 Fiber 扫描、面板重播不波及星尘", () => {
+  // 1 & 2. 菜单关闭态：trigger-effort 外部变更应触发重着色，Ctrl+C 兜底快捷键应 0 次遍历 Fiber
+  const env = createPerfTestEnv({ withMO: true, withRO: true });
+  const triggerBtn = env.makeNode("button");
+  triggerBtn.setAttribute("data-testid", "model-selector-trigger");
+  const outerSpan = env.makeNode("span");
+  outerSpan.classList.add("min-w-0");
+  const effortSpan = env.makeNode("span");
+  effortSpan.classList.add("opacity-70");
+  effortSpan.textContent = " Medium";
+  outerSpan.appendChild(effortSpan);
+  triggerBtn.appendChild(outerSpan);
+  env.body.appendChild(triggerBtn);
+
+  const optsList = [
+    { label: "Gemini 4 Argon (Low)", value: 1 },
+    { label: "Gemini 4 Argon (Medium)", value: 2 },
+    { label: "Gemini 4 Argon (High)", value: 3 }
+  ];
+  let selected = optsList[1];
+  let fiberReads = 0;
+  const triggerFiber = { return: null };
+  Object.defineProperty(triggerFiber, "memoizedProps", {
+    get() {
+      fiberReads += 1;
+      return {
+        open: false,
+        setIsOpen() {},
+        setSelectedModel(opt) { selected = opt; },
+        modelOptions: optsList,
+        selectedModel: selected
+      };
+    }
+  });
+  triggerBtn.__reactFiber$fix = triggerFiber;
+
+  const obs = slider.installAntigravityObserver({ document: env.doc, window: env.win });
+  assert.equal(effortSpan.getAttribute("data-ces-part"), "trigger-effort");
+
+  // 菜单关闭时按 Ctrl+C（未触碰 trigger），应 0 次触发 Fiber 遍历
+  fiberReads = 0;
+  env.doc.dispatchEvent({ type: "keydown", key: "c", ctrlKey: true, target: env.body });
+  env.flushRaf();
+  assert.equal(fiberReads, 0, "菜单关闭态按 Ctrl+C 等快捷组合键不应触发冗余 Fiber 遍历");
+
+  // React 外部切会话导致 trigger-effort 内部文本变为 High，triggerObserver 必须不能误吞该变更
+  selected = optsList[2];
+  effortSpan.textContent = " High";
+  const triggerMO = env.moInstances.find((o) => o.target === triggerBtn);
+  assert.ok(triggerMO, "应存在 triggerObserver");
+  triggerMO.trigger([{ type: "characterData", target: effortSpan }]);
+  env.flushRaf();
+  assert.equal(effortSpan.style.color, "#8b5cf6", "trigger-effort 外部变更应被捕获并重着色为 High 亮紫");
+  obs.stop();
+
+  // 3. 面板重播 ces-panel-shaking 不传 subtree: true 且绝不重启 22 颗星尘动画
+  const shakeEnv = createPerfTestEnv();
+  const panelEl = shakeEnv.makeNode("div");
+  panelEl.setAttribute("data-testid", "model-selector-panel");
+  const getAnimCalls = [];
+  let shakeReplayed = 0;
+  let starReplayed = 0;
+  panelEl.getAnimations = (optsArg) => {
+    getAnimCalls.push(optsArg);
+    return [
+      {
+        animationName: "ces-panel-shake",
+        cancel() {},
+        play() { shakeReplayed += 1; }
+      },
+      {
+        animationName: "ces-star-sweep",
+        cancel() {},
+        play() { starReplayed += 1; }
+      },
+      {
+        animationName: "ces-sweep",
+        cancel() {},
+        play() { starReplayed += 1; }
+      }
+    ];
+  };
+
+  let effort = "medium";
+  const container = shakeEnv.makeNode("div");
+  const mounted = slider.mountCodexEffortSlider({
+    container,
+    panel: panelEl,
+    seat: {
+      effortLevels: [{ effort: "low", label: "Low" }, { effort: "medium", label: "Medium" }, { effort: "high", label: "High" }],
+      get currentEffort() { return effort; },
+      selectEffort(item) { effort = item.effort; }
+    },
+    document: shakeEnv.doc,
+    window: shakeEnv.win
+  });
+  const trackEl = container.children[0].children[0];
+
+  // 首次进 High -> 回退 Low -> 再次迅速进 High（验证 panelEl 重播路径）
+  trackEl.dispatch("pointerdown", { clientX: 114 });
+  trackEl.dispatch("pointermove", { clientX: 180 });
+  assert.equal(panelEl.classList.contains("ces-panel-shaking"), true);
+  // 模拟在 220ms 定时器清理前直接由外部状态重入或残留类名再触发
+  panelEl.classList.add("ces-panel-shaking");
+  trackEl.dispatch("pointermove", { clientX: 20 });
+  panelEl.classList.add("ces-panel-shaking");
+  trackEl.dispatch("pointermove", { clientX: 180 });
+
+  assert.ok(getAnimCalls.length >= 1, "重复震颤时应调用 panelEl.getAnimations()");
+  assert.equal(getAnimCalls[0], undefined, "panelEl.getAnimations() 不得传入 { subtree: true }");
+  assert.equal(shakeReplayed, 1, "仅应重播 ces-panel-shake 动画");
+  assert.equal(starReplayed, 0, "绝不应误重启面板内星尘与扫光动画");
+
+  mounted.unmount();
+});
+
+test("17. 适配 Antigravity IDE 新版 slug 键 effortIndex（含 WeakMap 缓存、4档/3档解析、slug 兜底与点击切模型解锁）", () => {
+  // 1. 构造贴合真实 IDE 探针的 slug 键 effortIndex 与 modelOptions（初始选中单档模型 GPT-OSS 120B (Medium)）
+  const neonOpts = [
+    { label: "Gemini 4 Neon (Low)", value: 101 },
+    { label: "Gemini 4 Neon (Medium)", value: 102 },
+    { label: "Gemini 4 Neon (High)", value: 103 },
+    { label: "Gemini 4 Neon (XHigh)", value: 104 }
+  ];
+  const flashOpts = [
+    { label: "Gemini 3.8 Flash (Low)", value: 201 },
+    { label: "Gemini 3.8 Flash (Medium)", value: 202 },
+    { label: "Gemini 3.8 Flash (High)", value: 203 }
+  ];
+  const claudeOpts = [
+    { label: "Claude Opus 5.5 (Low)", value: 301 },
+    { label: "Claude Opus 5.5 (Medium)", value: 302 },
+    { label: "Claude Opus 5.5 (High)", value: 303 }
+  ];
+  const singleGpt = { label: "GPT-OSS 120B (Medium)", value: 401 };
+  const orchestrator = { label: "Orchestrator (Neon)", value: 501 };
+
+  const modelOptions = [...neonOpts, ...flashOpts, ...claudeOpts, singleGpt, orchestrator];
+  const rawSlugEffortIndex = new Map([
+    ["gemini-4-neon", new Map([
+      ["low", neonOpts[0]],
+      ["medium", neonOpts[1]],
+      ["high", neonOpts[2]],
+      ["xhigh", neonOpts[3]]
+    ])],
+    ["gemini-3.8-flash", new Map([
+      ["low", flashOpts[0]],
+      ["medium", flashOpts[1]],
+      ["high", flashOpts[2]]
+    ])],
+    ["claude-opus-5-5", new Map([
+      ["low", claudeOpts[0]],
+      ["medium", claudeOpts[1]],
+      ["high", claudeOpts[2]]
+    ])]
+  ]);
+
+  let selectedModel = singleGpt;
+  const commitCalls = [];
+  const providerValue = {
+    effortIndex: rawSlugEffortIndex,
+    modelOptions,
+    selectedModel,
+    groups: [],
+    open: true,
+    setIsOpen() {},
+    setSelectedModel(opt) { selectedModel = opt; }
+  };
+  const globalCtx = {
+    visibleModelConfigs: modelOptions,
+    currentModelConfig: selectedModel,
+    setModelConfigByLabelForConversation(label, convId, persist) {
+      commitCalls.push({ label, convId, persist });
+      const hit = modelOptions.find((o) => o.label === label);
+      if (hit) {
+        selectedModel = hit;
+        providerValue.selectedModel = hit;
+        popoverFiber.memoizedProps.selectedModel = hit;
+        globalCtx.currentModelConfig = hit;
+      }
+    }
+  };
+  const globalFiber = { memoizedProps: { value: globalCtx }, return: null };
+  const convFiber = { memoizedProps: { conversationId: "conv-slug-test", placement: "top-start" }, return: globalFiber };
+  const popoverFiber = {
+    memoizedProps: {
+      open: true,
+      setIsOpen() {},
+      setSelectedModel(opt) { selectedModel = opt; },
+      modelOptions,
+      selectedModel
+    },
+    return: convFiber
+  };
+  const providerFiber = { memoizedProps: { value: providerValue }, return: popoverFiber };
+
+  const probeBtn = { __reactFiber$slug: providerFiber };
+  const ctx1 = slider.readAntigravityFiberContext(probeBtn);
+  const ctx2 = slider.readAntigravityFiberContext(probeBtn);
+  assert.ok(ctx1 && ctx2);
+  assert.equal(ctx1.effortIndex, ctx2.effortIndex, "相同 rawEffortIndex 与 modelOptions 应命中 WeakMap 返回同一引用");
+  assert.equal(ctx1.effortIndex.get("Gemini 4 Neon").size, 4);
+  assert.equal(ctx1.effortIndex.get("gemini-4-neon").size, 4);
+  assert.equal(ctx1.effortIndex.get("Gemini 3.8 Flash").size, 3);
+  assert.equal(ctx1.effortIndex.get("Claude Opus 5.5").size, 3);
+  assert.equal(ctx1.effortIndex.get("GPT-OSS 120B").size, 1);
+
+  const profNeon = slider.resolveModelEffortProfile(ctx1, "Gemini 4 Neon", new Map());
+  assert.equal(profNeon.locked, false, "Gemini 4 Neon 不得被判定为锁定");
+  assert.notEqual(profNeon.currentLabel, "固定");
+  assert.deepEqual(profNeon.levels.map((l) => l.label), ["Low", "Medium", "High", "Extra"]);
+
+  const profFlash = slider.resolveModelEffortProfile(ctx1, "Gemini 3.8 Flash", new Map());
+  assert.equal(profFlash.locked, false);
+  assert.equal(profFlash.levels.length, 3);
+
+  const profClaude = slider.resolveModelEffortProfile(ctx1, "Claude Opus 5.5", new Map());
+  assert.equal(profClaude.locked, false);
+  assert.equal(profClaude.isClaude, true);
+  assert.equal(profClaude.levels.length, 3);
+
+  const profSingle = slider.resolveModelEffortProfile(ctx1, singleGpt, new Map());
+  assert.equal(profSingle.locked, true, "单档模型 GPT-OSS 120B (Medium) 仍应锁定");
+  assert.equal(profSingle.currentLabel, "Medium");
+
+  // 2. 验证内层 opt.label 不含括号后缀时的末级 slug 兜底（保留小数点与全横杠双路径）
+  const slugOnlyRaw = new Map([
+    ["gemini-3.8-flash", new Map([
+      ["low", { label: "Gemini 3.8 Flash", value: 21 }],
+      ["medium", { label: "Gemini 3.8 Flash", value: 22 }],
+      ["high", { label: "Gemini 3.8 Flash", value: 23 }]
+    ])],
+    ["claude-opus-5-5", new Map([
+      ["low", { label: "Claude Opus 5.5", value: 31 }],
+      ["medium", { label: "Claude Opus 5.5", value: 32 }],
+      ["high", { label: "Claude Opus 5.5", value: 33 }]
+    ])]
+  ]);
+  const fallbackCtx = {
+    effortIndex: slugOnlyRaw,
+    modelOptions: [],
+    selectedModel: { label: "Claude Opus 5.5", value: 32 }
+  };
+  const fbFlash = slider.resolveModelEffortProfile(fallbackCtx, "Gemini 3.8 Flash", new Map());
+  assert.equal(fbFlash.locked, false, "保留小数点 slug 兜底应命中 gemini-3.8-flash");
+  assert.equal(fbFlash.levels.length, 3);
+  const fbClaude = slider.resolveModelEffortProfile(fallbackCtx, "Claude Opus 5.5", new Map());
+  assert.equal(fbClaude.locked, false, "全横杠 slug 兜底应命中 claude-opus-5-5");
+  assert.equal(fbClaude.isClaude, true);
+  assert.equal(fbClaude.levels.length, 3);
+
+  // 3. 验证实际面板 DOM 同步与点击模型行切换解锁滑条
+  const env = createPerfTestEnv({ withMO: true, withRO: true });
+  const triggerBtn = env.makeNode("button");
+  triggerBtn.setAttribute("data-testid", "model-selector-trigger");
+  const outerSpan = env.makeNode("span");
+  outerSpan.classList.add("min-w-0");
+  const effortSpan = env.makeNode("span");
+  effortSpan.classList.add("opacity-70");
+  effortSpan.textContent = " Medium";
+  outerSpan.appendChild(effortSpan);
+  triggerBtn.appendChild(outerSpan);
+  triggerBtn.__reactFiber$slug = providerFiber;
+  env.body.appendChild(triggerBtn);
+
+  const popup = env.makeNode("div");
+  popup.setAttribute("role", "menu");
+  const panel = env.makeNode("div");
+  panel.setAttribute("data-testid", "model-selector-panel");
+  panel.__reactFiber$slug = providerFiber;
+  const listWrap = env.makeNode("div");
+
+  function addGroupRow(base) {
+    const item = env.makeNode("div");
+    item.setAttribute("role", "menuitem");
+    const gSpan = env.makeNode("span");
+    gSpan.setAttribute("data-testid", "model-selector-effort-group");
+    gSpan.setAttribute("data-model-base", base);
+    gSpan.textContent = base;
+    const sib = env.makeNode("span");
+    sib.className = "shrink-0 opacity-70 text-xs";
+    item.appendChild(gSpan);
+    item.appendChild(sib);
+    listWrap.appendChild(item);
+    return { item, gSpan, sib };
+  }
+
+  const neonRow = addGroupRow("Gemini 4 Neon");
+  const flashRow = addGroupRow("Gemini 3.8 Flash");
+  const claudeRow = addGroupRow("Claude Opus 5.5");
+
+  const gptItem = env.makeNode("div");
+  gptItem.setAttribute("role", "menuitem");
+  gptItem.setAttribute("data-testid", "model-selector-item");
+  gptItem.setAttribute("data-model-label", "GPT-OSS 120B (Medium)");
+  listWrap.appendChild(gptItem);
+
+  panel.appendChild(listWrap);
+  popup.appendChild(panel);
+  env.body.appendChild(popup);
+
+  const obs = slider.installAntigravityObserver({ document: env.doc, window: env.win });
+  assert.equal(neonRow.sib.textContent, "Medium", "Gemini 4 Neon 不应显示「固定」");
+  assert.equal(flashRow.sib.textContent, "Medium", "Gemini 3.8 Flash 不应显示「固定」");
+  assert.equal(claudeRow.sib.textContent, "Medium", "Claude Opus 5.5 不应显示「固定」");
+
+  const trackEl = panel.querySelector('[data-ces-part="track"]');
+  const rootEl = panel.querySelector('[role="slider"]');
+  assert.ok(trackEl && rootEl, "应成功挂载推理等级滑条");
+  assert.equal(rootEl.getAttribute("aria-disabled"), "true", "初始选中单档 GPT-OSS 时滑条应为锁定状态");
+  assert.equal(trackEl.classList.contains("is-locked"), true);
+
+  // 点击 Gemini 4 Neon 列表行：应调用 setModelConfigByLabelForConversation 并立即解锁 4 档滑条
+  panel.dispatch("click", { target: neonRow.gSpan });
+  assert.equal(commitCalls.length, 1, "点击 Gemini 4 Neon 应触发模型切换提交");
+  assert.deepEqual(commitCalls[0], {
+    label: "Gemini 4 Neon (Medium)",
+    convId: "conv-slug-test",
+    persist: true
+  });
+  assert.equal(rootEl.getAttribute("aria-disabled"), "false", "切换到多档模型后滑条应立即解锁");
+  assert.equal(trackEl.classList.contains("is-locked"), false);
+  assert.equal(rootEl.getAttribute("aria-valuemax"), "3", "Gemini 4 Neon 应展示 4 档刻度 (0..3)");
+  assert.equal(panel.querySelectorAll('[data-ces-part="tick"]').length, 4);
+
   obs.stop();
 });
 

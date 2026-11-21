@@ -1595,6 +1595,18 @@
     "  opacity: 0.9;",
     "}",
     "",
+    "@keyframes ces-panel-shake {",
+    "  0% { translate: 0 0; }",
+    "  20% { translate: 2.5px 0; }",
+    "  40% { translate: -2px 0; }",
+    "  60% { translate: 1.5px 0; }",
+    "  80% { translate: -0.8px 0; }",
+    "  100% { translate: 0 0; }",
+    "}",
+    ".ces-panel-shaking {",
+    "  animation: ces-panel-shake 0.18s cubic-bezier(0.36, 0.07, 0.19, 0.97) both !important;",
+    "}",
+    "",
     ".ces-ag-effort-value {",
     "  position: relative;",
     "  z-index: 1;",
@@ -1661,24 +1673,24 @@
     "  pointer-events: none !important;",
     "  opacity: 0 !important;",
     "}",
-    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-hover\\:hidden,",
-    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-focus\\:hidden,",
-    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-focus-visible\\:hidden,",
-    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > [class*='highlighted:hidden'],",
-    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > span:not(:first-child):not(:last-child) {",
+    ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-hover\\:hidden,",
+    ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-focus\\:hidden,",
+    ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > .group-focus-visible\\:hidden,",
+    ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > [class*='highlighted:hidden'],",
+    ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > span:not(:first-child):not(:last-child) {",
     "  display: flex !important;",
     "  visibility: visible !important;",
     "  opacity: 1 !important;",
     "}",
-    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > span:not(:first-child) + span.shrink-0:last-child:not(.group-hover\\:hidden):not(.group-focus\\:hidden):not(.ml-auto) {",
+    ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > span:not(:first-child) + span.shrink-0:last-child:not(.group-hover\\:hidden):not(.group-focus\\:hidden):not(.ml-auto) {",
     "  display: none !important;",
     "}",
-    "[role='menuitem']:has([data-testid='model-selector-effort-group']) > span:first-child + span.shrink-0:last-child:not(.group-hover\\:hidden):not(.group-focus\\:hidden):not(.ml-auto) {",
+    ".ces-ag-panel-enhanced [role='menuitem']:has([data-testid='model-selector-effort-group']) > span:first-child + span.shrink-0:last-child:not(.group-hover\\:hidden):not(.group-focus\\:hidden):not(.ml-auto) {",
     "  display: flex !important;",
     "  visibility: hidden !important;",
     "  pointer-events: none !important;",
     "}",
-    "[role='menuitem'][data-ces-model-selected='true'] {",
+    ".ces-ag-panel-enhanced [role='menuitem'][data-ces-model-selected='true'] {",
     "  background-color: rgba(128, 128, 145, 0.14);",
     "}",
     "",
@@ -2153,30 +2165,104 @@
     return null;
   }
 
-  function syncTriggerColor(doc, label, index, count, isMax, hasOffFirst, isClaude) {
+  function syncTriggerColor(doc, label, index, count, isMax, hasOffFirst, isClaude, triggerOverride) {
     var d = doc || (typeof document !== "undefined" ? document : null);
     if (!d) return;
-    var agTrigger = findAntigravityTrigger(d);
+    var agTrigger = triggerOverride || findAntigravityTrigger(d);
     var claudeFlag = typeof isClaude === "boolean" ? isClaude : isClaudeModel(agTrigger ? agTrigger.textContent : "");
-    var color = valueColorFor(label, index, count, isMax, hasOffFirst, claudeFlag);
+    var color = valueColorFor(label, index, count, isMax, hasOffFirst, claudeFlag) || "";
 
-    var agTrigger = findAntigravityTrigger(d);
     if (agTrigger) {
-      var effortSpan = agTrigger.querySelector("span.opacity-70, [data-ces-part='trigger-effort']");
+      var effortSpan = agTrigger.querySelector
+        ? agTrigger.querySelector("span.opacity-70, [data-ces-part='trigger-effort']")
+        : null;
       if (effortSpan) {
-        effortSpan.setAttribute("data-ces-part", "trigger-effort");
-        effortSpan.style.color = color || "";
-        effortSpan.style.opacity = color ? "1" : "";
-        effortSpan.style.fontWeight = color ? "600" : "";
+        if (typeof effortSpan.getAttribute !== "function" || effortSpan.getAttribute("data-ces-part") !== "trigger-effort") {
+          effortSpan.setAttribute("data-ces-part", "trigger-effort");
+        }
+        if (effortSpan.style) {
+          var nextOpacity = color ? "1" : "";
+          var nextWeight = color ? "600" : "";
+          if (effortSpan.style.color !== color) effortSpan.style.color = color;
+          if (effortSpan.style.opacity !== nextOpacity) effortSpan.style.opacity = nextOpacity;
+          if (effortSpan.style.fontWeight !== nextWeight) effortSpan.style.fontWeight = nextWeight;
+        }
       }
       return;
     }
 
     var trigger = findEffortTrigger(d);
     if (!trigger) return;
-    var spans = trigger.querySelectorAll("span");
+    var spans = trigger.querySelectorAll ? trigger.querySelectorAll("span") : [];
     var target = spans.length > 0 ? spans[spans.length - 1] : trigger;
-    target.style.color = color || "";
+    if (target.style && target.style.color !== color) {
+      target.style.color = color;
+    }
+  }
+
+  function replayAnimationClasses(el, classNames, options) {
+    if (!el || !el.classList || !Array.isArray(classNames) || classNames.length === 0) return;
+    var opts = options || {};
+    var includeSubtree = Boolean(opts.includeSubtree);
+    var allowedNames =
+      Array.isArray(opts.animationNames) && opts.animationNames.length > 0 ? opts.animationNames : null;
+    var hadAny = false;
+    for (var i = 0; i < classNames.length; i += 1) {
+      if (el.classList.contains(classNames[i])) {
+        hadAny = true;
+        break;
+      }
+    }
+    if (!hadAny) {
+      for (var j = 0; j < classNames.length; j += 1) {
+        el.classList.add(classNames[j]);
+      }
+      return;
+    }
+    if (typeof el.getAnimations === "function") {
+      try {
+        var anims = null;
+        if (includeSubtree) {
+          try {
+            anims = el.getAnimations({ subtree: true });
+          } catch (errSub) {
+            anims = el.getAnimations();
+          }
+        } else {
+          anims = el.getAnimations();
+        }
+        for (var k = 0; k < classNames.length; k += 1) {
+          el.classList.add(classNames[k]);
+        }
+        if (anims && anims.length > 0) {
+          for (var a = 0; a < anims.length; a += 1) {
+            var anim = anims[a];
+            if (!anim) continue;
+            if (typeof anim.transitionProperty === "string") continue;
+            if (typeof anim.animationName === "string") {
+              if (allowedNames) {
+                if (allowedNames.indexOf(anim.animationName) < 0) continue;
+              } else if (anim.animationName.indexOf("ces-") !== 0) {
+                continue;
+              }
+            }
+            if (typeof anim.cancel === "function" && typeof anim.play === "function") {
+              anim.cancel();
+              anim.play();
+            }
+          }
+        }
+        return;
+      } catch (err) {
+
+      }
+    }
+    for (var r = 0; r < classNames.length; r += 1) {
+      el.classList.remove(classNames[r]);
+    }
+    for (var aIdx = 0; aIdx < classNames.length; aIdx += 1) {
+      el.classList.add(classNames[aIdx]);
+    }
   }
 
   function findSeatEffort(win) {
@@ -2193,15 +2279,20 @@
     return found;
   }
 
+  var cachedReactFiberKey = "";
+
   function getReactFiber(el) {
     if (!el || typeof el !== "object") return null;
-    var raw = null;
-    var keys = Object.keys(el);
-    for (var i = 0; i < keys.length; i += 1) {
-      var k = keys[i];
-      if (k.indexOf("__reactFiber$") === 0 || k.indexOf("__reactInternalInstance$") === 0) {
-        raw = el[k];
-        break;
+    var raw = cachedReactFiberKey && el[cachedReactFiberKey] ? el[cachedReactFiberKey] : null;
+    if (!raw) {
+      var keys = Object.keys(el);
+      for (var i = 0; i < keys.length; i += 1) {
+        var k = keys[i];
+        if (k.indexOf("__reactFiber$") === 0 || k.indexOf("__reactInternalInstance$") === 0) {
+          cachedReactFiberKey = k;
+          raw = el[k];
+          break;
+        }
       }
     }
     if (!raw) return null;
@@ -2219,9 +2310,25 @@
     return raw;
   }
 
+  var effortIndexCache = typeof WeakMap === "function" ? new WeakMap() : null;
+  var normalizedEffortIndexCache = typeof WeakMap === "function" ? new WeakMap() : null;
+
   function buildEffortIndexFromOptions(modelOptions) {
-    var indexMap = new Map();
     var list = Array.isArray(modelOptions) ? modelOptions : [];
+    var firstItem = list[0];
+    var lastItem = list[list.length - 1];
+    if (effortIndexCache && Array.isArray(modelOptions)) {
+      var cached = effortIndexCache.get(modelOptions);
+      if (
+        cached &&
+        cached.length === list.length &&
+        cached.first === firstItem &&
+        cached.last === lastItem
+      ) {
+        return cached.map;
+      }
+    }
+    var indexMap = new Map();
     for (var i = 0; i < list.length; i += 1) {
       var opt = list[i];
       if (!opt || opt.isCustom || typeof opt.label !== "string") continue;
@@ -2236,7 +2343,139 @@
         byEffort.set(parsed.effort, opt);
       }
     }
+    if (effortIndexCache && Array.isArray(modelOptions)) {
+      effortIndexCache.set(modelOptions, {
+        length: list.length,
+        first: firstItem,
+        last: lastItem,
+        map: indexMap
+      });
+    }
     return indexMap;
+  }
+
+  function normalizeEffortKey(rawKey) {
+    var key = String(rawKey || "").trim().toLowerCase();
+
+    return key === "extra" ? "xhigh" : key;
+  }
+
+  function normalizeEffortByMap(rawByEffort) {
+    if (!(rawByEffort instanceof Map) || rawByEffort.size === 0) return null;
+    var needsCopy = false;
+    rawByEffort.forEach(function (_opt, rawKey) {
+      if (needsCopy) return;
+      if (typeof rawKey !== "string" || !rawKey || rawKey !== normalizeEffortKey(rawKey)) {
+        needsCopy = true;
+      }
+    });
+    if (!needsCopy) return rawByEffort;
+    var out = new Map();
+    rawByEffort.forEach(function (opt, rawKey) {
+      var normKey = normalizeEffortKey(rawKey);
+      if (normKey && !out.has(normKey)) {
+        out.set(normKey, opt);
+      }
+    });
+    return out;
+  }
+
+  function normalizeEffortIndex(rawEffortIndex, modelOptions, groups) {
+    if (!(rawEffortIndex instanceof Map) || rawEffortIndex.size === 0) {
+      return buildEffortIndexFromOptions(modelOptions);
+    }
+    var optsList = Array.isArray(modelOptions) ? modelOptions : [];
+    var optsLen = optsList.length;
+    var optsFirst = optsList[0];
+    var optsLast = optsList[optsLen - 1];
+    if (normalizedEffortIndexCache) {
+      var cached = normalizedEffortIndexCache.get(rawEffortIndex);
+      if (
+        cached &&
+        cached.rawSize === rawEffortIndex.size &&
+        cached.optsRef === modelOptions &&
+        cached.optsLen === optsLen &&
+        cached.optsFirst === optsFirst &&
+        cached.optsLast === optsLast
+      ) {
+        return cached.map;
+      }
+    }
+
+    var merged = new Map();
+
+    rawEffortIndex.forEach(function (rawByEffort, rawKey) {
+      var byEffort = normalizeEffortByMap(rawByEffort);
+      if (!byEffort || byEffort.size === 0) return;
+      if (typeof rawKey === "string" && rawKey && !merged.has(rawKey)) {
+        merged.set(rawKey, byEffort);
+      }
+      byEffort.forEach(function (opt) {
+        if (!opt || opt.isCustom || typeof opt.label !== "string") return;
+        var parsed = parseModelLabel(opt.label);
+        if (parsed && parsed.base && !merged.has(parsed.base)) {
+          merged.set(parsed.base, byEffort);
+        }
+      });
+    });
+
+    if (Array.isArray(groups)) {
+      for (var gIdx = 0; gIdx < groups.length; gIdx += 1) {
+        var g = groups[gIdx];
+        if (!g || typeof g !== "object") continue;
+        var gKey = g.key || g.id || g.groupKey || g.familyKey || g.slug || g.baseId;
+        var gDisplay = g.baseName || g.base || g.label || g.displayName || g.name;
+        if (
+          typeof gKey === "string" &&
+          gKey &&
+          typeof gDisplay === "string" &&
+          gDisplay &&
+          merged.has(gKey) &&
+          !merged.has(gDisplay)
+        ) {
+          merged.set(gDisplay, merged.get(gKey));
+        }
+      }
+    }
+
+    var optIndex = buildEffortIndexFromOptions(modelOptions);
+    if (optIndex instanceof Map && optIndex.size > 0) {
+      optIndex.forEach(function (byEff, baseKey) {
+        if (baseKey && byEff instanceof Map && byEff.size > 0 && !merged.has(baseKey)) {
+          merged.set(baseKey, byEff);
+        }
+      });
+    }
+
+    if (normalizedEffortIndexCache) {
+      normalizedEffortIndexCache.set(rawEffortIndex, {
+        rawSize: rawEffortIndex.size,
+        optsRef: modelOptions,
+        optsLen: optsLen,
+        optsFirst: optsFirst,
+        optsLast: optsLast,
+        map: merged
+      });
+    }
+    return merged;
+  }
+
+  function lookupEffortByBaseName(effortIndex, baseName) {
+    if (typeof baseName !== "string" || !baseName || !(effortIndex instanceof Map)) return null;
+    var direct = effortIndex.get(baseName);
+    if (direct instanceof Map) return direct;
+    var lower = baseName.toLowerCase();
+    var slugWithDot = lower.replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "");
+    if (slugWithDot && slugWithDot !== baseName) {
+      var dotHit = effortIndex.get(slugWithDot);
+      if (dotHit instanceof Map) return dotHit;
+    }
+    var slugAllDash = lower.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    if (slugAllDash && slugAllDash !== slugWithDot && slugAllDash !== baseName) {
+      var dashHit = effortIndex.get(slugAllDash);
+      if (dashHit instanceof Map) return dashHit;
+    }
+    return null;
   }
 
   function readAntigravityFiberContext(el) {
@@ -2309,10 +2548,11 @@
           : globalModelCtx.currentModelConfig)) ||
       null;
 
-    var effortIndex =
-      selectorCtx && selectorCtx.effortIndex instanceof Map
-        ? selectorCtx.effortIndex
-        : buildEffortIndexFromOptions(modelOptions);
+    var effortIndex = normalizeEffortIndex(
+      selectorCtx && selectorCtx.effortIndex instanceof Map ? selectorCtx.effortIndex : null,
+      modelOptions,
+      selectorCtx && selectorCtx.groups
+    );
 
     var unwrappedSetter =
       (outerPopoverProps && typeof outerPopoverProps.setSelectedModel === "function" ? outerPopoverProps.setSelectedModel : null) ||
@@ -2370,7 +2610,7 @@
       }
     }
 
-    var byEffort = baseName && ctx.effortIndex instanceof Map ? ctx.effortIndex.get(baseName) : null;
+    var byEffort = lookupEffortByBaseName(ctx.effortIndex, baseName);
     if (byEffort && byEffort.size >= 2) {
       var sortedKeys = [];
       for (var i = 0; i < AG_EFFORT_ORDER.length; i += 1) {
@@ -2618,6 +2858,7 @@
 
     var claudeIntensity = 0;
     var claudeSpeed = 0;
+    var claudeActive = false;
 
     var dragging = false;
     var buttonDown = false;
@@ -2636,6 +2877,156 @@
     var lastRenderedTickCount = -1;
     var lastAppliedEnergy = -1;
     var lastAppliedSlowdown = -1;
+    var lastAppliedOffsetCss = null;
+    var lastAppliedFillBg = null;
+    var lastVisualSyncSig = "";
+
+    var cachedSettings = schemaDefaults();
+    var cachedReducedMotion = false;
+    var cachedMotionMode = "fast";
+
+    function refreshCachedSettings() {
+      cachedSettings = readSettings(win);
+      cachedReducedMotion = prefersReducedMotion(win);
+      cachedMotionMode = cachedReducedMotion ? "quick" : (cachedSettings.motion || "fast");
+    }
+    refreshCachedSettings();
+
+    var cachedTrackRect = null;
+    var cachedCanvasTrackW = 280;
+    var cachedCanvasTrackH = TRACK_HEIGHT;
+    var hasCachedCanvasRect = false;
+
+    function refreshTrackRectCache() {
+      var rect = trackEl.getBoundingClientRect ? trackEl.getBoundingClientRect() : null;
+      if (rect && rect.width > 0) {
+        cachedTrackRect = { left: rect.left, width: rect.width, height: rect.height };
+        cachedCanvasTrackW = rect.width;
+        cachedCanvasTrackH = rect.height > 0 ? Math.round(rect.height) : TRACK_HEIGHT;
+        hasCachedCanvasRect = true;
+      }
+      return cachedTrackRect;
+    }
+
+    var cachedDarkMode = null;
+    var cachedDarkTime = 0;
+
+    function invalidateDarkCache() {
+      cachedDarkMode = null;
+      cachedDarkTime = 0;
+    }
+
+    function resolveCachedIsDark() {
+      try {
+        var rootCls = doc.documentElement && doc.documentElement.classList;
+        var bodyCls = doc.body && doc.body.classList;
+        if (rootCls) {
+          if (rootCls.contains("dark")) return true;
+          if (rootCls.contains("light")) return false;
+        }
+        if (bodyCls) {
+          if (bodyCls.contains("dark")) return true;
+          if (bodyCls.contains("light")) return false;
+        }
+      } catch (err) {
+
+      }
+      var now = nowMs();
+      if (cachedDarkMode !== null && now - cachedDarkTime < 500) {
+        return cachedDarkMode;
+      }
+      cachedDarkMode = surfaceIsDark(win, doc);
+      cachedDarkTime = now;
+      return cachedDarkMode;
+    }
+
+    var trackResizeObserver = null;
+    var TrackRO = (win && win.ResizeObserver) || (typeof ResizeObserver === "function" ? ResizeObserver : null);
+    if (typeof TrackRO === "function") {
+      try {
+        trackResizeObserver = new TrackRO(function (entries) {
+          if (destroyed) return;
+          var entry = entries && entries[0];
+          var w = entry && entry.contentRect ? entry.contentRect.width : 0;
+          var h = entry && entry.contentRect ? entry.contentRect.height : 0;
+          if (w > 0) {
+            cachedCanvasTrackW = w;
+            cachedCanvasTrackH = h > 0 ? Math.round(h) : cachedCanvasTrackH;
+            hasCachedCanvasRect = true;
+            if (dragging) {
+              cachedTrackRect = null;
+            }
+          }
+        });
+        trackResizeObserver.observe(trackEl);
+      } catch (err) {
+        trackResizeObserver = null;
+      }
+    }
+
+    var starSyncRafId = null;
+    var pendingStarParams = null;
+    var lastStarSpeedFactor = -1;
+    var lastStarSlowdown = -1;
+    var starVisibleStates = new Array(starNodes.length);
+    for (var svIdx = 0; svIdx < starVisibleStates.length; svIdx += 1) {
+      starVisibleStates[svIdx] = false;
+    }
+
+    function applyStarNodesNow(visibleCount, speedFactor, slowdown) {
+      var speedChanged =
+        slowdown !== lastStarSlowdown ||
+        lastStarSpeedFactor < 0 ||
+        Math.abs(speedFactor - lastStarSpeedFactor) >= 0.04;
+      for (var i = 0; i < starNodes.length; i += 1) {
+        var sNode = starNodes[i];
+        var shouldShow = i < visibleCount;
+        var wasShown = starVisibleStates[i];
+        if (shouldShow !== wasShown) {
+          sNode.el.style.display = shouldShow ? "" : "none";
+          starVisibleStates[i] = shouldShow;
+        }
+        if (shouldShow && (speedChanged || !wasShown)) {
+          var dur = starDurationFor(i, speedFactor) * slowdown;
+          var delay = starDelayFor(i, dur);
+          sNode.el.style.animationDuration = dur.toFixed(3) + "s";
+          sNode.el.style.animationDelay = delay.toFixed(3) + "s";
+        }
+      }
+      if (speedChanged) {
+        lastStarSpeedFactor = speedFactor;
+        lastStarSlowdown = slowdown;
+      }
+    }
+
+    function cancelStarSync() {
+      if (starSyncRafId !== null && win && typeof win.cancelAnimationFrame === "function") {
+        win.cancelAnimationFrame(starSyncRafId);
+      }
+      starSyncRafId = null;
+      pendingStarParams = null;
+    }
+
+    function scheduleStarNodesSync(visibleCount, speedFactor, slowdown) {
+      if (!dragging || !win || typeof win.requestAnimationFrame !== "function") {
+        cancelStarSync();
+        applyStarNodesNow(visibleCount, speedFactor, slowdown);
+        return;
+      }
+      pendingStarParams = {
+        visibleCount: visibleCount,
+        speedFactor: speedFactor,
+        slowdown: slowdown
+      };
+      if (starSyncRafId !== null) return;
+      starSyncRafId = win.requestAnimationFrame(function () {
+        starSyncRafId = null;
+        if (destroyed || !pendingStarParams) return;
+        var params = pendingStarParams;
+        pendingStarParams = null;
+        applyStarNodesNow(params.visibleCount, params.speedFactor, params.slowdown);
+      });
+    }
 
     function nowMs() {
       if (win && win.performance && typeof win.performance.now === "function") {
@@ -2645,7 +3036,8 @@
     }
 
     function readSeatSnapshot() {
-      var rawLevels = (seat && Array.isArray(seat.effortLevels) ? seat.effortLevels : []).slice();
+      var snapSource = seat && typeof seat.getSnapshot === "function" ? seat.getSnapshot() : seat;
+      var rawLevels = (snapSource && Array.isArray(snapSource.effortLevels) ? snapSource.effortLevels : []).slice();
       var levels = rawLevels.map(function (item) {
         var key = extractEffortKey(item);
         return {
@@ -2655,7 +3047,7 @@
         };
       });
       var count = levels.length;
-      var curEffort = extractEffortKey(seat && seat.currentEffort);
+      var curEffort = extractEffortKey(snapSource && snapSource.currentEffort);
       var officialIndex = 0;
       for (var i = 0; i < count; i += 1) {
         if (String(levels[i].effort).toLowerCase() === String(curEffort).toLowerCase()) {
@@ -2663,11 +3055,11 @@
           break;
         }
       }
-      var locked = Boolean((seat && seat.locked) || count <= 1);
+      var locked = Boolean((snapSource && snapSource.locked) || count <= 1);
       var stops = energyStopsFor(levels);
-      var baseName = (seat && seat.baseName) || (seat && seat.modelName) || "";
-      var isClaude = Boolean((seat && seat.isClaude) || isClaudeModel(baseName));
-      var theme = (seat && seat.theme) || (isClaude ? "claude" : "codex");
+      var baseName = (snapSource && snapSource.baseName) || (snapSource && snapSource.modelName) || "";
+      var isClaude = Boolean((snapSource && snapSource.isClaude) || isClaudeModel(baseName));
+      var theme = (snapSource && snapSource.theme) || (isClaude ? "claude" : "codex");
       return {
         baseName: baseName,
         isClaude: isClaude,
@@ -2701,7 +3093,7 @@
       return motionState;
     }
 
-    function syncHeaderAndTrigger(snap, showIdx) {
+    function syncHeaderAndTrigger(snap, showIdx, visualOpts) {
       var count = snap.count;
       var safeIdx = Math.max(0, Math.min(Math.max(0, count - 1), showIdx));
       var levelItem = snap.levels[safeIdx];
@@ -2733,16 +3125,15 @@
         if (label && valEl.textContent !== label) {
           valEl.textContent = label;
 
-          if (!prefersReducedMotion(win)) {
+          if (!cachedReducedMotion) {
             if (valEl.__cesRiseTimer) {
               clearTimeout(valEl.__cesRiseTimer);
               valEl.__cesRiseTimer = null;
             }
-            valEl.classList.remove("ces-text-rise");
-            valEl.classList.remove("is-claude-changing");
-            void valEl.offsetWidth;
-            valEl.classList.add("ces-text-rise");
-            valEl.classList.add("is-claude-changing");
+            replayAnimationClasses(valEl, ["ces-text-rise", "is-claude-changing"], {
+              includeSubtree: false,
+              animationNames: ["ces-claude-rise", "ces-text-rise"]
+            });
             valEl.__cesRiseTimer = setTimeout(function () {
               if (valEl && valEl.classList) {
                 valEl.classList.remove("ces-text-rise");
@@ -2758,26 +3149,46 @@
         }
       }
 
-      syncTriggerColor(doc, label, safeIdx, count, isMax, snap.hasOffFirst, snap.isClaude);
-      if (typeof opts.onVisualChange === "function") {
-        try {
-          opts.onVisualChange({
-            index: safeIdx,
-            count: count,
-            label: label,
-            effort: levelItem ? levelItem.effort : "",
-            isMax: isMax,
-            locked: snap.locked
-          });
-        } catch (err) {
+      var visualSig =
+        (snap.baseName || "") +
+        "|" +
+        safeIdx +
+        "|" +
+        label +
+        "|" +
+        count +
+        "|" +
+        (isMax ? "1" : "0") +
+        "|" +
+        (snap.locked ? "1" : "0") +
+        "|" +
+        (snap.isClaude ? "1" : "0");
 
+      if (visualSig !== lastVisualSyncSig) {
+        lastVisualSyncSig = visualSig;
+        if (typeof opts.onVisualChange === "function") {
+          if (!(visualOpts && visualOpts.skipExternalVisualCallback)) {
+            try {
+              opts.onVisualChange({
+                index: safeIdx,
+                count: count,
+                label: label,
+                effort: levelItem ? levelItem.effort : "",
+                isMax: isMax,
+                locked: snap.locked
+              });
+            } catch (err) {
+
+            }
+          }
+        } else {
+          syncTriggerColor(doc, label, safeIdx, count, isMax, snap.hasOffFirst, snap.isClaude);
         }
       }
     }
 
     function renderTicks(snap, effectivePct) {
-      var settings = readSettings(win);
-      var tickMode = settings.ticks || "highlight";
+      var tickMode = cachedSettings.ticks || "highlight";
       var count = snap.count;
 
       if (tickMode === "hidden" || count <= 1) {
@@ -2825,9 +3236,8 @@
     function stepClaudeCanvas(nowTs) {
       claudeRafId = null;
       if (destroyed) return;
-      var snap = readSeatSnapshot();
 
-      if (!snap.isClaude || snap.locked || claudeIntensity <= 0) {
+      if (!claudeActive || claudeIntensity <= 0) {
         stopClaudeCanvasAnimation();
         return;
       }
@@ -2838,10 +3248,13 @@
       var frameDt = claudeLastTs > 0 ? Math.min(0.05, Math.max(0, (now - claudeLastTs) / 1000)) : 0;
       claudeLastTs = now;
       claudeFlowTime += frameDt * claudeSpeed;
-      var isDark = surfaceIsDark(win, doc);
-      var rect = trackEl.getBoundingClientRect ? trackEl.getBoundingClientRect() : null;
-      var trackW = rect && rect.width > 0 ? rect.width : 280;
-      var th = rect && rect.height > 0 ? Math.round(rect.height) : (claudeCanvasEl.height || 28);
+      var isDark = resolveCachedIsDark();
+      if (!hasCachedCanvasRect) {
+        refreshTrackRectCache();
+        hasCachedCanvasRect = true;
+      }
+      var trackW = cachedCanvasTrackW > 0 ? cachedCanvasTrackW : 280;
+      var th = cachedCanvasTrackH > 0 ? cachedCanvasTrackH : (claudeCanvasEl.height || 28);
 
       var curPct = motionState ? clamp01(motionState.x) : 0;
       var tw = Math.max(1, Math.round(KNOB_RADIUS + (trackW - KNOB_RADIUS * 2) * curPct));
@@ -2865,7 +3278,7 @@
       }
     }
 
-    function applyVisualPct(snap, effectivePct, showIdx) {
+    function applyVisualPct(snap, effectivePct, showIdx, visualOpts) {
       var p = clamp01(effectivePct);
       var count = snap.count;
       var safeIdx = Math.max(0, Math.min(Math.max(0, count - 1), showIdx));
@@ -2897,18 +3310,26 @@
       }
 
       var offsetCss = knobOffsetOf(p, KNOB_RADIUS);
+      if (offsetCss !== lastAppliedOffsetCss) {
+        lastAppliedOffsetCss = offsetCss;
+        trackEl.style.setProperty("--ces-fill", offsetCss);
+        fillEl.style.width = offsetCss;
+        energyEl.style.width = offsetCss;
+        starsEl.style.width = offsetCss;
+        knobEl.style.left = offsetCss;
+      }
+
       var fillBg = fillBackgroundFor(p, snap.energyStart, snap.energyEnd, snap.isClaude);
-      trackEl.style.setProperty("--ces-fill", offsetCss);
-      trackEl.style.setProperty("--ces-fill-bg", fillBg);
-      fillEl.style.width = offsetCss;
-      fillEl.style.background = fillBg;
-      energyEl.style.width = offsetCss;
-      starsEl.style.width = offsetCss;
-      knobEl.style.left = offsetCss;
+      if (fillBg !== lastAppliedFillBg) {
+        lastAppliedFillBg = fillBg;
+        trackEl.style.setProperty("--ces-fill-bg", fillBg);
+        fillEl.style.background = fillBg;
+      }
 
       claudeIntensity = snap.isClaude && !snap.locked && count > 1 ? claudeIntensityFor(p, snap.energyStart) : 0;
       claudeSpeed = claudeSpeedFor(p, snap.energyStart);
-      if (claudeIntensity > 0) {
+      claudeActive = Boolean(snap.isClaude && !snap.locked && count > 1 && claudeIntensity > 0);
+      if (claudeActive) {
         if (claudeCanvasEl.style.display !== "block") {
 
           claudeCanvasEl.style.display = "block";
@@ -2924,7 +3345,7 @@
       }
 
       var energy = snap.locked ? 0 : energyForPct(p, snap.energyStart);
-      var slowdown = motionMode(win) === "quick" ? REDUCED_MOTION_SLOWDOWN : 1;
+      var slowdown = cachedMotionMode === "quick" ? REDUCED_MOTION_SLOWDOWN : 1;
       if (Math.abs(energy - lastAppliedEnergy) > 1e-5 || slowdown !== lastAppliedSlowdown) {
         lastAppliedEnergy = energy;
         lastAppliedSlowdown = slowdown;
@@ -2944,20 +3365,15 @@
 
         var visibleCount = Math.round(energy * PARTICLES.length);
         var speedFactor = speedFor(p, snap.energyStart);
-        starsEl.setAttribute("data-count", String(visibleCount));
-
-        for (var i = 0; i < starNodes.length; i += 1) {
-          var sNode = starNodes[i];
-          var dur = starDurationFor(i, speedFactor) * slowdown;
-          var delay = starDelayFor(i, dur);
-          sNode.el.style.display = i < visibleCount ? "" : "none";
-          sNode.el.style.animationDuration = dur.toFixed(3) + "s";
-          sNode.el.style.animationDelay = delay.toFixed(3) + "s";
+        var nextCountStr = String(visibleCount);
+        if (starsEl.getAttribute("data-count") !== nextCountStr) {
+          starsEl.setAttribute("data-count", nextCountStr);
         }
+        scheduleStarNodesSync(visibleCount, speedFactor, slowdown);
       }
 
       renderTicks(snap, p);
-      syncHeaderAndTrigger(snap, safeIdx);
+      syncHeaderAndTrigger(snap, safeIdx, visualOpts);
     }
 
     function stopFrames() {
@@ -2973,7 +3389,7 @@
       if (destroyed) return;
       var snap = readSeatSnapshot();
       var m = ensureMotion(snap);
-      var mode = motionMode(win);
+      var mode = cachedMotionMode;
       var params = motionParamsForMode(mode);
 
       var now = typeof ts === "number" && ts > 0 ? ts : nowMs();
@@ -3006,6 +3422,17 @@
       }
     }
 
+    function resolveShakePanelEl() {
+      return (
+        opts.panel ||
+        (container.closest &&
+          (container.closest('[data-testid="model-selector-panel"]') ||
+            container.closest(".ces-ag-panel-enhanced") ||
+            container.closest(".ag-menu-popup"))) ||
+        findAntigravityPanel(doc)
+      );
+    }
+
     function clearMaxEffects() {
       var rowEl =
         opts.row ||
@@ -3015,15 +3442,40 @@
       var valEl = opts.valueElement || findValueElement(rowEl);
       if (valEl && valEl.classList && valEl.classList.contains("is-glowing")) {
         valEl.classList.remove("is-glowing");
-        if (valEl.__cesGlowTimer) {
-          clearTimeout(valEl.__cesGlowTimer);
-          valEl.__cesGlowTimer = null;
-        }
+      }
+      if (valEl && valEl.__cesGlowTimer) {
+        clearTimeout(valEl.__cesGlowTimer);
+        valEl.__cesGlowTimer = null;
+      }
+      var panelEl = resolveShakePanelEl();
+      if (panelEl && panelEl.classList && panelEl.classList.contains("ces-panel-shaking")) {
+        panelEl.classList.remove("ces-panel-shaking");
+      }
+      if (panelEl && panelEl.__cesShakeTimer) {
+        clearTimeout(panelEl.__cesShakeTimer);
+        panelEl.__cesShakeTimer = null;
       }
     }
 
     function triggerMaxEffects(isClaude) {
-      if (prefersReducedMotion(win)) return;
+      if (cachedReducedMotion) return;
+
+      if (cachedMotionMode !== "quick") {
+        var panelEl = resolveShakePanelEl();
+        if (panelEl && panelEl.classList) {
+          if (panelEl.__cesShakeTimer) {
+            clearTimeout(panelEl.__cesShakeTimer);
+          }
+          replayAnimationClasses(panelEl, ["ces-panel-shaking"], {
+            includeSubtree: false,
+            animationNames: ["ces-panel-shake"]
+          });
+          panelEl.__cesShakeTimer = setTimeout(function () {
+            if (panelEl && panelEl.classList) panelEl.classList.remove("ces-panel-shaking");
+            panelEl.__cesShakeTimer = null;
+          }, 220);
+        }
+      }
 
       var rowEl =
         opts.row ||
@@ -3036,12 +3488,13 @@
         if (valEl.style && typeof valEl.style.setProperty === "function") {
           valEl.style.setProperty("--ces-glow-color", glowColor);
         }
-        valEl.classList.remove("is-glowing");
-        void valEl.offsetWidth;
-        valEl.classList.add("is-glowing");
         if (valEl.__cesGlowTimer) {
           clearTimeout(valEl.__cesGlowTimer);
         }
+        replayAnimationClasses(valEl, ["is-glowing"], {
+          includeSubtree: true,
+          animationNames: ["ces-text-bloom", "ces-glow-flash"]
+        });
         valEl.__cesGlowTimer = setTimeout(function () {
           if (valEl && valEl.classList) valEl.classList.remove("is-glowing");
           valEl.__cesGlowTimer = null;
@@ -3049,8 +3502,8 @@
       }
     }
 
-    function commitAtIndex(targetIndex, reason) {
-      var snap = readSeatSnapshot();
+    function commitAtIndex(targetIndex, reason, snapHint) {
+      var snap = snapHint || readSeatSnapshot();
       if (snap.locked || snap.count <= 1) return;
       var clampedIdx = Math.max(0, Math.min(snap.count - 1, targetIndex));
       var item = snap.levels[clampedIdx];
@@ -3090,7 +3543,7 @@
     }
 
     function pctAtClientX(clientX) {
-      var rect = trackEl.getBoundingClientRect ? trackEl.getBoundingClientRect() : null;
+      var rect = dragging && cachedTrackRect ? cachedTrackRect : refreshTrackRectCache();
       if (!rect || !(rect.width > 0)) return null;
       var usable = Math.max(1, rect.width - KNOB_RADIUS * 2);
       var raw = (clientX - rect.left - KNOB_RADIUS) / usable;
@@ -3117,7 +3570,7 @@
       lastPtrPct = ptrPct;
       lastPtrMs = now;
 
-      var mode = motionMode(win);
+      var mode = cachedMotionMode;
       var nowIndex;
       var targetPct;
 
@@ -3150,15 +3603,17 @@
       var m = ensureMotion(snap);
       m.target = targetPct;
 
+      var committed = false;
       if (nowIndex !== lastCommittedIndex) {
-        commitAtIndex(nowIndex, isInitialDown ? "down" : "drag");
+        commitAtIndex(nowIndex, isInitialDown ? "down" : "drag", snap);
+        committed = true;
       }
 
       m.x = targetPct;
       m.v = 0;
       m.a = 0;
       stopFrames();
-      applyVisualPct(readSeatSnapshot(), m.x, nowIndex);
+      applyVisualPct(committed ? readSeatSnapshot() : snap, m.x, nowIndex);
     }
 
     function endDrag(clientX) {
@@ -3170,7 +3625,7 @@
         if (p !== null) ptrPct = p;
       }
 
-      var mode = motionMode(win);
+      var mode = cachedMotionMode;
       var finalIndex;
       if (mode === "fast") {
         var baseDetent = detentIndex >= 0 && detentIndex < snap.count ? detentIndex : snap.officialIndex;
@@ -3183,6 +3638,7 @@
       }
 
       dragging = false;
+      cachedTrackRect = null;
       buttonDown = false;
       draftPct = null;
       draftIndex = null;
@@ -3191,12 +3647,15 @@
       ptrSpeed = 0;
       snapIndex = finalIndex;
 
+      var committed = false;
       if (finalIndex !== lastCommittedIndex) {
-        commitAtIndex(finalIndex, "release");
+        commitAtIndex(finalIndex, "release", snap);
+        committed = true;
       }
 
       var m = ensureMotion(snap);
       m.target = pctFromIndex(finalIndex, snap.count);
+      var visualSnap = committed ? readSeatSnapshot() : snap;
 
       if (mode === "quick") {
         m.x = m.target;
@@ -3204,12 +3663,12 @@
         m.a = 0;
         snapIndex = null;
         stopFrames();
-        applyVisualPct(readSeatSnapshot(), m.x, finalIndex);
+        applyVisualPct(visualSnap, m.x, finalIndex);
       } else {
         m.x = ptrPct;
         m.v = 0;
         m.a = 0;
-        applyVisualPct(readSeatSnapshot(), m.x, finalIndex);
+        applyVisualPct(visualSnap, m.x, finalIndex);
         startFrames();
       }
     }
@@ -3221,11 +3680,13 @@
 
     function onPointerDown(ev) {
       if (ev && typeof ev.button === "number" && ev.button !== 0) return;
+      refreshCachedSettings();
       var snap = readSeatSnapshot();
       if (snap.locked || snap.count <= 1) return;
       swallowEvent(ev);
       if (typeof ev.preventDefault === "function") ev.preventDefault();
 
+      refreshTrackRectCache();
       dragging = true;
       buttonDown = true;
 
@@ -3274,6 +3735,7 @@
     }
 
     function onKeyDown(ev) {
+      refreshCachedSettings();
       var snap = readSeatSnapshot();
       if (snap.locked || snap.count <= 1) return;
       var key = ev && ev.key;
@@ -3293,20 +3755,26 @@
       swallowEvent(ev);
       if (typeof ev.preventDefault === "function") ev.preventDefault();
 
+      if (lastCommittedIndex < 0) {
+        lastCommittedIndex = snap.officialIndex;
+      }
+      if (nextIdx === curIdx && nextIdx === snap.officialIndex) return;
+
       snapIndex = nextIdx;
-      commitAtIndex(nextIdx, "key");
+      commitAtIndex(nextIdx, "key", snap);
       var m = ensureMotion(snap);
       m.target = pctFromIndex(nextIdx, snap.count);
+      var visualSnap = readSeatSnapshot();
 
-      if (motionMode(win) === "quick") {
+      if (cachedMotionMode === "quick") {
         m.x = m.target;
         m.v = 0;
         m.a = 0;
         snapIndex = null;
         stopFrames();
-        applyVisualPct(readSeatSnapshot(), m.x, nextIdx);
+        applyVisualPct(visualSnap, m.x, nextIdx);
       } else {
-        applyVisualPct(readSeatSnapshot(), m.x, nextIdx);
+        applyVisualPct(visualSnap, m.x, nextIdx);
         startFrames();
       }
     }
@@ -3331,20 +3799,21 @@
       var targetIdx = snap.officialIndex;
       var targetPct = pctFromIndex(targetIdx, snap.count);
       m.target = targetPct;
+      lastCommittedIndex = targetIdx;
 
       if (
         snap.locked ||
-        motionMode(win) === "quick" ||
-        motionSettled(m, motionParamsForMode(motionMode(win)))
+        cachedMotionMode === "quick" ||
+        motionSettled(m, motionParamsForMode(cachedMotionMode))
       ) {
         m.x = targetPct;
         m.v = 0;
         m.a = 0;
         snapIndex = null;
         stopFrames();
-        applyVisualPct(snap, m.x, targetIdx);
+        applyVisualPct(snap, m.x, targetIdx, { skipExternalVisualCallback: true });
       } else {
-        applyVisualPct(snap, m.x, targetIdx);
+        applyVisualPct(snap, m.x, targetIdx, { skipExternalVisualCallback: true });
         startFrames();
       }
     }
@@ -3356,13 +3825,46 @@
           })
         : function () {};
 
-    var offSettings = onSettingsChange(function () {
+    var offSettings = onSettingsChange(function (nextSettings) {
+      cachedSettings = nextSettings || readSettings(win);
+      cachedReducedMotion = prefersReducedMotion(win);
+      cachedMotionMode = cachedReducedMotion ? "quick" : (cachedSettings.motion || "fast");
       var snap = readSeatSnapshot();
       var m = ensureMotion(snap);
       applyVisualPct(snap, m.x, currentShownIndex(snap));
     }, win);
 
+    var motionMql = null;
+    var onMotionMqlChange = null;
+    try {
+      if (win && typeof win.matchMedia === "function") {
+        motionMql = win.matchMedia("(prefers-reduced-motion: reduce)");
+        if (motionMql && typeof motionMql.addEventListener === "function") {
+          onMotionMqlChange = function () {
+            refreshCachedSettings();
+          };
+          motionMql.addEventListener("change", onMotionMqlChange);
+        }
+      }
+    } catch (err) {
+      motionMql = null;
+    }
+
+    function onWinResize() {
+      invalidateDarkCache();
+      cachedTrackRect = null;
+      hasCachedCanvasRect = false;
+    }
+    if (win && typeof win.addEventListener === "function") {
+      try {
+        win.addEventListener("resize", onWinResize);
+      } catch (err) {
+
+      }
+    }
+
     var initSnap = readSeatSnapshot();
+    lastCommittedIndex = initSnap.officialIndex;
     var initMotion = ensureMotion(initSnap);
     initMotion.x = pctFromIndex(initSnap.officialIndex, initSnap.count);
     initMotion.target = initMotion.x;
@@ -3373,7 +3875,25 @@
         destroyed = true;
         stopFrames();
         stopClaudeCanvasAnimation();
+        cancelStarSync();
         clearMaxEffects();
+        cachedTrackRect = null;
+        if (trackResizeObserver) {
+          try {
+            trackResizeObserver.disconnect();
+          } catch (err) {}
+          trackResizeObserver = null;
+        }
+        if (motionMql && onMotionMqlChange && typeof motionMql.removeEventListener === "function") {
+          try {
+            motionMql.removeEventListener("change", onMotionMqlChange);
+          } catch (err) {}
+        }
+        if (win && typeof win.removeEventListener === "function") {
+          try {
+            win.removeEventListener("resize", onWinResize);
+          } catch (err) {}
+        }
         var rowEl =
           opts.row ||
           (container.closest &&
@@ -3415,6 +3935,42 @@
 
     var current = null;
     var observer = null;
+    var isInternalMutating = false;
+    var scanRafId = null;
+    var scanScheduled = false;
+    var stopped = false;
+
+    function isOwnMenuNode(node) {
+      if (!node) return false;
+      var el = node.nodeType === 1 ? node : node.parentElement || node.parentNode;
+      if (!el) return false;
+      if (typeof el.closest === "function" && el.closest(".ces-inline, .ces-root, .ces-set")) {
+        return true;
+      }
+      return Boolean(typeof el.getAttribute === "function" && el.getAttribute("data-ces-part"));
+    }
+
+    function isOwnMenuMutation(record) {
+      if (!record) return false;
+      if (isOwnMenuNode(record.target)) return true;
+      if (record.type === "childList") {
+        var added = record.addedNodes;
+        var removed = record.removedNodes;
+        var i;
+        if (added) {
+          for (i = 0; i < added.length; i += 1) {
+            if (!isOwnMenuNode(added[i])) return false;
+          }
+        }
+        if (removed) {
+          for (i = 0; i < removed.length; i += 1) {
+            if (!isOwnMenuNode(removed[i])) return false;
+          }
+        }
+        return true;
+      }
+      return false;
+    }
 
     function detach() {
       if (!current) return;
@@ -3437,58 +3993,96 @@
     }
 
     function scan() {
+      if (stopped || isInternalMutating) return;
+      isInternalMutating = true;
+      try {
 
-      if (findAntigravityPanel(doc) || findAntigravityTrigger(doc)) return;
+        if (findAntigravityPanel(doc) || findAntigravityTrigger(doc)) return;
 
-      var row = findInferenceRow(doc);
-      if (!row) {
+        var row = findInferenceRow(doc);
+        if (!row) {
+          if (current) detach();
+          return;
+        }
+        if (current && current.row === row && current.container && row.contains(current.container)) {
+          return;
+        }
         if (current) detach();
-        return;
+
+        var previousStyle = {
+          height: row.style.height || "",
+          flexWrap: row.style.flexWrap || "",
+          paddingTop: row.style.paddingTop || "",
+          paddingBottom: row.style.paddingBottom || ""
+        };
+
+        row.setAttribute("data-ces-effort-row", "true");
+        row.style.height = "auto";
+        row.style.flexWrap = "wrap";
+        row.style.paddingTop = "8px";
+        row.style.paddingBottom = "8px";
+
+        var valEl = findValueElement(row);
+        var host = doc.createElement("div");
+        host.className = "ces-inline";
+        host.setAttribute("data-ces-part", "host");
+        row.appendChild(host);
+
+        current = {
+          row: row,
+          container: host,
+          value: valEl ? (valEl.textContent || "").trim() : "",
+          previousStyle: previousStyle
+        };
+        onChange(current);
+      } finally {
+        if (observer && typeof observer.takeRecords === "function") {
+          try {
+            observer.takeRecords();
+          } catch (err) {}
+        }
+        isInternalMutating = false;
       }
-      if (current && current.row === row && current.container && row.contains(current.container)) {
-        return;
+    }
+
+    function scheduleScan() {
+      if (stopped || scanScheduled) return;
+      scanScheduled = true;
+      if (win && typeof win.requestAnimationFrame === "function") {
+        scanRafId = win.requestAnimationFrame(function () {
+          scanRafId = null;
+          scanScheduled = false;
+          if (!stopped) scan();
+        });
+      } else {
+        scanScheduled = false;
+        scan();
       }
-      if (current) detach();
-
-      var previousStyle = {
-        height: row.style.height || "",
-        flexWrap: row.style.flexWrap || "",
-        paddingTop: row.style.paddingTop || "",
-        paddingBottom: row.style.paddingBottom || ""
-      };
-
-      row.setAttribute("data-ces-effort-row", "true");
-      row.style.height = "auto";
-      row.style.flexWrap = "wrap";
-      row.style.paddingTop = "8px";
-      row.style.paddingBottom = "8px";
-
-      var valEl = findValueElement(row);
-      var host = doc.createElement("div");
-      host.className = "ces-inline";
-      host.setAttribute("data-ces-part", "host");
-      row.appendChild(host);
-
-      current = {
-        row: row,
-        container: host,
-        value: valEl ? (valEl.textContent || "").trim() : "",
-        previousStyle: previousStyle
-      };
-      onChange(current);
     }
 
     scan();
     var MO = (win && win.MutationObserver) || (typeof MutationObserver === "function" ? MutationObserver : null);
     if (typeof MO === "function") {
-      observer = new MO(function () {
-        scan();
+      observer = new MO(function (records) {
+        if (stopped || isInternalMutating) return;
+        for (var i = 0; i < records.length; i += 1) {
+          if (!isOwnMenuMutation(records[i])) {
+            scheduleScan();
+            return;
+          }
+        }
       });
       observer.observe(doc.body, { childList: true, subtree: true });
     }
 
     return {
       stop: function () {
+        stopped = true;
+        if (scanRafId !== null && win && typeof win.cancelAnimationFrame === "function") {
+          win.cancelAnimationFrame(scanRafId);
+        }
+        scanRafId = null;
+        scanScheduled = false;
         if (observer) {
           observer.disconnect();
           observer = null;
@@ -3522,8 +4116,106 @@
     var activeSeatListeners = new Set();
     var activeBaseOverride = null;
     var activeModelOptionOverride = null;
-    var observer = null;
     var isInternalMutating = false;
+    var isStopped = false;
+    var nativeDetected = false;
+
+    var MO = (win && win.MutationObserver) || (typeof MutationObserver === "function" ? MutationObserver : null);
+    var bodyPortalObserver = null;
+    var triggerObserver = null;
+    var observedTriggerEl = null;
+    var panelObserver = null;
+    var observedPanelEl = null;
+    var bootObserver = null;
+    var panelResizeObserver = null;
+    var postMountRafId = null;
+    var scanRafId = null;
+    var scanScheduled = false;
+    var panelResizeDispatched = false;
+
+    var lastTriggerEl = null;
+    var lastTriggerSig = "";
+    var triggerDomDirty = true;
+    var lastPanelEl = null;
+    var lastPanelSig = "";
+    var cachedGroupSpans = null;
+    var cachedSingleItems = null;
+    var panelRowsDirty = true;
+    var panelDecorDirty = true;
+
+    function isNodeDetached(node) {
+      return Boolean(node && node.isConnected === false);
+    }
+
+    function isOwnCesNode(node) {
+      if (!node) return false;
+      var el = node.nodeType === 1 ? node : node.parentElement || node.parentNode;
+      if (!el) return false;
+      if (typeof el.closest === "function") {
+        if (el.closest(".ces-ag-section, .ces-inline, .ces-root, .ces-set")) {
+          return true;
+        }
+      }
+      if (typeof el.getAttribute === "function") {
+        var cesPart = el.getAttribute("data-ces-part");
+        if (cesPart && cesPart !== "trigger-effort") {
+          return true;
+        }
+      }
+      if (activeSection && (el === activeSection || (typeof activeSection.contains === "function" && activeSection.contains(el)))) {
+        return true;
+      }
+      return false;
+    }
+
+    function isOwnMutationRecord(record) {
+      if (!record) return false;
+      if (isOwnCesNode(record.target)) return true;
+      if (record.type === "childList") {
+        var added = record.addedNodes;
+        var removed = record.removedNodes;
+        var i;
+        if (added) {
+          for (i = 0; i < added.length; i += 1) {
+            if (!isOwnCesNode(added[i])) return false;
+          }
+        }
+        if (removed) {
+          for (i = 0; i < removed.length; i += 1) {
+            if (!isOwnCesNode(removed[i])) return false;
+          }
+        }
+        return true;
+      }
+      return false;
+    }
+
+    function drainObservers() {
+      var list = [bodyPortalObserver, triggerObserver, panelObserver, bootObserver];
+      for (var i = 0; i < list.length; i += 1) {
+        var obs = list[i];
+        if (obs && typeof obs.takeRecords === "function") {
+          try {
+            obs.takeRecords();
+          } catch (err) {
+
+          }
+        }
+      }
+    }
+
+    function runInternalMutation(fn) {
+      if (isInternalMutating) {
+        return fn();
+      }
+      isInternalMutating = true;
+      try {
+        return fn();
+      } finally {
+        drainObservers();
+        isInternalMutating = false;
+      }
+    }
 
     function notifySeatListeners() {
       activeSeatListeners.forEach(function (fn) {
@@ -3541,10 +4233,15 @@
       return popup || panel;
     }
 
-    function stabilizePanelWidth(panel) {
+    function stabilizePanelWidth(panel, measuredWidthHint) {
       var target = resolvePanelWidthTarget(panel);
       if (!target || !target.style) return;
-      var layoutW = Number(target.offsetWidth) || 0;
+      var layoutW = typeof measuredWidthHint === "number" && measuredWidthHint > 0
+        ? Math.ceil(measuredWidthHint)
+        : 0;
+      if (!(layoutW > 0)) {
+        layoutW = Number(target.offsetWidth) || 0;
+      }
       if (!(layoutW > 0) && typeof target.getBoundingClientRect === "function") {
         var rect = target.getBoundingClientRect();
         layoutW = rect && rect.width > 0 ? Math.ceil(rect.width) : 0;
@@ -3577,9 +4274,9 @@
       }
     }
 
-    function getLiveContext() {
-      var trigger = findAntigravityTrigger(doc);
-      var panel = findAntigravityPanel(doc);
+    function getLiveContext(triggerHint, panelHint) {
+      var trigger = triggerHint !== undefined ? triggerHint : findAntigravityTrigger(doc);
+      var panel = panelHint !== undefined ? panelHint : findAntigravityPanel(doc);
       return readAntigravityFiberContext(trigger || panel);
     }
 
@@ -3589,7 +4286,28 @@
       return resolveModelEffortProfile(ctx, target, perModelEffortMap);
     }
 
-    function syncAntigravityDomDecorations(ctx, activeProfile) {
+    function buildSeatSnapshot(ctx, prof) {
+      if (!prof) {
+        return {
+          effortLevels: [],
+          currentEffort: "",
+          locked: true,
+          baseName: "",
+          isClaude: false,
+          theme: "codex"
+        };
+      }
+      return {
+        effortLevels: prof.levels,
+        currentEffort: prof.currentEffort,
+        locked: prof.locked,
+        baseName: prof.baseName,
+        isClaude: Boolean(prof.isClaude),
+        theme: prof.theme || "codex"
+      };
+    }
+
+    function syncAntigravityDomDecorations(ctx, activeProfile, triggerHint, panelHint) {
       if (!ctx) return;
       var profile = activeProfile || getActiveProfile(ctx);
       if (!profile) return;
@@ -3602,37 +4320,97 @@
       var idx = profile.currentIndex;
       var isMax = !profile.locked && count > 1 && idx === count - 1 && !isOffLevel(profile.currentLabel);
 
-      var triggerBtn = findAntigravityTrigger(doc);
+      var triggerBtn = triggerHint !== undefined ? triggerHint : findAntigravityTrigger(doc);
+      var triggerSig =
+        (profile.locked ? "1" : "0") +
+        "|" +
+        (profile.baseName || "") +
+        "|" +
+        (profile.currentLabel || "") +
+        "|" +
+        idx +
+        "|" +
+        count +
+        "|" +
+        (isMax ? "1" : "0") +
+        "|" +
+        (profile.isClaude ? "1" : "0");
+
       if (triggerBtn) {
-        var outerSpan = triggerBtn.querySelector("span.min-w-0");
-        if (outerSpan) {
-          var allSpans = outerSpan.querySelectorAll("span");
-          for (var sIdx = 1; sIdx < allSpans.length; sIdx += 1) {
-            if (allSpans[sIdx].parentNode === outerSpan) {
-              outerSpan.removeChild(allSpans[sIdx]);
+        if (triggerDomDirty || triggerBtn !== lastTriggerEl || triggerSig !== lastTriggerSig) {
+          var outerSpan = triggerBtn.querySelector ? triggerBtn.querySelector("span.min-w-0") : null;
+          if (outerSpan) {
+            var allSpans = outerSpan.querySelectorAll ? outerSpan.querySelectorAll("span") : [];
+            for (var sIdx = 1; sIdx < allSpans.length; sIdx += 1) {
+              if (allSpans[sIdx].parentNode === outerSpan) {
+                outerSpan.removeChild(allSpans[sIdx]);
+              }
             }
-          }
-          var effortSpan = outerSpan.querySelector("span.opacity-70, [data-ces-part='trigger-effort']");
-          if (!profile.locked && profile.baseName) {
-            var firstNode = outerSpan.firstChild;
-            if (firstNode && firstNode.nodeType === 3 && firstNode.nodeValue !== profile.baseName) {
-              firstNode.nodeValue = profile.baseName;
-            }
-            if (effortSpan) {
-              var nextEffortText = " " + profile.currentLabel;
-              if (effortSpan.textContent !== nextEffortText) {
-                effortSpan.textContent = nextEffortText;
+            var effortSpan = outerSpan.querySelector
+              ? outerSpan.querySelector("span.opacity-70, [data-ces-part='trigger-effort']")
+              : null;
+            if (!profile.locked && profile.baseName) {
+              var firstNode = outerSpan.firstChild;
+              if (firstNode && firstNode.nodeType === 3 && firstNode.nodeValue !== profile.baseName) {
+                firstNode.nodeValue = profile.baseName;
+              }
+              if (effortSpan) {
+                var nextEffortText = " " + profile.currentLabel;
+                if (effortSpan.textContent !== nextEffortText) {
+                  effortSpan.textContent = nextEffortText;
+                }
               }
             }
           }
+          syncTriggerColor(doc, profile.currentLabel, idx, count, isMax, false, profile.isClaude, triggerBtn);
+          lastTriggerEl = triggerBtn;
+          lastTriggerSig = triggerSig;
+          triggerDomDirty = false;
         }
+      } else {
+        lastTriggerEl = null;
+        lastTriggerSig = "";
+        syncTriggerColor(doc, profile.currentLabel, idx, count, isMax, false, profile.isClaude, null);
       }
-      syncTriggerColor(doc, profile.currentLabel, idx, count, isMax, false);
 
-      var panel = findAntigravityPanel(doc);
-      if (!panel) return;
+      var panel = panelHint !== undefined ? panelHint : findAntigravityPanel(doc);
+      if (!panel) {
+        lastPanelEl = null;
+        lastPanelSig = "";
+        cachedGroupSpans = null;
+        cachedSingleItems = null;
+        panelRowsDirty = true;
+        return;
+      }
 
-      var groupSpans = panel.querySelectorAll('[data-testid="model-selector-effort-group"]');
+      var panelSig =
+        (profile.baseName || "") +
+        "|" +
+        (profile.currentLabel || "") +
+        "|" +
+        idx +
+        "|" +
+        count +
+        "|" +
+        (isMax ? "1" : "0") +
+        "|" +
+        (profile.isClaude ? "1" : "0") +
+        "|" +
+        (profile.locked ? "1" : "0") +
+        "|" +
+        (ctx.effortIndex instanceof Map ? ctx.effortIndex.size : 0);
+
+      if (!panelDecorDirty && !panelRowsDirty && panel === lastPanelEl && panelSig === lastPanelSig) {
+        return;
+      }
+
+      if (panelRowsDirty || panel !== lastPanelEl || !cachedGroupSpans || !cachedSingleItems || typeof MO !== "function") {
+        cachedGroupSpans = panel.querySelectorAll('[data-testid="model-selector-effort-group"]');
+        cachedSingleItems = panel.querySelectorAll('[data-testid="model-selector-item"]');
+        panelRowsDirty = false;
+      }
+
+      var groupSpans = cachedGroupSpans;
       for (var i = 0; i < groupSpans.length; i += 1) {
         var gSpan = groupSpans[i];
         var base = gSpan.getAttribute("data-model-base") || (gSpan.textContent || "").trim();
@@ -3681,7 +4459,7 @@
         }
       }
 
-      var singleItems = panel.querySelectorAll('[data-testid="model-selector-item"]');
+      var singleItems = cachedSingleItems;
       for (var j = 0; j < singleItems.length; j += 1) {
         var sItem = singleItems[j];
         var sLabel = sItem.getAttribute("data-model-label") || "";
@@ -3709,10 +4487,17 @@
         }
       }
 
-      stabilizePanelWidth(panel);
+      lastPanelEl = panel;
+      lastPanelSig = panelSig;
+      panelDecorDirty = false;
     }
 
     var agSeatAdapter = {
+      getSnapshot: function () {
+        var ctx = getLiveContext();
+        var prof = getActiveProfile(ctx);
+        return buildSeatSnapshot(ctx, prof);
+      },
       get effortLevels() {
         var ctx = getLiveContext();
         var prof = getActiveProfile(ctx);
@@ -3747,7 +4532,6 @@
         var ctx = getLiveContext();
         if (!ctx || !levelItem) return;
         var targetOpt = levelItem.modelOption || (levelItem.raw && levelItem.raw.modelOption);
-        var effortKey = levelItem.effort || (levelItem.raw && levelItem.raw.effort);
         if (!targetOpt) return;
 
         var parsed = parseModelLabel(targetOpt.label);
@@ -3759,13 +4543,10 @@
 
         commitAntigravityModelOption(ctx, targetOpt);
 
-        isInternalMutating = true;
-        try {
+        runInternalMutation(function () {
           var updatedProfile = resolveModelEffortProfile(ctx, targetOpt, perModelEffortMap);
           syncAntigravityDomDecorations(ctx, updatedProfile);
-        } finally {
-          isInternalMutating = false;
-        }
+        });
       },
       subscribe: function (fn) {
         activeSeatListeners.add(fn);
@@ -3820,7 +4601,7 @@
         ev.stopPropagation();
         if (typeof ev.stopImmediatePropagation === "function") ev.stopImmediatePropagation();
 
-        var ctx = getLiveContext();
+        var ctx = getLiveContext(undefined, panel);
         if (!ctx) return;
 
         var targetOption = null;
@@ -3848,14 +4629,11 @@
         if (targetOption) {
           tracePush("ag-select-model-in-menu", { label: targetOption.label });
           commitAntigravityModelOption(ctx, targetOption);
-          isInternalMutating = true;
-          try {
+          runInternalMutation(function () {
             var nextProf = resolveModelEffortProfile(ctx, targetOption, perModelEffortMap);
-            syncAntigravityDomDecorations(ctx, nextProf);
+            syncAntigravityDomDecorations(ctx, nextProf, undefined, panel);
             notifySeatListeners();
-          } finally {
-            isInternalMutating = false;
-          }
+          });
         }
       }
 
@@ -4037,7 +4815,55 @@
       panel.__cesAgResetUsageHover = resetUsageHover;
     }
 
+    function rebindPanelObserver(panel) {
+      if (isStopped) return;
+      var target = panel ? resolvePanelWidthTarget(panel) || panel : null;
+      if (observedPanelEl === target && (!target || panelObserver)) return;
+      if (panelObserver) {
+        panelObserver.disconnect();
+        panelObserver = null;
+      }
+      observedPanelEl = target;
+      if (!observedPanelEl || typeof MO !== "function") return;
+      panelObserver = new MO(function (records) {
+        if (isStopped || isInternalMutating) return;
+        var hasForeign = false;
+        for (var i = 0; i < records.length; i += 1) {
+          var rec = records[i];
+          if (isOwnMutationRecord(rec)) continue;
+          hasForeign = true;
+          panelDecorDirty = true;
+          if (rec.type === "childList") {
+            panelRowsDirty = true;
+          }
+        }
+        if (hasForeign) {
+          scheduleScan();
+        }
+      });
+      try {
+        panelObserver.observe(observedPanelEl, {
+          childList: true,
+          subtree: true,
+          characterData: true
+        });
+      } catch (err) {
+        panelObserver = null;
+      }
+    }
+
     function unmountActiveSection() {
+      if (postMountRafId !== null && win && typeof win.cancelAnimationFrame === "function") {
+        win.cancelAnimationFrame(postMountRafId);
+      }
+      postMountRafId = null;
+      if (panelResizeObserver) {
+        try {
+          panelResizeObserver.disconnect();
+        } catch (err) {}
+        panelResizeObserver = null;
+      }
+      rebindPanelObserver(null);
       if (activePanel && typeof activePanel.__cesAgResetUsageHover === "function") {
         try {
           activePanel.__cesAgResetUsageHover();
@@ -4065,10 +4891,19 @@
       activePanel = null;
       activeBaseOverride = null;
       activeModelOptionOverride = null;
+      panelResizeDispatched = false;
+      lastPanelEl = null;
+      lastPanelSig = "";
+      cachedGroupSpans = null;
+      cachedSingleItems = null;
+      panelRowsDirty = true;
+      panelDecorDirty = true;
     }
 
     function mountSectionIntoPanel(panel, ctx) {
-      panel.classList.add("ces-ag-panel-enhanced");
+      if (!panel.classList.contains("ces-ag-panel-enhanced")) {
+        panel.classList.add("ces-ag-panel-enhanced");
+      }
       bindPanelInteractions(panel);
 
       var section = doc.createElement("div");
@@ -4138,6 +4973,9 @@
       activeRow = row;
       activeValueEl = valueEl;
       activeHostEl = hostEl;
+      panelResizeDispatched = false;
+      panelRowsDirty = true;
+      panelDecorDirty = true;
 
       activeMount = mountCodexEffortSlider({
         container: hostEl,
@@ -4148,58 +4986,228 @@
         document: doc,
         window: win,
         onVisualChange: function (vState) {
-          isInternalMutating = true;
-          try {
-            var liveCtx = getLiveContext();
+          runInternalMutation(function () {
+            var liveCtx = getLiveContext(undefined, panel);
             if (liveCtx) {
-              syncAntigravityDomDecorations(liveCtx, getActiveProfile(liveCtx));
+              syncAntigravityDomDecorations(liveCtx, getActiveProfile(liveCtx), undefined, panel);
             } else {
-              syncTriggerColor(doc, vState.label, vState.index, vState.count, vState.isMax, false);
+              syncTriggerColor(doc, vState.label, vState.index, vState.count, vState.isMax, false, undefined, observedTriggerEl);
             }
-          } finally {
-            isInternalMutating = false;
-          }
+          });
         }
       });
 
-      stabilizePanelWidth(panel);
+      var widthTarget = resolvePanelWidthTarget(panel);
+      var RO = (win && win.ResizeObserver) || (typeof ResizeObserver === "function" ? ResizeObserver : null);
+      if (typeof RO === "function" && widthTarget) {
+        try {
+          panelResizeObserver = new RO(function (entries) {
+            if (isStopped || activePanel !== panel) return;
+            var measuredW = 0;
+            if (entries && entries.length > 0) {
+              var entry = entries[0];
+              if (entry && entry.borderBoxSize) {
+                var box = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+                if (box && box.inlineSize > 0) measuredW = box.inlineSize;
+              }
+              if (!(measuredW > 0) && entry && entry.contentRect && entry.contentRect.width > 0) {
+                measuredW = entry.contentRect.width;
+              }
+            }
+            if (measuredW > 0) {
+              runInternalMutation(function () {
+                stabilizePanelWidth(panel, measuredW);
+              });
+            }
+          });
+          panelResizeObserver.observe(widthTarget);
+        } catch (err) {
+          panelResizeObserver = null;
+        }
+      } else {
+        stabilizePanelWidth(panel);
+      }
+
       try {
         if (win && typeof win.requestAnimationFrame === "function") {
-          win.requestAnimationFrame(function () {
-            if (activePanel === panel && doc.body && doc.body.contains(panel)) {
-              stabilizePanelWidth(panel);
+          postMountRafId = win.requestAnimationFrame(function () {
+            postMountRafId = null;
+            if (isStopped || activePanel !== panel) return;
+            if (doc.body && typeof doc.body.contains === "function" && !doc.body.contains(panel)) return;
+            if (!panelResizeObserver) {
+              runInternalMutation(function () {
+                stabilizePanelWidth(panel);
+              });
+            }
+            if (!panelResizeDispatched && widthTarget && typeof widthTarget.getBoundingClientRect === "function") {
+              var rect = widthTarget.getBoundingClientRect();
+              var vh = Number(win.innerHeight) || 0;
+              var vw = Number(win.innerWidth) || 0;
+              var outOfBounds =
+                Boolean(rect && rect.height > 0 && vh > 0) &&
+                (rect.top < 4 ||
+                  rect.bottom > vh - 4 ||
+                  (vw > 0 && (rect.left < 4 || rect.right > vw - 4)));
+              if (outOfBounds) {
+                panelResizeDispatched = true;
+                try {
+                  if (typeof win.dispatchEvent === "function" && typeof win.Event === "function") {
+                    win.dispatchEvent(new win.Event("resize"));
+                  }
+                } catch (err) {
+
+                }
+              }
             }
           });
         }
       } catch (err) {
 
       }
+    }
 
-      try {
-        if (win && typeof win.dispatchEvent === "function" && typeof win.Event === "function") {
-          win.dispatchEvent(new win.Event("resize"));
+    function isPotentialPanelPortalNode(node) {
+      if (!node || node.nodeType !== 1 || isOwnCesNode(node)) return false;
+      if (typeof node.getAttribute === "function") {
+        if (node.getAttribute("data-testid") === "model-selector-panel") return true;
+        var role = node.getAttribute("role");
+        if (role === "menu" || role === "dialog") return true;
+        if (
+          node.hasAttribute &&
+          (node.hasAttribute("data-radix-portal") ||
+            node.hasAttribute("data-base-ui-portal") ||
+            node.hasAttribute("data-floating-ui-portal"))
+        ) {
+          return true;
         }
-      } catch (err) {
+      }
+      if (typeof node.querySelector === "function") {
+        if (node.querySelector('[data-testid="model-selector-panel"]')) return true;
+        if (!observedTriggerEl && node.querySelector('[data-testid="model-selector-trigger"], button[aria-label^="Select model"]')) {
+          return true;
+        }
+      }
+      return false;
+    }
 
+    function listContainsTarget(nodeList, target) {
+      if (!nodeList || !target) return false;
+      for (var i = 0; i < nodeList.length; i += 1) {
+        var n = nodeList[i];
+        if (n === target || (typeof n.contains === "function" && n.contains(target))) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function rebindTriggerObserver(triggerBtn) {
+      if (isStopped) return;
+      if (observedTriggerEl === triggerBtn && triggerObserver) return;
+      if (triggerObserver) {
+        triggerObserver.disconnect();
+        triggerObserver = null;
+      }
+      observedTriggerEl = triggerBtn || null;
+      if (!observedTriggerEl || typeof MO !== "function") return;
+      triggerObserver = new MO(function (records) {
+        if (isStopped || isInternalMutating) return;
+        for (var i = 0; i < records.length; i += 1) {
+          if (!isOwnMutationRecord(records[i])) {
+            triggerDomDirty = true;
+            scheduleScan();
+            return;
+          }
+        }
+      });
+      try {
+        triggerObserver.observe(observedTriggerEl, {
+          attributes: true,
+          attributeFilter: ["aria-expanded", "data-state", "data-popup-open"],
+          childList: true,
+          subtree: true,
+          characterData: true
+        });
+      } catch (err) {
+        triggerObserver = null;
       }
     }
 
-    function scan() {
-      if (isInternalMutating) return;
-      isInternalMutating = true;
+    function ensureBootObserver() {
+      if (isStopped || bootObserver || typeof MO !== "function") return;
+      bootObserver = new MO(function (records) {
+        if (isStopped || isInternalMutating) return;
+        for (var i = 0; i < records.length; i += 1) {
+          if (isOwnMutationRecord(records[i])) continue;
+          if (findAntigravityTrigger(doc) || findAntigravityPanel(doc)) {
+            if (bootObserver) {
+              bootObserver.disconnect();
+              bootObserver = null;
+            }
+            scheduleScan();
+            return;
+          }
+        }
+      });
       try {
-        var ctx = getLiveContext();
+        bootObserver.observe(doc.body, { childList: true, subtree: true });
+      } catch (err) {
+        bootObserver = null;
+      }
+    }
+
+    function scan(scanOpts) {
+      if (isStopped || isInternalMutating) return;
+      var explicitRescan = Boolean(scanOpts && scanOpts.explicitRescan);
+      runInternalMutation(function () {
+        var trigger = findAntigravityTrigger(doc);
         var panel = findAntigravityPanel(doc);
+
+        if ((trigger || panel) && !nativeDetected) {
+          nativeDetected = true;
+          if (bootObserver) {
+            bootObserver.disconnect();
+            bootObserver = null;
+          }
+          if (typeof opts.onNativeDetected === "function") {
+            try {
+              opts.onNativeDetected();
+            } catch (err) {
+
+            }
+          }
+        }
+
+        rebindTriggerObserver(trigger);
+
+        if (!trigger && !panel) {
+          ensureBootObserver();
+        } else if (bootObserver) {
+          bootObserver.disconnect();
+          bootObserver = null;
+        }
 
         if (!panel) {
           if (activeSection) {
             unmountActiveSection();
+          } else {
+            rebindPanelObserver(null);
           }
-          if (ctx) {
-            syncAntigravityDomDecorations(ctx, resolveModelEffortProfile(ctx, ctx.selectedModel, perModelEffortMap));
+          if (trigger && (triggerDomDirty || trigger !== lastTriggerEl || explicitRescan)) {
+            var idleCtx = getLiveContext(trigger, null);
+            if (idleCtx) {
+              syncAntigravityDomDecorations(
+                idleCtx,
+                resolveModelEffortProfile(idleCtx, idleCtx.selectedModel, perModelEffortMap),
+                trigger,
+                null
+              );
+            }
           }
           return;
         }
+
+        var ctx = getLiveContext(trigger, panel);
 
         if (ctx && ctx.selectedModel && activeModelOptionOverride) {
           if (ctx.selectedModel.label === activeModelOptionOverride.label) {
@@ -4211,39 +5219,165 @@
         if (activePanel !== panel || !activeSection || !panel.contains(activeSection)) {
           unmountActiveSection();
           mountSectionIntoPanel(panel, ctx);
+        } else if (explicitRescan && !panelResizeObserver) {
+          stabilizePanelWidth(panel);
         }
 
+        if (explicitRescan) {
+          panelRowsDirty = true;
+          panelDecorDirty = true;
+        }
+
+        rebindPanelObserver(panel);
+
         if (ctx) {
-          syncAntigravityDomDecorations(ctx, getActiveProfile(ctx));
+          syncAntigravityDomDecorations(ctx, getActiveProfile(ctx), trigger, panel);
         }
         notifySeatListeners();
-      } finally {
-        isInternalMutating = false;
+      });
+    }
+
+    function cancelScheduledScan() {
+      if (scanRafId !== null && win && typeof win.cancelAnimationFrame === "function") {
+        win.cancelAnimationFrame(scanRafId);
+      }
+      scanRafId = null;
+      scanScheduled = false;
+    }
+
+    function scheduleScan() {
+      if (isStopped || scanScheduled) return;
+      scanScheduled = true;
+      if (win && typeof win.requestAnimationFrame === "function") {
+        scanRafId = win.requestAnimationFrame(function () {
+          scanRafId = null;
+          scanScheduled = false;
+          if (!isStopped) {
+            scan();
+          }
+        });
+      } else {
+        scanScheduled = false;
+        scan();
       }
     }
 
     scan();
-    var MO = (win && win.MutationObserver) || (typeof MutationObserver === "function" ? MutationObserver : null);
+
     if (typeof MO === "function") {
-      observer = new MO(function () {
-        scan();
+      bodyPortalObserver = new MO(function (records) {
+        if (isStopped || isInternalMutating) return;
+        if (isNodeDetached(observedTriggerEl) || isNodeDetached(activePanel)) {
+          scheduleScan();
+          return;
+        }
+        for (var i = 0; i < records.length; i += 1) {
+          var rec = records[i];
+          if (isOwnMutationRecord(rec)) continue;
+          if (rec.addedNodes) {
+            for (var a = 0; a < rec.addedNodes.length; a += 1) {
+              if (isPotentialPanelPortalNode(rec.addedNodes[a])) {
+                scheduleScan();
+                return;
+              }
+            }
+          }
+          if (rec.removedNodes) {
+            if (
+              listContainsTarget(rec.removedNodes, activePanel) ||
+              listContainsTarget(rec.removedNodes, observedTriggerEl)
+            ) {
+              scheduleScan();
+              return;
+            }
+          }
+        }
       });
-      observer.observe(doc.body, {
+      bodyPortalObserver.observe(doc.body, {
         childList: true,
-        subtree: true,
-        characterData: true
+        subtree: false
       });
+    }
+
+    function onDocPointerOrClickCapture(ev) {
+      if (isStopped || !ev) return;
+      var target = ev.target;
+      if (isOwnCesNode(target)) return;
+      var hitTrigger =
+        (observedTriggerEl && typeof observedTriggerEl.contains === "function" && observedTriggerEl.contains(target)) ||
+        (target &&
+          typeof target.closest === "function" &&
+          target.closest('[data-testid="model-selector-trigger"], button[aria-label^="Select model"]'));
+      if (hitTrigger || isNodeDetached(observedTriggerEl) || activePanel) {
+        scheduleScan();
+      }
+    }
+
+    function onDocKeyDownCapture(ev) {
+      if (isStopped || !ev) return;
+      var key = ev.key;
+      var mayToggleMenu =
+        activePanel ||
+        key === "Escape" ||
+        key === "Enter" ||
+        key === " " ||
+        key === "ArrowDown" ||
+        key === "ArrowUp" ||
+        ev.ctrlKey ||
+        ev.metaKey ||
+        ev.altKey;
+      if (!mayToggleMenu || isOwnCesNode(ev.target)) return;
+      if (
+        activePanel ||
+        ev.ctrlKey ||
+        ev.metaKey ||
+        ev.altKey ||
+        (observedTriggerEl &&
+          (ev.target === observedTriggerEl ||
+            (typeof observedTriggerEl.contains === "function" && observedTriggerEl.contains(ev.target))))
+      ) {
+        scheduleScan();
+      }
+    }
+
+    if (typeof doc.addEventListener === "function") {
+      doc.addEventListener("pointerdown", onDocPointerOrClickCapture, true);
+      doc.addEventListener("click", onDocPointerOrClickCapture, true);
+      doc.addEventListener("keydown", onDocKeyDownCapture, true);
     }
 
     return {
       stop: function () {
-        if (observer) {
-          observer.disconnect();
-          observer = null;
+        isStopped = true;
+        cancelScheduledScan();
+        if (typeof doc.removeEventListener === "function") {
+          doc.removeEventListener("pointerdown", onDocPointerOrClickCapture, true);
+          doc.removeEventListener("click", onDocPointerOrClickCapture, true);
+          doc.removeEventListener("keydown", onDocKeyDownCapture, true);
         }
+        if (bodyPortalObserver) {
+          bodyPortalObserver.disconnect();
+          bodyPortalObserver = null;
+        }
+        if (triggerObserver) {
+          triggerObserver.disconnect();
+          triggerObserver = null;
+        }
+        if (panelObserver) {
+          panelObserver.disconnect();
+          panelObserver = null;
+        }
+        if (bootObserver) {
+          bootObserver.disconnect();
+          bootObserver = null;
+        }
+        observedTriggerEl = null;
+        observedPanelEl = null;
         unmountActiveSection();
       },
-      rescan: scan,
+      rescan: function () {
+        scan({ explicitRescan: true });
+      },
       bindPanelInteractions: bindPanelInteractions
     };
   }
@@ -4264,37 +5398,57 @@
 
     installStyles(doc);
     var settingsUi = installSettingsUi({ document: doc, window: win });
-    var agObs = installAntigravityObserver({ document: doc, window: win });
-
     var activeGenericMount = null;
-    var menuObs = installMenuObserver({
+    var menuObs = null;
+
+    function stopMenuObserver() {
+      if (menuObs) {
+        menuObs.stop();
+        menuObs = null;
+      }
+      if (activeGenericMount) {
+        activeGenericMount.unmount();
+        activeGenericMount = null;
+      }
+    }
+
+    var agObs = installAntigravityObserver({
       document: doc,
       window: win,
-      onChange: function (current) {
-        if (activeGenericMount) {
-          activeGenericMount.unmount();
-          activeGenericMount = null;
+      onNativeDetected: function () {
+        if (!opts.seat) {
+          stopMenuObserver();
         }
-        if (!current || !current.container) return;
-        var seat = opts.seat || findSeatEffort(win);
-        if (!seat) return;
-        activeGenericMount = mountCodexEffortSlider({
-          container: current.container,
-          row: current.row,
-          seat: seat,
-          document: doc,
-          window: win
-        });
       }
     });
 
+    var hasNativeInitially = Boolean(findAntigravityTrigger(doc) || findAntigravityPanel(doc));
+    if (!hasNativeInitially || opts.seat) {
+      menuObs = installMenuObserver({
+        document: doc,
+        window: win,
+        onChange: function (current) {
+          if (activeGenericMount) {
+            activeGenericMount.unmount();
+            activeGenericMount = null;
+          }
+          if (!current || !current.container) return;
+          var seat = opts.seat || findSeatEffort(win);
+          if (!seat) return;
+          activeGenericMount = mountCodexEffortSlider({
+            container: current.container,
+            row: current.row,
+            seat: seat,
+            document: doc,
+            window: win
+          });
+        }
+      });
+    }
+
     var instance = {
       stop: function () {
-        if (activeGenericMount) {
-          activeGenericMount.unmount();
-          activeGenericMount = null;
-        }
-        menuObs.stop();
+        stopMenuObserver();
         agObs.stop();
         settingsUi.stop();
         if (win && win.__agCodexEffortSliderInstance === instance) {
@@ -4303,7 +5457,9 @@
       },
       rescan: function () {
         agObs.rescan();
-        menuObs.rescan();
+        if (menuObs) {
+          menuObs.rescan();
+        }
       }
     };
 
