@@ -29,6 +29,9 @@
 
 >本人从未在互联网上诋毁过谷歌，并没有称Logan为小丑，也从未P过Gemini的傻龙图，本人所有“**北美豆包**”、“**又快又拉**”、“**只剩多模态能用**”相关形容，所指均是美国Mira公司发布的开放权重多模态模型Inkling。本人实际上是谷歌十年老粉，即使在3.1Pro的至暗时刻依然矢志不渝坚持撸猫的忠实用户，经过长时间的思考，我发现Gemini才是美国AI的希望，有时候做出决定很难，经过许多个日夜的思考，我决定加入Gemini（哈基米）粉丝团。至于OpenAI和Anthropic，祝他们的闭源模型一切顺利！
 
+Neon于26.11.18发布：
+>你知道的，我一直是Gemini忠实用户，我们曾并肩作战过许多复杂的Prompt。这家伙上下文窗口和推理能力简直强得不可思议。我觉得我们会产生很棒的化学反应。即使在3.1Pro的至暗时刻依旧坚持撸猫。有时候做决定很简单。经过许多个日夜的思考，我已经迫不及待要和Neon一起上场了。至于Astra和Opus，我祝他们一切顺利。
+
 ## [点我在线交互演示](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)  [BiliBili视频演示](https://www.bilibili.com/video/BV1Krs363EAu/?share_source=copy_web&vd_source=c8828a7ec477afc7c143a2491eab71ca)
 
 
