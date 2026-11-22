@@ -714,7 +714,7 @@
   function dumpTrace(win) {
     var w = win || (typeof window !== "undefined" ? window : globalRoot);
     return {
-      plugin: "antigravity-codex-effort-slider@1.3.0",
+      plugin: "antigravity-codex-effort-slider@1.3.1",
       time: new Date().toISOString(),
       ua: w && w.navigator ? w.navigator.userAgent : "node",
       settings: readSettings(w),
@@ -1402,11 +1402,22 @@
     "  touch-action: none;",
     "  box-sizing: border-box;",
     "  contain: layout style;",
-    "  transition: opacity 0.15s ease, box-shadow 0.2s ease;",
+    "  transition: opacity 0.15s ease;",
     "}",
-    ".ces-inline[data-energy='1'] .ces-track,",
-    ".ces-root[data-energy='1'] .ces-track {",
-    "  box-shadow: 0 0 calc(var(--ces-energy, 0) * 16px) rgba(168, 85, 247, 0.5), inset 0 1px 2px rgba(0, 0, 0, 0.24);",
+    "",
+    ".ces-track::after {",
+    "  content: '';",
+    "  position: absolute;",
+    "  inset: 0;",
+    "  border-radius: inherit;",
+    "  pointer-events: none;",
+    "  box-shadow: 0 0 16px rgba(168, 85, 247, 0.5);",
+    "  opacity: 0;",
+    "  transition: opacity 0.2s ease;",
+    "}",
+    ".ces-inline[data-energy='1'] .ces-track::after,",
+    ".ces-root[data-energy='1'] .ces-track::after {",
+    "  opacity: var(--ces-energy, 0);",
     "}",
     ".ces-inline[data-energy='0'] .ces-star,",
     ".ces-inline[data-energy='0'] .ces-energy__sweep,",
@@ -1421,22 +1432,20 @@
     "}",
     ".ces-fill {",
     "  position: absolute;",
-    "  top: 0;",
-    "  left: 0;",
-    "  bottom: 0;",
-    "  width: var(--ces-fill, 14px);",
+    "  inset: 0;",
+    "  width: 100%;",
     "  border-radius: " + FILL_RADIUS_CSS + ";",
     "  background: #4d93f8;",
+    "  clip-path: inset(0 calc(100% - var(--ces-fill, 14px)) 0 0);",
     "  pointer-events: none;",
     "  contain: layout style paint;",
     "}",
     ".ces-energy {",
     "  position: absolute;",
-    "  top: 0;",
-    "  left: 0;",
-    "  bottom: 0;",
-    "  width: var(--ces-fill, 14px);",
+    "  inset: 0;",
+    "  width: 100%;",
     "  border-radius: " + FILL_RADIUS_CSS + ";",
+    "  clip-path: inset(0 calc(100% - var(--ces-fill, 14px)) 0 0);",
     "  overflow: hidden;",
     "  pointer-events: none;",
     "  opacity: var(--ces-energy, 0);",
@@ -1454,16 +1463,24 @@
     "}",
     ".ces-stars {",
     "  position: absolute;",
-    "  top: 0;",
-    "  left: 0;",
-    "  bottom: 0;",
-    "  width: var(--ces-fill, 14px);",
+    "  inset: 0;",
+    "  width: 100%;",
     "  border-radius: " + FILL_RADIUS_CSS + ";",
+    "  clip-path: inset(0 calc(100% - var(--ces-fill, 14px)) 0 0);",
     "  opacity: 0;",
     "  transition: opacity 0.2s ease;",
     "  pointer-events: none;",
     "  overflow: hidden;",
     "  contain: layout style paint;",
+    "}",
+    "",
+    ".ces-stars__stage {",
+    "  position: absolute;",
+    "  inset: 0;",
+    "  width: 100%;",
+    "  pointer-events: none;",
+    "  transform: translate3d(calc(var(--ces-fill, 14px) - 100%), 0, 0);",
+    "  will-change: transform;",
     "}",
     ".ces-star {",
     "  position: absolute;",
@@ -1515,10 +1532,28 @@
     ".ces-tick.is-dim {",
     "  background: rgba(255, 255, 255, 0.28);",
     "}",
-    ".ces-knob {",
+    ".ces-knob-rail {",
     "  position: absolute;",
     "  top: 50%;",
-    "  left: var(--ces-fill, 14px);",
+    "  left: " + KNOB_RADIUS + "px;",
+    "  right: " + KNOB_RADIUS + "px;",
+    "  height: 0;",
+    "  pointer-events: none;",
+    "}",
+    ".ces-knob-carrier {",
+    "  position: absolute;",
+    "  left: 0;",
+    "  top: 0;",
+    "  width: 100%;",
+    "  height: 0;",
+    "  pointer-events: none;",
+    "  transform: translate3d(calc(var(--ces-p, 0) * 100%), 0, 0);",
+    "  will-change: transform;",
+    "}",
+    ".ces-knob {",
+    "  position: absolute;",
+    "  top: 0;",
+    "  left: 0;",
     "  width: " + KNOB_SIZE + "px;",
     "  height: " + KNOB_SIZE + "px;",
     "  margin: " + (-KNOB_RADIUS) + "px 0 0 " + (-KNOB_RADIUS) + "px;",
@@ -1526,7 +1561,6 @@
     "  background: #ffffff;",
     "  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.34), 0 0 0 0.5px rgba(0, 0, 0, 0.06);",
     "  pointer-events: none;",
-    "  will-change: left;",
     "}",
     "",
     ".ces-root[data-theme='claude'] .ces-stars,",
@@ -1542,9 +1576,10 @@
     "  background: rgba(128, 128, 145, 0.16);",
     "  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.08);",
     "}",
-    ".ces-root[data-theme='claude'][data-energy='1'] .ces-track,",
-    ".ces-inline[data-theme='claude'][data-energy='1'] .ces-track {",
-    "  box-shadow: 0 0 16px rgba(167, 139, 250, 0.45), inset 0 1px 2px rgba(0, 0, 0, 0.22);",
+    ".ces-root[data-theme='claude'][data-energy='1'] .ces-track::after,",
+    ".ces-inline[data-theme='claude'][data-energy='1'] .ces-track::after {",
+    "  box-shadow: 0 0 16px rgba(167, 139, 250, 0.45);",
+    "  opacity: var(--ces-energy, 0);",
     "}",
     ".ces-root[data-theme='claude'] .ces-knob,",
     ".ces-inline[data-theme='claude'] .ces-knob {",
@@ -1571,14 +1606,15 @@
     "}",
     ".ces-claude-canvas {",
     "  position: absolute;",
-    "  left: 0;",
-    "  top: 0;",
-
-    "  width: var(--ces-fill, 0px);",
+    "  inset: 0;",
+    "  ",
+    "  width: 100%;",
     "  height: 100%;",
     "  border-radius: 999px;",
+    "  clip-path: inset(0 calc(100% - var(--ces-fill, 14px)) 0 0);",
     "  display: none;",
     "  pointer-events: none;",
+    "  contain: layout style paint;",
     "}",
     ".ces-root[data-theme='claude'][data-energy='1'] .ces-claude-canvas,",
     ".ces-inline[data-theme='claude'][data-energy='1'] .ces-claude-canvas {",
@@ -1928,7 +1964,7 @@
     titleSpan.textContent = "推理等级滑条";
     var verSpan = doc.createElement("span");
     verSpan.className = "ces-set-ver";
-    verSpan.textContent = "v1.3.0";
+    verSpan.textContent = "v1.3.1";
     head.appendChild(titleSpan);
     head.appendChild(verSpan);
     panel.appendChild(head);
@@ -3253,6 +3289,10 @@
     starsEl.className = "ces-stars";
     starsEl.setAttribute("data-ces-part", "stars");
 
+    var starsStageEl = doc.createElement("div");
+    starsStageEl.className = "ces-stars__stage";
+    starsStageEl.setAttribute("data-ces-part", "stars-stage");
+
     var starNodes = [];
     for (var sIdx = 0; sIdx < PARTICLES.length; sIdx += 1) {
       var p = PARTICLES[sIdx];
@@ -3269,9 +3309,10 @@
       dotEl.style.setProperty("--ces-b", bStr);
       starEl.appendChild(dotEl);
 
-      starsEl.appendChild(starEl);
+      starsStageEl.appendChild(starEl);
       starNodes.push({ el: starEl, dot: dotEl, meta: p });
     }
+    starsEl.appendChild(starsStageEl);
     trackEl.appendChild(starsEl);
 
     var ticksEl = doc.createElement("div");
@@ -3286,13 +3327,21 @@
     claudeCanvasEl.height = 28;
     trackEl.appendChild(claudeCanvasEl);
 
+    var knobRailEl = doc.createElement("div");
+    knobRailEl.className = "ces-knob-rail";
+    knobRailEl.setAttribute("data-ces-part", "knob-rail");
+    var knobCarrierEl = doc.createElement("div");
+    knobCarrierEl.className = "ces-knob-carrier";
+    knobCarrierEl.setAttribute("data-ces-part", "knob-carrier");
     var knobEl = doc.createElement("div");
     knobEl.className = "ces-knob";
     knobEl.setAttribute("data-ces-part", "knob");
     var knobNotchEl = doc.createElement("div");
     knobNotchEl.className = "ces-knob-notch";
     knobEl.appendChild(knobNotchEl);
-    trackEl.appendChild(knobEl);
+    knobCarrierEl.appendChild(knobEl);
+    knobRailEl.appendChild(knobCarrierEl);
+    trackEl.appendChild(knobRailEl);
 
     rootEl.appendChild(trackEl);
     container.appendChild(rootEl);
@@ -3739,14 +3788,18 @@
         hasCachedCanvasRect = true;
       }
       var trackW = cachedCanvasTrackW > 0 ? cachedCanvasTrackW : 280;
+      var canvasW = Math.max(1, Math.round(trackW));
       var th = cachedCanvasTrackH > 0 ? cachedCanvasTrackH : (claudeCanvasEl.height || 28);
 
       var curPct = motionState ? clamp01(motionState.x) : 0;
-      var tw = Math.max(1, Math.round(KNOB_RADIUS + (trackW - KNOB_RADIUS * 2) * curPct));
-      if (claudeCanvasEl.width !== tw) claudeCanvasEl.width = tw;
+      var tw = Math.max(1, Math.round(KNOB_RADIUS + (canvasW - KNOB_RADIUS * 2) * curPct));
+      if (claudeCanvasEl.width !== canvasW) claudeCanvasEl.width = canvasW;
       if (claudeCanvasEl.height !== th) claudeCanvasEl.height = th;
       var cctx = claudeCanvasEl.getContext && claudeCanvasEl.getContext("2d");
       if (cctx) {
+        if (tw < canvasW) {
+          cctx.clearRect(0, 0, canvasW, th);
+        }
         paintDither(cctx, tw, th, isDark, progress, claudeFlowTime, claudeIntensity);
       }
       if (win && typeof win.requestAnimationFrame === "function") {
@@ -3798,6 +3851,7 @@
       if (offsetCss !== lastAppliedOffsetCss) {
         lastAppliedOffsetCss = offsetCss;
         trackEl.style.setProperty("--ces-fill", offsetCss);
+        trackEl.style.setProperty("--ces-p", String(p));
       }
 
       var fillBg = fillBackgroundFor(p, snap.energyStart, snap.energyEnd, snap.isClaude);
@@ -4164,6 +4218,8 @@
       dragSnapCache = null;
       hasDragged = false;
       downClientX = null;
+      activePointerId = null;
+      detachWinDragFallback();
       cachedTrackRect = null;
       buttonDown = false;
       draftPct = null;
@@ -4172,6 +4228,7 @@
       lastPtrPct = null;
       ptrSpeed = 0;
       snapIndex = finalIndex;
+      notifyDraggingChange(false);
 
       if (finalIndex !== lastCommittedIndex) {
         commitAtIndex(finalIndex, "release", snap);
@@ -4213,8 +4270,77 @@
       if (typeof ev.stopPropagation === "function") ev.stopPropagation();
     }
 
+    var activePointerId = null;
+    var winDragFallbackBound = false;
+    var lastHandledPointerEv = null;
+    var lastNotifiedDragging = false;
+
+    function notifyDraggingChange(isNowDragging) {
+      var next = Boolean(isNowDragging);
+      if (next === lastNotifiedDragging) return;
+      lastNotifiedDragging = next;
+      if (typeof opts.onDraggingChange === "function") {
+        try {
+          opts.onDraggingChange(next);
+        } catch (err) {
+
+        }
+      }
+    }
+
+    function onWinPointerMove(ev) {
+      if (!dragging || ev === lastHandledPointerEv) return;
+      if (activePointerId !== null && ev && ev.pointerId !== undefined && ev.pointerId !== activePointerId) return;
+      if (ev && typeof ev.buttons === "number" && (ev.buttons & 1) === 0) {
+        buttonDown = false;
+        endDrag(typeof ev.clientX === "number" ? ev.clientX : undefined);
+        return;
+      }
+      onPointerMove(ev);
+    }
+
+    function onWinPointerUp(ev) {
+      if (!dragging || ev === lastHandledPointerEv) return;
+      if (activePointerId !== null && ev && ev.pointerId !== undefined && ev.pointerId !== activePointerId) return;
+      onPointerUp(ev);
+    }
+
+    function onWinPointerCancel(ev) {
+      if (!dragging || ev === lastHandledPointerEv) return;
+      if (activePointerId !== null && ev && ev.pointerId !== undefined && ev.pointerId !== activePointerId) return;
+      onPointerCancel(ev);
+    }
+
+    function attachWinDragFallback() {
+      if (winDragFallbackBound || !win || typeof win.addEventListener !== "function") return;
+      winDragFallbackBound = true;
+      try {
+        win.addEventListener("pointermove", onWinPointerMove, false);
+        win.addEventListener("pointerup", onWinPointerUp, false);
+        win.addEventListener("pointercancel", onWinPointerCancel, false);
+      } catch (err) {
+        winDragFallbackBound = false;
+      }
+    }
+
+    function detachWinDragFallback() {
+      if (!winDragFallbackBound || !win || typeof win.removeEventListener !== "function") {
+        winDragFallbackBound = false;
+        return;
+      }
+      winDragFallbackBound = false;
+      try {
+        win.removeEventListener("pointermove", onWinPointerMove, false);
+        win.removeEventListener("pointerup", onWinPointerUp, false);
+        win.removeEventListener("pointercancel", onWinPointerCancel, false);
+      } catch (err) {
+
+      }
+    }
+
     function onPointerDown(ev) {
       if (ev && typeof ev.button === "number" && ev.button !== 0) return;
+      lastHandledPointerEv = ev || null;
       refreshCachedSettings();
       var snap = readSeatSnapshot();
       if (snap.locked || snap.count <= 1) return;
@@ -4226,12 +4352,15 @@
       dragSnapCache = snap;
       hasDragged = false;
       downClientX = ev && typeof ev.clientX === "number" ? ev.clientX : null;
+      activePointerId = ev && ev.pointerId !== undefined ? ev.pointerId : null;
       buttonDown = true;
 
       lastCommittedIndex = snap.officialIndex;
       detentIndex = snap.officialIndex;
       snapIndex = null;
       lastPtrPct = null;
+      notifyDraggingChange(true);
+      attachWinDragFallback();
 
       try {
         if (trackEl.setPointerCapture && ev.pointerId !== undefined) {
@@ -4246,6 +4375,7 @@
 
     function onPointerMove(ev) {
       if (!dragging) return;
+      lastHandledPointerEv = ev || null;
       if (ev && ev.buttons === 0 && !buttonDown) return;
       swallowEvent(ev);
       if (
@@ -4263,6 +4393,7 @@
 
     function onPointerUp(ev) {
       if (!dragging) return;
+      lastHandledPointerEv = ev || null;
       swallowEvent(ev);
       buttonDown = false;
       try {
@@ -4277,9 +4408,20 @@
 
     function onPointerCancel(ev) {
       if (!dragging) return;
+      lastHandledPointerEv = ev || null;
       swallowEvent(ev);
       buttonDown = false;
       endDrag(undefined);
+    }
+
+    function onLostPointerCapture(ev) {
+      if (!dragging) return;
+      if (!buttonDown || (ev && typeof ev.buttons === "number" && (ev.buttons & 1) === 0)) {
+        buttonDown = false;
+        endDrag(undefined);
+        return;
+      }
+      attachWinDragFallback();
     }
 
     function onKeyDown(ev) {
@@ -4335,7 +4477,7 @@
     trackEl.addEventListener("pointermove", onPointerMove);
     trackEl.addEventListener("pointerup", onPointerUp);
     trackEl.addEventListener("pointercancel", onPointerCancel);
-    trackEl.addEventListener("lostpointercapture", onPointerCancel);
+    trackEl.addEventListener("lostpointercapture", onLostPointerCapture);
     trackEl.addEventListener("click", onBlockMenuClose);
     trackEl.addEventListener("mouseup", onBlockMenuClose);
     rootEl.addEventListener("keydown", onKeyDown);
@@ -4423,6 +4565,10 @@
         destroyed = true;
         dragging = false;
         dragSnapCache = null;
+        buttonDown = false;
+        activePointerId = null;
+        detachWinDragFallback();
+        notifyDraggingChange(false);
         stopFrames();
         stopClaudeCanvasAnimation();
         cancelStarSync();
@@ -4460,7 +4606,7 @@
         trackEl.removeEventListener("pointermove", onPointerMove);
         trackEl.removeEventListener("pointerup", onPointerUp);
         trackEl.removeEventListener("pointercancel", onPointerCancel);
-        trackEl.removeEventListener("lostpointercapture", onPointerCancel);
+        trackEl.removeEventListener("lostpointercapture", onLostPointerCapture);
         trackEl.removeEventListener("click", onBlockMenuClose);
         trackEl.removeEventListener("mouseup", onBlockMenuClose);
         rootEl.removeEventListener("keydown", onKeyDown);
@@ -4699,6 +4845,9 @@
     var lastOrchSubmenuSig = "";
     var orchSubmenuDirty = true;
     var lastCommittedSyncKey = "";
+    var isSliderDragging = false;
+    var deferredScanWhileDragging = false;
+    var mayHaveOrchSubmenu = false;
 
     function isNodeDetached(node) {
       return Boolean(node && node.isConnected === false);
@@ -4862,10 +5011,20 @@
       if (observedOrchSubmenuEl && !isNodeDetached(observedOrchSubmenuEl)) {
         return observedOrchSubmenuEl;
       }
-      if (activeOrchestratorMode || (profile && profile.isOrchestrator)) {
+      if (mayHaveOrchSubmenu || activeOrchestratorMode || (profile && profile.isOrchestrator)) {
         return findOrchestratorSubmenu(doc);
       }
       return null;
+    }
+
+    function requestForeignScan(forceImmediate) {
+      if (isStopped) return;
+
+      if (isSliderDragging && !forceImmediate) {
+        deferredScanWhileDragging = true;
+        return;
+      }
+      scheduleScan();
     }
 
     function getActiveProfile(ctx) {
@@ -5884,10 +6043,11 @@
           panelDecorDirty = true;
           if (rec.type === "childList") {
             panelRowsDirty = true;
+            mayHaveOrchSubmenu = true;
           }
         }
         if (hasForeign) {
-          scheduleScan();
+          requestForeignScan(false);
         }
       });
       try {
@@ -5915,7 +6075,8 @@
         for (var i = 0; i < records.length; i += 1) {
           if (!isOwnMutationRecord(records[i])) {
             orchSubmenuDirty = true;
-            scheduleScan();
+            mayHaveOrchSubmenu = true;
+            requestForeignScan(false);
             return;
           }
         }
@@ -5982,6 +6143,9 @@
       lastOrchSubmenuSig = "";
       orchSubmenuDirty = true;
       lastCommittedSyncKey = "";
+      isSliderDragging = false;
+      deferredScanWhileDragging = false;
+      mayHaveOrchSubmenu = false;
     }
 
     function mountSectionIntoPanel(panel, ctx) {
@@ -6072,6 +6236,7 @@
       panelResizeDispatched = false;
       panelRowsDirty = true;
       panelDecorDirty = true;
+      mayHaveOrchSubmenu = true;
 
       activeMount = mountCodexEffortSlider({
         container: hostEl,
@@ -6082,6 +6247,13 @@
         seat: agSeatAdapter,
         document: doc,
         window: win,
+        onDraggingChange: function (isNowDragging) {
+          isSliderDragging = Boolean(isNowDragging);
+          if (!isSliderDragging && deferredScanWhileDragging && !isStopped) {
+            deferredScanWhileDragging = false;
+            scheduleScan();
+          }
+        },
         onVisualChange: function (vState) {
           if (lastCommittedSyncKey) {
             var expectedSuffix = "|" + (vState && vState.label ? vState.label : "");
@@ -6226,7 +6398,7 @@
         for (var i = 0; i < records.length; i += 1) {
           if (!isOwnMutationRecord(records[i])) {
             triggerDomDirty = true;
-            scheduleScan();
+            requestForeignScan(false);
             return;
           }
         }
@@ -6348,9 +6520,14 @@
           panelRowsDirty = true;
           panelDecorDirty = true;
           orchSubmenuDirty = true;
+          mayHaveOrchSubmenu = true;
         }
 
-        var orchMenu = findOrchestratorSubmenu(doc);
+        var activeProfForScan = ctx ? getActiveProfile(ctx) : null;
+        var orchMenu = resolveOrchSubmenuForSync(undefined, activeProfForScan);
+        if (!orchMenu && !activeOrchestratorMode && !(activeProfForScan && activeProfForScan.isOrchestrator)) {
+          mayHaveOrchSubmenu = false;
+        }
         rebindPanelObserver(panel);
         var needsSeparateOrchObserver = Boolean(
           orchMenu &&
@@ -6359,7 +6536,7 @@
         rebindOrchestratorSubmenuObserver(needsSeparateOrchObserver ? orchMenu : null);
 
         if (ctx) {
-          syncAntigravityDomDecorations(ctx, getActiveProfile(ctx), trigger, panel, orchMenu);
+          syncAntigravityDomDecorations(ctx, activeProfForScan, trigger, panel, orchMenu);
         }
         notifySeatListeners();
       });
@@ -6396,7 +6573,7 @@
       bodyPortalObserver = new MO(function (records) {
         if (isStopped || isInternalMutating) return;
         if (isNodeDetached(observedTriggerEl) || isNodeDetached(activePanel)) {
-          scheduleScan();
+          requestForeignScan(true);
           return;
         }
         for (var i = 0; i < records.length; i += 1) {
@@ -6405,18 +6582,23 @@
           if (rec.addedNodes) {
             for (var a = 0; a < rec.addedNodes.length; a += 1) {
               if (isPotentialPanelPortalNode(rec.addedNodes[a])) {
-                scheduleScan();
+                mayHaveOrchSubmenu = true;
+                requestForeignScan(false);
                 return;
               }
             }
           }
           if (rec.removedNodes) {
+            if (listContainsTarget(rec.removedNodes, observedOrchSubmenuEl)) {
+              mayHaveOrchSubmenu = false;
+              requestForeignScan(false);
+              return;
+            }
             if (
               listContainsTarget(rec.removedNodes, activePanel) ||
-              listContainsTarget(rec.removedNodes, observedTriggerEl) ||
-              listContainsTarget(rec.removedNodes, observedOrchSubmenuEl)
+              listContainsTarget(rec.removedNodes, observedTriggerEl)
             ) {
-              scheduleScan();
+              requestForeignScan(true);
               return;
             }
           }
@@ -6438,7 +6620,7 @@
           typeof target.closest === "function" &&
           target.closest('[data-testid="model-selector-trigger"], button[aria-label^="Select model"]'));
       if (hitTrigger || isNodeDetached(observedTriggerEl) || activePanel) {
-        scheduleScan();
+        requestForeignScan(false);
       }
     }
 
@@ -6465,7 +6647,7 @@
           (ev.target === observedTriggerEl ||
             (typeof observedTriggerEl.contains === "function" && observedTriggerEl.contains(ev.target))))
       ) {
-        scheduleScan();
+        requestForeignScan(false);
       }
     }
 

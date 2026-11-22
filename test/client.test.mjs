@@ -3352,4 +3352,207 @@ test("21. 默认完整动画、Issue #1 收尾（Fiber 截断/拖动快照缓存
   obs.stop();
 });
 
+test("22. v1.3.1 解法一/二/四：零 Layout GPU 定位、拖动回响节流、scan 防泄漏与 lostpointercapture 窗口兜底", () => {
+  // 1. 版本号与解法二 CSS 零 Layout 定位断言
+  assert.equal(slider.dumpTrace().plugin, "antigravity-codex-effort-slider@1.3.1");
+  const gpuEnv = createPerfTestEnv({ withRO: true });
+  const styleEl = slider.installStyles(gpuEnv.doc);
+  assert.ok(styleEl.textContent.includes(".ces-track::after"), "外发光应改用静态伪元素 .ces-track::after");
+  assert.ok(!styleEl.textContent.includes("calc(var(--ces-energy, 0) * 16px)"), "不得保留逐帧重算阴影模糊半径的 calc()");
+  assert.ok(styleEl.textContent.includes("clip-path: inset(0 calc(100% - var(--ces-fill, 14px)) 0 0);"), "填充与动效层应固定全宽并用 clip-path 裁切");
+  assert.ok(styleEl.textContent.includes(".ces-stars__stage"), "应通过 .ces-stars__stage 舞台位移避免 22 颗星尘随容器缩宽重排");
+  assert.ok(styleEl.textContent.includes("translate3d(calc(var(--ces-p, 0) * 100%), 0, 0)"), "圆钮应通过 .ces-knob-carrier GPU transform 平移");
+  assert.ok(!styleEl.textContent.includes("will-change: left;"), "不得再以 left 定位驱动圆钮");
+
+  // 2. 解法四：提前触发 lostpointercapture 时应无缝切入 window 兜底继续拖动而不中断
+  let gpuEffort = "low";
+  const gpuCommits = [];
+  const gpuContainer = gpuEnv.makeNode("div");
+  const gpuMounted = slider.mountCodexEffortSlider({
+    container: gpuContainer,
+    seat: {
+      effortLevels: [
+        { effort: "low", label: "Low" },
+        { effort: "medium", label: "Medium" },
+        { effort: "high", label: "High" }
+      ],
+      get currentEffort() { return gpuEffort; },
+      selectEffort(item) {
+        gpuEffort = item.effort;
+        gpuCommits.push(item.effort);
+      }
+    },
+    document: gpuEnv.doc,
+    window: gpuEnv.win
+  });
+
+  const gpuTrack = gpuContainer.children[0].children[0];
+  const fillEl = gpuTrack.querySelector('[data-ces-part="fill"]');
+  const energyEl = gpuTrack.querySelector('[data-ces-part="energy"]');
+  const starsEl = gpuTrack.querySelector('[data-ces-part="stars"]');
+  const stageEl = gpuTrack.querySelector('[data-ces-part="stars-stage"]');
+  const knobEl = gpuTrack.querySelector('[data-ces-part="knob"]');
+  assert.ok(stageEl, "星尘舞台容器应当存在");
+  assert.equal(stageEl.querySelectorAll('[data-ces-part="star"]').length, 22);
+
+  gpuTrack.dispatch("pointerdown", { clientX: 14, button: 0, pointerId: 7, buttons: 1 });
+  // 模拟 4ms 后提前丢捕获（左键仍按住 buttons=1）
+  gpuTrack.dispatch("lostpointercapture", { pointerId: 7, buttons: 1 });
+  // 通过 window 级兜底监听继续跨越 Medium 和 High
+  gpuEnv.win.dispatchEvent({ type: "pointermove", clientX: 114, pointerId: 7, buttons: 1 });
+  gpuEnv.win.dispatchEvent({ type: "pointermove", clientX: 214, pointerId: 7, buttons: 1 });
+
+  assert.deepEqual(gpuCommits, ["medium", "high"], "提前丢失 pointercapture 后按住鼠标拖动仍应连续跨两档");
+  assert.equal(gpuTrack.style.getPropertyValue("--ces-p"), "1");
+  assert.equal(gpuTrack.style.getPropertyValue("--ces-fill"), slider.knobOffsetOf(1, 14));
+  assert.equal(fillEl.style.width || "", "", "拖动过程中 fillEl 不得写内联 width");
+  assert.equal(energyEl.style.width || "", "", "拖动过程中 energyEl 不得写内联 width");
+  assert.equal(starsEl.style.width || "", "", "拖动过程中 starsEl 不得写内联 width");
+  assert.equal(knobEl.style.left || "", "", "拖动过程中 knobEl 不得写内联 left");
+
+  // 确认松手正常收尾，且之后 window 上移动不会再触发滑条变动
+  gpuEnv.win.dispatchEvent({ type: "pointerup", clientX: 214, pointerId: 7, buttons: 0 });
+  gpuEnv.win.dispatchEvent({ type: "pointermove", clientX: 14, pointerId: 7, buttons: 1 });
+  assert.equal(gpuEffort, "high", "松手后已卸除 window 兜底监听，后续移动不应误改档位");
+  gpuMounted.unmount();
+
+  // 3. Claude 画布缓冲固定全宽验证（拖动降档回退时缓冲区宽度保持 trackW 不重建）
+  let claudeRaf = null;
+  const claudeEnv = createPerfTestEnv({ withRO: true });
+  claudeEnv.win.requestAnimationFrame = (cb) => { claudeRaf = cb; return 1; };
+  claudeEnv.win.cancelAnimationFrame = () => { claudeRaf = null; };
+  const clearRectCalls = [];
+  const origCE = claudeEnv.doc.createElement.bind(claudeEnv.doc);
+  claudeEnv.doc.createElement = (tag) => {
+    const el = origCE(tag);
+    if (String(tag).toLowerCase() === "canvas") {
+      el.getContext = () => ({
+        globalAlpha: 1,
+        fillStyle: "",
+        clearRect(x, y, w, h) { clearRectCalls.push({ x, y, w, h }); },
+        fillRect() {},
+        createLinearGradient() { return { addColorStop() {} }; },
+        beginPath() {}, moveTo() {}, lineTo() {}, quadraticCurveTo() {}, closePath() {}, fill() {}
+      });
+    }
+    return el;
+  };
+  let clEff = "high";
+  const clCont = claudeEnv.makeNode("div");
+  const clMounted = slider.mountCodexEffortSlider({
+    container: clCont,
+    seat: {
+      baseName: "Claude Opus 5.5",
+      isClaude: true,
+      theme: "claude",
+      effortLevels: [{ effort: "low", label: "Low" }, { effort: "medium", label: "Medium" }, { effort: "high", label: "High" }],
+      get currentEffort() { return clEff; },
+      selectEffort(item) { clEff = item.effort; }
+    },
+    document: claudeEnv.doc,
+    window: claudeEnv.win
+  });
+  const clTrack = clCont.children[0].children[0];
+  clTrack.getBoundingClientRect = () => ({ left: 0, top: 0, right: 240, bottom: 28, width: 240, height: 28 });
+  const clCanvas = clTrack.querySelector('[data-ces-part="claude-canvas"]');
+  claudeEnv.roInstances[0]?.trigger(clTrack, 240, 28);
+  claudeRaf(100);
+  assert.equal(clCanvas.width, 240, "Claude 画布缓冲区应固定为完整轨道宽");
+  clTrack.dispatch("pointerdown", { clientX: 226, pointerId: 1 });
+  clTrack.dispatch("pointermove", { clientX: 120, pointerId: 1 });
+  claudeRaf(116);
+  assert.equal(clCanvas.width, 240, "拖动期间 Claude 画布缓冲区宽应维持 240 不变，仅清全画布再绘制左侧裁剪区");
+  assert.ok(clearRectCalls.some((c) => c.w === 240), "左侧部分绘制时应先清完整 240px 画布防止右端残留");
+  clTrack.dispatch("pointerup", { clientX: 120, pointerId: 1 });
+  clMounted.unmount();
+
+  // 4. 解法一：重开 Hydrogen 后拖动期间 0 次 scan() 无条件子菜单查询与宿主异步回响节流
+  const scanEnv = createPerfTestEnv({ withMO: true, withRO: true });
+  let orchQueries = 0;
+  const origScanQS = scanEnv.doc.querySelector.bind(scanEnv.doc);
+  scanEnv.doc.querySelector = function (sel) {
+    if (String(sel).includes("orchestrator-picker-row")) {
+      orchQueries += 1;
+    }
+    return origScanQS(sel);
+  };
+
+  const trigBtn = scanEnv.makeNode("button");
+  trigBtn.setAttribute("data-testid", "model-selector-trigger");
+  const trigSpan = scanEnv.makeNode("span");
+  trigSpan.classList.add("min-w-0");
+  const trigEff = scanEnv.makeNode("span");
+  trigEff.classList.add("opacity-70");
+  trigEff.textContent = " Low";
+  trigSpan.appendChild(trigEff);
+  trigBtn.appendChild(trigSpan);
+  scanEnv.body.appendChild(trigBtn);
+
+  const popupEl = scanEnv.makeNode("div");
+  popupEl.setAttribute("role", "menu");
+  const panelEl = scanEnv.makeNode("div");
+  panelEl.setAttribute("data-testid", "model-selector-panel");
+  panelEl.appendChild(scanEnv.makeNode("div"));
+  popupEl.appendChild(panelEl);
+  scanEnv.body.appendChild(popupEl);
+
+  const hOpts = [
+    { label: "Gemini 4 Hydrogen (Low)", value: 1 },
+    { label: "Gemini 4 Hydrogen (Medium)", value: 2 },
+    { label: "Gemini 4 Hydrogen (High)", value: 3 },
+    { label: "Gemini 4 Hydrogen (Extra High)", value: 4 }
+  ];
+  let curH = hOpts[0];
+  let scanFiberReads = 0;
+  const hFiber = { return: null };
+  Object.defineProperty(hFiber, "memoizedProps", {
+    get() {
+      scanFiberReads += 1;
+      return {
+        open: true,
+        setIsOpen() {},
+        setSelectedModel(opt) { curH = opt; },
+        modelOptions: hOpts,
+        selectedModel: curH
+      };
+    }
+  });
+  panelEl.__reactFiber$scan = hFiber;
+  trigBtn.__reactFiber$scan = hFiber;
+
+  const obs = slider.installAntigravityObserver({ document: scanEnv.doc, window: scanEnv.win });
+  scanEnv.flushRaf();
+  assert.ok(orchQueries <= 1, "首次挂载最多探测 1 次子菜单");
+
+  const scanTrack = panelEl.querySelector('[data-ces-part="track"]');
+  const panelMO = scanEnv.moInstances.find((o) => o.target === popupEl || o.target === panelEl);
+  const triggerMO = scanEnv.moInstances.find((o) => o.target === trigBtn);
+  assert.ok(panelMO && triggerMO);
+
+  orchQueries = 0;
+  scanTrack.dispatch("pointerdown", { clientX: 14, button: 0, pointerId: 3, buttons: 1 });
+  // 跨过边界到 Medium
+  scanTrack.dispatch("pointermove", { clientX: 85, pointerId: 3, buttons: 1 });
+  assert.equal(curH.label, "Gemini 4 Hydrogen (Medium)");
+
+  // 清零 Fiber 计数，模拟宿主 React 异步更新面板文本、触发按钮文本及文档捕获键盘/点击事件
+  scanFiberReads = 0;
+  panelMO.trigger([{ type: "characterData", target: panelEl }]);
+  triggerMO.trigger([{ type: "characterData", target: trigEff }]);
+  scanEnv.doc.dispatchEvent({ type: "keydown", key: "a", target: scanEnv.body });
+  scanEnv.doc.dispatchEvent({ type: "pointerdown", target: trigBtn });
+  scanEnv.flushRaf();
+
+  assert.equal(scanFiberReads, 0, "拖动期间宿主 MO 与文档捕获事件不得在拖动帧插队重跑 scan()/Fiber 遍历");
+  assert.equal(orchQueries, 0, "拖动期间及普通 Hydrogen 下不得全文档查询 orchestrator-picker-row");
+
+  // 松手后：延迟积攒的脏状态自动补齐一次同步，但普通模式下依然 0 次全文档子菜单查询
+  scanTrack.dispatch("pointerup", { clientX: 85, pointerId: 3, buttons: 0 });
+  scanEnv.flushRaf();
+  assert.ok(scanFiberReads >= 1, "松手后应补齐一次被延迟的宿主状态同步");
+  assert.equal(orchQueries, 0, "非 Orchestrator 松手补同步同样不得无条件查询 orchestrator-picker-row");
+
+  obs.stop();
+});
+
 console.log(`All ${passedCount} test suites passed!`);
