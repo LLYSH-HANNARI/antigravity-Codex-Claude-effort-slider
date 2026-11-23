@@ -3354,7 +3354,7 @@ test("21. 默认完整动画、Issue #1 收尾（Fiber 截断/拖动快照缓存
 
 test("22. v1.3.1 解法一/二/四：零 Layout GPU 定位、拖动回响节流、scan 防泄漏与 lostpointercapture 窗口兜底", () => {
   // 1. 版本号与解法二 CSS 零 Layout 定位断言
-  assert.equal(slider.dumpTrace().plugin, "antigravity-codex-effort-slider@1.3.1");
+  assert.equal(slider.dumpTrace().plugin, `antigravity-codex-effort-slider@${slider.PLUGIN_VERSION}`);
   const gpuEnv = createPerfTestEnv({ withRO: true });
   const styleEl = slider.installStyles(gpuEnv.doc);
   assert.ok(styleEl.textContent.includes(".ces-track::after"), "外发光应改用静态伪元素 .ces-track::after");
@@ -3553,6 +3553,170 @@ test("22. v1.3.1 解法一/二/四：零 Layout GPU 定位、拖动回响节流�
   assert.equal(orchQueries, 0, "非 Orchestrator 松手补同步同样不得无条件查询 orchestrator-picker-row");
 
   obs.stop();
+});
+
+test("23. v1.4.0 宿主桥接、自动更新设置区块与原生风格更新 Toast 生命周期", async () => {
+  assert.equal(slider.PLUGIN_VERSION, "1.4.0");
+  const env = createPerfTestEnv();
+  assert.equal(slider.resolveHostBridge(env.win), null, "无桥接环境下应返回 null 静默降级");
+
+  // 1. 构造模拟 Desktop 宿主桥接
+  let hostState = {
+    version: "1.4.0",
+    autoUpdate: true,
+    mirrorPrefix: "",
+    pendingUpdateVersion: null
+  };
+  let relaunchCalls = 0;
+  let updateReadyListener = null;
+
+  const mockBridge = {
+    platform: "desktop",
+    async getState() {
+      return { ...hostState };
+    },
+    async saveConfig(cfg) {
+      if (typeof cfg.autoUpdate === "boolean") hostState.autoUpdate = cfg.autoUpdate;
+      if (typeof cfg.mirrorPrefix === "string") hostState.mirrorPrefix = cfg.mirrorPrefix;
+      return { ...hostState };
+    },
+    async checkUpdate() {
+      hostState.pendingUpdateVersion = "1.4.1";
+      return {
+        ok: true,
+        status: "updated",
+        version: "1.4.1",
+        state: { ...hostState }
+      };
+    },
+    async relaunch() {
+      relaunchCalls += 1;
+      return true;
+    },
+    onUpdateReady(cb) {
+      updateReadyListener = cb;
+      return () => {
+        if (updateReadyListener === cb) updateReadyListener = null;
+      };
+    }
+  };
+
+  // 2. 设置面板双 Tab 渲染与交互（外观 / 更新、自动更新开关、镜像前缀、立即检查更新）
+  const closeSettings = slider.openSettingsPanel({
+    document: env.doc,
+    window: env.win,
+    bridge: mockBridge,
+    x: 20,
+    y: 20
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  const panel = env.doc.querySelector(".ces-set");
+  assert.ok(panel, "设置面板应当渲染");
+  const verEl = panel.querySelector(".ces-set-ver");
+  assert.equal(verEl.textContent, "v1.4.0");
+
+  const tabsBar = panel.querySelector(".ces-set-tabs");
+  assert.ok(tabsBar, "存在 bridge 时应渲染双 Tab 栏");
+  const appearancePane = panel.querySelector('[data-ces-tab-pane="appearance"]');
+  const updatePane = panel.querySelector('[data-ces-tab-pane="update"]');
+  assert.ok(appearancePane && updatePane, "应存在外观与更新两个面板");
+  assert.ok(!appearancePane.hidden, "默认应显示外观页");
+  assert.equal(updatePane.hidden, true, "默认应隐藏更新页");
+
+  const updateTabBtn = panel.querySelector('[data-ces-tab="update"]');
+  assert.ok(updateTabBtn, "应存在更新 Tab 按钮");
+  updateTabBtn.dispatch("click", {});
+  assert.equal(appearancePane.hidden, true, "切到更新 Tab 后应隐藏外观页");
+  assert.equal(updatePane.hidden, false, "切到更新 Tab 后应显示更新页");
+
+  const optButtons = panel.querySelectorAll(".ces-set-opt");
+  const manualBtn = optButtons.find((b) => b.textContent === "仅手动");
+  assert.ok(manualBtn, "应存在仅手动按钮");
+  manualBtn.dispatch("click", {});
+  await Promise.resolve();
+  assert.equal(hostState.autoUpdate, false, "点击仅手动应同步保存到宿主状态");
+
+  const mirrorInput = panel.querySelector(".ces-set-input");
+  mirrorInput.value = "https://gh-proxy.com/";
+  mirrorInput.dispatch("blur", {});
+  await Promise.resolve();
+  assert.equal(hostState.mirrorPrefix, "https://gh-proxy.com/");
+
+  const checkBtn = panel.querySelectorAll(".ces-set-btn").find((b) => b.textContent === "立即检查更新");
+  assert.ok(checkBtn, "应存在立即检查更新按钮");
+  checkBtn.dispatch("click", {});
+  await Promise.resolve();
+  await Promise.resolve();
+
+  const updateDot = panel.querySelector('[data-ces-part="update-dot"]');
+  assert.ok(updateDot && updateDot.classList.contains("is-visible"), "存在待重启新版时更新 Tab 应点亮提示圆点");
+
+  const toastAfterCheck = env.doc.querySelector(".ces-update-toast");
+  assert.ok(toastAfterCheck, "检查到新版本后应弹出更新就绪 Toast");
+  assert.ok(toastAfterCheck.querySelector(".ces-update-toast-title").textContent.includes("1.4.1"));
+  const restartBtn = toastAfterCheck.querySelectorAll(".ces-update-toast-btn").find((b) => b.classList.contains("is-primary"));
+  assert.equal(restartBtn.textContent, "立即重启");
+  restartBtn.dispatch("click", {});
+  await Promise.resolve();
+  assert.equal(relaunchCalls, 1, "点击立即重启应调用 bridge.relaunch()");
+
+  closeSettings();
+  if (toastAfterCheck.parentNode) toastAfterCheck.parentNode.removeChild(toastAfterCheck);
+
+  // 2.5 底部右键智能向上翻转防溢出 + 亮色主题自适应 + 无 bridge 单页兼容
+  env.win.innerHeight = 600;
+  env.win.innerWidth = 800;
+  env.win.getComputedStyle = () => ({ backgroundColor: "rgb(255, 255, 255)", color: "rgb(24, 24, 27)" });
+  const origCE = env.doc.createElement.bind(env.doc);
+  env.doc.createElement = (tag) => {
+    const el = origCE(tag);
+    el.getBoundingClientRect = () => ({ left: 0, top: 0, width: 288, height: 240 });
+    return el;
+  };
+  const closeFlip = slider.openSettingsPanel({
+    document: env.doc,
+    window: env.win,
+    bridge: mockBridge,
+    x: 700,
+    y: 560
+  });
+  const flipPanel = env.doc.querySelector(".ces-set");
+  assert.ok(flipPanel.classList.contains("is-light"), "亮色背景下设置面板应自动添加 .is-light");
+  const topPx = parseFloat(flipPanel.style.top);
+  const leftPx = parseFloat(flipPanel.style.left);
+  assert.ok(topPx + 240 <= 590, "弹窗底部不得超出视口下边界");
+  assert.ok(topPx <= 560 - 240, "底部右键空间不足时应智能向上翻转至鼠标上方");
+  assert.ok(leftPx + 288 <= 790, "右侧空间不足时应自动左移防溢出");
+  closeFlip();
+
+  env.doc.createElement = origCE;
+  const closeOffline = slider.openSettingsPanel({
+    document: env.doc,
+    window: env.win,
+    bridge: null,
+    x: 20,
+    y: 20
+  });
+  const offlinePanel = env.doc.querySelector(".ces-set");
+  assert.equal(offlinePanel.querySelector(".ces-set-tabs"), null, "无 bridge 离线模式下不得渲染双 Tab 栏");
+  closeOffline();
+
+  // 3. installCodexEffortSlider 注册 onUpdateReady 与 stop() 清理
+  env.win.__agCodexSliderBridge = mockBridge;
+  hostState.pendingUpdateVersion = null;
+  const inst = slider.installCodexEffortSlider({ document: env.doc, window: env.win });
+  await Promise.resolve();
+  assert.ok(typeof updateReadyListener === "function", "应订阅 onUpdateReady 事件");
+
+  updateReadyListener({ version: "1.4.2" });
+  const liveToast = env.doc.querySelector(".ces-update-toast");
+  assert.ok(liveToast && liveToast.querySelector(".ces-update-toast-title").textContent.includes("1.4.2"), "收到推送事件后应弹出 Toast");
+
+  inst.stop();
+  assert.equal(updateReadyListener, null, "stop() 后应注销 onUpdateReady 监听");
+  assert.equal(env.doc.querySelector(".ces-update-toast"), null, "stop() 后应清理残留 Toast DOM");
 });
 
 console.log(`All ${passedCount} test suites passed!`);

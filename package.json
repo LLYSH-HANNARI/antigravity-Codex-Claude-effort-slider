@@ -1,10 +1,12 @@
 {
   "name": "antigravity-codex-effort-slider",
-  "version": "1.3.1",
-  "description": "Codex 风格推理等级滑条（适配 Google Antigravity）—— 底部专属推理等级滑条、跨档位边界即时切换、22 星尘粒子与深紫星云特效、支持 app.asar 持久安装与 CDP 免重启热注入",
+  "version": "1.4.0",
+  "description": "Codex 风格推理等级滑条（适配 Google Antigravity）—— 底部专属推理等级滑条、跨档位边界即时切换、22 星尘粒子与深紫星云特效、支持原生插件托管与 GitHub Release 自动更新",
   "main": "./lib/client.js",
   "scripts": {
     "test": "node test/client.test.mjs",
+    "test:installer": "cargo test --manifest-path installer/Cargo.toml",
+    "build:installer": "cargo build --release --manifest-path installer/Cargo.toml",
     "preview": "node preview/make-preview.mjs",
     "build:demo": "node preview/make-preview.mjs",
     "render-video": "python video/generate-audio.py && node video/build-stage.mjs && python video/render.py",
