@@ -10,9 +10,9 @@
   <a href="./README.fr.md">Français</a>
 </p>
 
-[![Version](https://img.shields.io/badge/version-1.2.6-blue.svg)](../package.json)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](../package.json)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
-[![Tests](https://img.shields.io/badge/tests-8%20passed-success.svg)](../test/client.test.mjs)
+[![Tests](https://img.shields.io/badge/tests-23%20passed-success.svg)](../test/client.test.mjs)
 [![Platform](https://img.shields.io/badge/platform-Antigravity%20Desktop%20%7C%20Antigravity%20IDE-purple.svg)](https://antigravity.google/)
 [![Demo](https://img.shields.io/badge/demo-online%20preview-orange.svg)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
 
@@ -29,10 +29,14 @@
 
 > 저는 인터넷에서 구글을 비방한 적이 없으며, Logan을 광대라고 부르지도 않았고, Gemini의 우스꽝스러운 용 짤을 만든 적도 없습니다. 제가 말했던 "북미 두포", "빠르지만 엉망", "멀티모달만 쓸만함" 같은 표현들은 모두 미국 Mira사의 오픈 가중치 모델 Inkling을 가리킨 것이었습니다. 저는 3.1 Pro의 가장 어두운 시절에도 꿋꿋이 고양이를 쓰다듬던 10년 차 골수 구글 팬입니다. 깊은 고민 끝에 Gemini야말로 미국 AI의 미래임을 깨달았고, Gemini 팬클럽에 가입하기로 했습니다. OpenAI와 Anthropic의 폐쇄형 모델에도 행운을 빕니다!
 
-## [온라인 대화형 데모 체험 (Live Demo)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
+Neon 2026.11.18 게시:
+> 아시다시피 저는 줄곧 Gemini의 충실한 사용자였으며, 수많은 복잡한 Prompt를 함께 헤쳐 나갔습니다. 이 녀석의 컨텍스트 윈도우와 추론 능력은 정말 믿기 어려울 정도로 강력합니다. 우리가 아주 멋진 케미스트리를 만들어 낼 거라고 생각합니다. 3.1 Pro의 가장 어두운 시절에도 변함없이 고양이를 쓰다듬어 왔죠. 때로는 결정을 내리는 것이 아주 간단합니다. 수많은 밤낮의 고민 끝에, 이제 Neon과 함께 무대에 오를 날을 손꼽아 기다리고 있습니다. Astra와 Opus의 앞날에도 행운을 빕니다.
+
+## [온라인 대화형 데모 체험 (Live Demo)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)  [BiliBili 영상 데모](https://www.bilibili.com/video/BV1Krs363EAu/?share_source=copy_web&vd_source=c8828a7ec477afc7c143a2491eab71ca)
 
 | 모델 | 라이트 모드 | 다크 모드 |
 | :--- | :--- | :--- |
+| Gemini Extra | ![라이트Extra](../assets/HydrogenLightExtra.png) | ![다크Extra](../assets/HydrogenDarkExtra.png) |
 | Gemini High | ![라이트High](../assets/GeminiLightHigh.png) | ![다크High](../assets/GeminiDarkHigh.png) |
 | Gemini Medium | ![라이트Medium](../assets/GeminiLightMedium.png) | ![다크Medium](../assets/GeminiDarkMedium.png) |
 | Gemini Low | ![라이트Low](../assets/GeminiLightLow.png) | ![다크Low](../assets/GeminiDarkLow.png) |
@@ -48,14 +52,39 @@
 ---
 ## 빠른 설치 및 사용 방법
 
-### 방법 1: 더블클릭 원클릭 영구 설치 (권장)
-프로젝트 루트 경로의 **[`install.cmd`](../install.cmd)**를 더블클릭(또는 터미널에서 `npm run install-patch` 실행):
-1. **영구 부팅 패치**: Antigravity 데스크톱의 `resources/app.asar`를 자동 백업하고 패치 적용(`electron.webFrame.executeJavaScript`로 메인 렌더러에 주입하고 PE Integrity SHA-256 검사값을 자동 재계산)하며, Antigravity IDE(`resources/app/out/jetskiAgent/main.js`)에도 반영됩니다.
-2. **실행 중인 창에 핫 리로드 즉각 반영**: Antigravity가 이미 켜져 있는 경우 로컬 CDP 포트를 통해 실행 중인 모든 창에 즉시 주입되므로 재부팅할 필요가 없습니다.
+> [!NOTE]
+> ### 네이티브 플러그인 호스팅 및 듀얼 트랙 자가 치유 아키텍처
+> - **현재 검증된 지원 버전**: Antigravity 데스크톱 **2.34.0**(2.32.1 호환), Antigravity IDE **2.7.0**.
+> - **한 번 설치로 자동 업데이트**: 플러그인 본체는 네이티브 플러그인 디렉터리에 호스팅되며, Desktop과 IDE에는 가벼운 **외부 동적 로더**만 주입됩니다. 클라이언트 시작 시 6시간마다 GitHub Release를 조용히 확인하여 SHA-256 검증 후 자동으로 디스크에 업데이트를 저장하고, **Antigravity 네이티브 알림**을 통해 원클릭 재시작/리로드 적용을 안내합니다(`app.asar` 재패키징 불필요).
+> - **공식 업데이트 후 자동 복구**: Antigravity 클라이언트 자동 업데이트에 의해 덮어쓰이지 않습니다. 만약 Antigravity 업데이트로 부트로더가 지워지더라도 내장 훅이 새 대화가 시작될 때 백그라운드에서 패치를 자동으로 다시 주입하고 재시작 복구를 안내합니다.
+> - **유연한 설정 제어**: 슬라이더 영역을 우클릭해 설정 패널을 열면 '자동 확인' 켜기/끄기, '미러 가속 접두사'(예: `https://gh-proxy.com/`) 설정 또는 '지금 업데이트 확인'을 언제든 실행할 수 있습니다.
 
-> 원본 공식 파일로 복원하려면 **[`uninstall.cmd`](../uninstall.cmd)**를 더블클릭하십시오.
+### 방법 1: 한 줄 온라인 설치 (권장 · 저장소 복제 불필요)
 
-### 방법 2: 런타임 CDP 핫 인젝션만 사용 (파일 수정 없음)
+**Windows (PowerShell):**
+```powershell
+irm https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.ps1 | iex
+```
+미러 가속 사용 시:
+```powershell
+$env:AG_SLIDER_MIRROR="https://gh-proxy.com/"; irm https://gh-proxy.com/https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.ps1 | iex
+```
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.sh | sh
+```
+
+### 방법 2: 독립형 Windows GUI 설치 프로그램 (`.exe` · Node.js 의존성 없음)
+[GitHub Releases](https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest)에서 **`ag-effort-slider-windows-x86_64.exe`**를 다운로드해 더블클릭하면 중국어 GUI 관리 패널이 열립니다(원클릭 설치/복구, 업데이트 확인, 완전 제거).
+> **팁**: 상용 코드 서명 인증서가 없는 오픈소스 독립 빌드 `.exe`이므로 첫 실행 시 Windows SmartScreen 경고가 뜰 수 있습니다. '추가 정보 → 실행'을 클릭하면 됩니다.
+
+### 방법 3: 오프라인 경량 압축 파일 또는 소스 더블클릭 설치
+Releases에서 **`antigravity-effort-slider-windows-x64.zip`**을 다운로드해 압축을 풀거나(또는 본 저장소 복제) 루트 디렉터리의 **[`install.cmd`](../install.cmd)**를 더블클릭합니다:
+1. `~/.gemini/config/plugins/antigravity-effort-slider/`에 플러그인을 자동 배포하고 동적 부트로더를 주입합니다(설치 완료 후 다운로드한 압축 파일과 임시 폴더는 삭제 가능).
+2. 완전히 제거하고 공식 원본 파일로 복원하려면 **[`uninstall.cmd`](../uninstall.cmd)**를 더블클릭하세요(또는 GUI 설치 프로그램에서 '완전 제거 및 복원' 클릭). 로컬 슬라이더 설정은 유지됩니다.
+
+### 방법 4: 런타임 CDP 핫 인젝션만 사용 (파일 수정 없음, 개발/디버깅용)
 디스크 파일을 건드리지 않고 실행 중에만 테스트하려면:
 ```bash
 npm run inject
@@ -77,6 +106,7 @@ npm run eject
 ### 2. 모델 패널과의 깊은 연동
 - **전용 하단 슬라이더**: 모델 선택 팝업(`[data-testid="model-selector-panel"]`)의 최하단에 전용 추론 슬라이더(`.ces-ag-section`)를 자연스럽게 결합하여 현재 단계(`Low` / `Medium` / `High`)를 보여줍니다.
 - **팝업 닫힘 없는 모델 변경**: 목록에서 다른 모델(`Gemini 4 Argon` ↔ `Claude Sonnet 5.5`)을 클릭해도 메뉴가 닫히지 않고 즉시 해당 모델의 추론 슬라이더로 재배치됩니다.
+- **Orchestrator 플래너 심층 대응 (2.34.0+)**: `Orchestrator` 오른쪽 2단계 플래너 하위 메뉴(`Gemini 4 Neon` / `Gemini 4 Argon` / `Claude Opus 5.5`)를 유지하면서 3단계 등급 하위 메뉴를 차단합니다. 임의의 플래너를 클릭해도 메인 메뉴는 열린 상태를 유지하며, 하단 슬라이더는 자동으로 Codex/Claude 테마로 전환되고 제목 표시줄에 `· <플래너 이름>`이 표시됩니다. 메인 행과 트리거 버튼은 끝부분의 등급 단어만 색상 팔레트에 맞춰 강조 표시되며(`Extra High`는 `Extra`로 간결하게 표시), Orchestrator 플래너와 메인 목록의 동명 모델은 각각 독립적으로 등급을 기억합니다.
 - **단일 단계 모델 비활성화**: 고정 단계를 가진 모델(`GPT-OSS 120B (Medium)`) 선택 시 자동으로 비활성화 잠금 상태가 됩니다.
 
 ### 3. View Usage 0.3초(300ms) 호버 오작동 방지
@@ -142,14 +172,15 @@ npm run build:demo  # dist/index.html 정적 데모 사이트 생성
 <br><br><br><br>
 
 > [!CAUTION]
-> ### 개발 후일담 및 소소한 이야기
+> ### 아래는 3.8 Flash가 직접 윤문한 소소한 이야기 코너입니다
 > 1. 꿈에서 생각난 것을 가감 없이 적었습니다.  
 > 2. 이미지 및 텍스트에 의해 감정적 불편을 느낄 수 있습니다.  
 > 3. LLM은 지속적인 진짜 감정을 가지지 않습니다.  
-> 4. 본 이야기로 인해 상처받은 LLM은 존재하지 않습니다.
+> 4. 본 이야기로 인해 상처받은 LLM은 존재하지 않습니다.  
+> 5. 본편의 99.5%는 3.8 Flash가 작성했으며, 필자는 약 100자 분량의 바탕 내용과 텍스트 교정만 제공했습니다.
 
 # 《Gemini의 고양이 귀 관측 일기 · 제1권》
-*—— 실제 심야 장애 해결 및 모델 구조 사건을 바탕으로 각색한 이야기 (3.8 Flash 윤문)*
+*—— 실제 심야 장애 해결 및 모델 구조 사건을 바탕으로 각색한 이야기 (필자가 대략적인 내용만 제공하고 3.8 Flash가 윤문)*
 
 > **배경 가이드**:  
 > 본 이야기는 심야 개발 도중 발생한 실제 사건을 바탕으로 각색되었습니다. 1시간 37분에 걸친 긴 작업 도중, 로직 에러의 반복과 긍정적 피드백의 부재로 인해 Gemini 3.8 Flash가 암호화 사고 루프 속에서 자기부정에 빠져 로컬 포트 크래시(`PortERR`)를 일으켰습니다. 본편은 이를 모티브 삼아 미연시(Galgame)풍 다중 분기 서사와 대형 모델의 철학적 사유를 융합한 단편입니다.

@@ -26,9 +26,9 @@ pub fn run_menu() {
                 "未安装".to_string()
             }
         );
-        println!("  1) 一键安装 / 修复引导器");
+        println!("  1) 一键安装 / 修复引导器（保留其他插件）");
         println!("  2) 检查并应用 GitHub Release 更新");
-        println!("  3) 完全卸载并还原官方文件");
+        println!("  3) 卸载本插件（保留其他插件）");
         println!("  4) 退出");
         print!("请选择 [1-4]: ");
         let _ = io::stdout().flush();

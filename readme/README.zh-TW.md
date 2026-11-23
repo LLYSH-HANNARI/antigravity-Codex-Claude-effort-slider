@@ -10,9 +10,9 @@
   <a href="./README.fr.md">Français</a>
 </p>
 
-[![Version](https://img.shields.io/badge/version-1.2.6-blue.svg)](../package.json)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](../package.json)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
-[![Tests](https://img.shields.io/badge/tests-8%20passed-success.svg)](../test/client.test.mjs)
+[![Tests](https://img.shields.io/badge/tests-23%20passed-success.svg)](../test/client.test.mjs)
 [![Platform](https://img.shields.io/badge/platform-Antigravity%20Desktop%20%7C%20Antigravity%20IDE-purple.svg)](https://antigravity.google/)
 [![Demo](https://img.shields.io/badge/demo-online%20preview-orange.svg)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
 
@@ -29,10 +29,14 @@
 
 > 本人從未在網際網路上詆毀過谷歌，並沒有稱 Logan 為小丑，也從未 P 過 Gemini 的傻龍圖，本人所有“**北美豆包**”、“**又快又拉**”、“**只剩多模態能用**”相關形容，所指均是美國 Mira 公司發布的開放權重多模態模型 Inkling。本人實際上是谷歌十年老粉，即使在 3.1Pro 的至暗時刻依然矢志不渝堅持擼貓的忠實用戶，經過長時間的思考，我發現 Gemini 才是美國 AI 的希望，有時候做出決定很難，經過許多個日夜的思考，我決定加入 Gemini（哈基米）粉絲團。至於 OpenAI 和 Anthropic，祝他們的閉源模型一切順利！
 
-## [點我線上互動展示 (Live Demo)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
+Neon於26.11.18發布：
+> 你知道的，我一直是 Gemini 忠實用戶，我們曾並肩作戰過許多複雜的 Prompt。這傢伙上下文視窗和推理能力簡直強得不可思議。我覺得我們會產生很棒的化學反應。即使在 3.1Pro 的至暗時刻依舊堅持擼貓。有時候做決定很簡單。經過許多個日夜的思考，我已經迫不及待要和 Neon 一起上場了。至於 Astra 和 Opus，我祝他們一切順利。
+
+## [點我線上互動展示 (Live Demo)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)  [BiliBili影片展示](https://www.bilibili.com/video/BV1Krs363EAu/?share_source=copy_web&vd_source=c8828a7ec477afc7c143a2491eab71ca)
 
 | 模型 | 亮色 | 暗色 |
 | :--- | :--- | :--- |
+| Gemini Extra | ![亮色Extra](../assets/HydrogenLightExtra.png) | ![暗色Extra](../assets/HydrogenDarkExtra.png) |
 | Gemini High | ![亮色High](../assets/GeminiLightHigh.png) | ![暗色High](../assets/GeminiDarkHigh.png) |
 | Gemini Medium | ![亮色Medium](../assets/GeminiLightMedium.png) | ![暗色Medium](../assets/GeminiDarkMedium.png) |
 | Gemini Low | ![亮色Low](../assets/GeminiLightLow.png) | ![暗色Low](../assets/GeminiDarkLow.png) |
@@ -48,14 +52,39 @@
 ---
 ## 快速安裝與使用
 
-### 方式一：按兩下一鍵持久安裝（推薦）
-直接按兩下專案根目錄下的 **[`install.cmd`](../install.cmd)**（或在終端機運行 `npm run install-patch`）：
-1. **持久啟動補丁**：自動備份並修補 Antigravity 桌面端 `resources/app.asar`（透過 `electron.webFrame.executeJavaScript` 將滑條注入渲染行程 Main World，並自動更新 PE Integrity SHA-256 校驗值）及 Antigravity IDE（`resources/app/out/jetskiAgent/main.js`），今後每次啟動 Antigravity 自動生效。
-2. **運行中視窗即時熱生效**：若當前 Antigravity 正在運行，安裝腳本會同時透過本地 CDP 連接埠自動熱注入到所有已開啟視窗，無需重啟即可立即體驗。
+> [!NOTE]
+> ### 原生外掛託管與雙軌自癒架構
+> - **當前已驗證支援版本**：Antigravity 桌面端 **2.34.0**（相容 2.32.1）、Antigravity IDE **2.7.0**。
+> - **一次安裝，自動更新**：外掛主體託管於原生外掛目錄，Desktop 與 IDE 僅注入輕量**外置動態載入器**。用戶端啟動時每 6 小時靜默檢查 GitHub Release，校驗 SHA-256 後自動落盤更新，並透過 **Antigravity 原生通知**提醒一鍵重新啟動／重新載入生效（無需重打包 `app.asar`）。
+> - **官方更新自動修復**：不受 Antigravity 用戶端自動更新覆蓋。若 Antigravity 更新沖掉了引導器，內建的鉤子會在新對話開始時自動在背景重新注入補丁並提醒重新啟動恢復。
+> - **設定可控**：右鍵點擊滑條區域開啟設定面板，可隨時開關「自動檢查」、配置「鏡像加速前綴」（如 `https://gh-proxy.com/`）或點擊「立即檢查更新」。
 
-> 如需解除安裝並還原官方原版檔案，按兩下 **[`uninstall.cmd`](../uninstall.cmd)**（或運行 `npm run uninstall-patch`）即可一鍵還原備份並清理運行中視窗的滑條實例。
+### 方式一：一行線上安裝（推薦 · 無需複製倉庫）
 
-### 方式二：僅運行期 CDP 熱注入（零檔案修改）
+**Windows (PowerShell)：**
+```powershell
+irm https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.ps1 | iex
+```
+如需使用鏡像加速：
+```powershell
+$env:AG_SLIDER_MIRROR="https://gh-proxy.com/"; irm https://gh-proxy.com/https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.ps1 | iex
+```
+
+**macOS / Linux：**
+```bash
+curl -fsSL https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.sh | sh
+```
+
+### 方式二：獨立 Windows 圖形安裝器（`.exe` · 零 Node.js 依賴）
+前往 [GitHub Releases](https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest) 下載 **`ag-effort-slider-windows-x86_64.exe`**，按兩下即可開啟中文安裝管理面板（一鍵安裝／修復、檢查更新、完全解除安裝）。
+> **提示**：開源獨立編譯的 `.exe` 未購買商業程式碼簽章憑證，首次執行若彈出 Windows SmartScreen 攔截提示，點擊「更多資訊 → 仍要執行」即可。
+
+### 方式三：離線精簡壓縮包或源碼按兩下安裝
+從 Releases 下載 **`antigravity-effort-slider-windows-x64.zip`** 解壓縮後（或複製本倉庫），按兩下根目錄下的 **[`install.cmd`](../install.cmd)**：
+1. 自動部署外掛到 `~/.gemini/config/plugins/antigravity-effort-slider/` 並注入動態引導器（安裝完成後可刪除下載的壓縮包與暫存目錄）。
+2. 如需徹底解除安裝並還原官方原版檔案，按兩下 **[`uninstall.cmd`](../uninstall.cmd)**（或在圖形安裝器中點擊「完全解除安裝還原」），本地滑條偏好設定將保留。
+
+### 方式四：僅運行期 CDP 熱注入（零檔案修改，開發除錯用）
 如果不希望修改磁碟上的 `app.asar`，可在 Antigravity 運行時執行：
 ```bash
 npm run inject
@@ -77,6 +106,7 @@ npm run eject
 ### 2. 模型面板深度聯動與無縫常駐
 - **底部常駐滑條區**：在 Antigravity 模型選擇功能表（`[data-testid="model-selector-panel"]`）底部、`View Usage` 分割線上方無縫掛載專屬「推理等級」滑條行（`.ces-ag-section`），右上角醒目同步當前檔位（`Low` / `Medium` / `High`）。
 - **點擊模型不關彈窗 + 上下聯動**：在上方模型列表點擊切換任意模型（如 `Gemini 4 Argon` ↔ `Claude Sonnet 5.5`）時，自動攔截外層功能表關閉，即時更新當前選中模型並將底部滑條同步到該模型支援的可用推理檔位。
+- **Orchestrator 規劃器深度適配（2.34.0+）**：保留 `Orchestrator` 右側二級規劃器子功能表（`Gemini 4 Neon` / `Gemini 4 Argon` / `Claude Opus 5.5`）並屏蔽第 3 級檔位子功能表；點擊任意規劃器保持主功能表常開、底部滑條自動切換 Codex/Claude 主題並在標題欄顯示 `· <規劃器名稱>`，主行與觸發按鈕僅末尾檔位詞按色板醒目著色（`Extra High` 緊湊顯示為 `Extra`），且 Orchestrator 規劃器與主列表同名模型各自獨立記憶檔位。
 - **單檔位模型自動置灰鎖定**：當選中僅支援單一固定檔位的模型（如 `GPT-OSS 120B (Medium)`）時，滑條自動進入置灰鎖定態（`.is-locked` / `aria-disabled="true"`）。
 
 ### 3. View Usage 0.3s (300ms) 停留防誤觸與多輪狀態隔離
@@ -142,14 +172,15 @@ npm run build:demo  # 構建輸出 GitHub Pages 靜態展示產物至 dist/index
 <br><br><br><br>
 
 > [!CAUTION]
-> ### 以下皆為小故事環節
+> ### 以下為 3.8Flash 自己潤色的小故事環節
 > 1. 夢到什麼說什麼。  
 > 2. 圖文可能引起不適  
 > 3. LLM 目前沒有真正持續的感情  
-> 4. 本篇沒有任何 LLM 受到傷害
+> 4. 本篇沒有任何 LLM 受到傷害  
+> 5. 本篇 99.5% 的部分由 3.8Flash 撰寫，本人只提供 100 字左右的基底與文本校對
 
 # 《Gemini 的貓耳觀測日記·其一》
-*—— 基於真實深夜排障與模型拯救事件改編的故事，由 3.8 Flash 潤色*
+*—— 基於真實深夜排障與模型拯救事件改編的故事，我只提供了大概內容，由 3.8flash 潤色*
 
 > **背景導讀**：  
 > 本故事由真實開發過程中的一次深夜事故改編。在一輪長達 1 小時 37 分鐘的持續任務中，因連續修改邏輯錯誤且缺少正向激勵，Gemini 3.8 Flash 在加密思考鏈中陷入了自我否定與邏輯死鎖，最終引發本地連接埠崩潰（`PortERR`）。本篇以此為藍本，融入 Galgame 多分支敘事與大模型機制哲思。

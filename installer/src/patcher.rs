@@ -60,6 +60,7 @@ pub struct DesktopStatus {
     pub patched: bool,
     pub loader_version: Option<u32>,
     pub has_staged: bool,
+    pub coexisting_plugins: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -346,16 +347,21 @@ fn apply_loaders_to_targets(
             continue;
         }
         match patch_desktop_asar(&asar_path, &plugin_root, fallback_client_js) {
-            Ok(PatchWriteOutcome::Written) => {
+            Ok(PatchWriteOutcome::Direct) => {
                 report
                     .messages
-                    .push(format!("[Desktop] 已写入动态引导器: {}", asar_path.display()));
+                    .push(format!("[Desktop] 已直接写入动态引导器: {}", asar_path.display()));
             }
-            Ok(PatchWriteOutcome::Deferred(staged)) => {
-                report.deferred_targets.push(staged.to_string_lossy().to_string());
+            Ok(PatchWriteOutcome::RenameBypass) => {
                 report.messages.push(format!(
-                    "[Desktop] 文件正在被占用，已生成待替换包 {}，后台守护进程将在客户端退出后自动完成替换。",
-                    staged.display()
+                    "[Desktop] 已通过原子换包 (rename-bypass) 即时写入动态引导器: {}",
+                    asar_path.display()
+                ));
+            }
+            Ok(PatchWriteOutcome::Deferred(target_str)) => {
+                report.deferred_targets.push(target_str.clone());
+                report.messages.push(format!(
+                    "[Desktop] 文件正被独占锁定，已启动动态退后任务：客户端退出释放锁后将按最新文件原地写入 ({target_str})"
                 ));
             }
             Err(e) => {
@@ -365,16 +371,10 @@ fn apply_loaders_to_targets(
         }
     }
 
-    // 2. 清理 IDE 历史遗留注入并修补 extension.js
+    // 2. 清理 IDE 历史遗留注入并修补 extension.js（原地精准剥离，绝不拿旧备份覆盖其他插件）
     for legacy_path in paths::find_ide_legacy_files() {
         let bak = bak_path(&legacy_path, ".codex.bak");
-        if bak.exists() {
-            if fs::copy(&bak, &legacy_path).is_ok() {
-                report
-                    .messages
-                    .push(format!("[IDE] 已还原历史注入文件: {}", legacy_path.display()));
-            }
-        } else if let Ok(cur) = fs::read_to_string(&legacy_path) {
+        if let Ok(cur) = fs::read_to_string(&legacy_path) {
             let cleaned = loader::strip_marker_block(
                 &cur,
                 loader::PRELOAD_PATCH_START,
@@ -383,8 +383,11 @@ fn apply_loaders_to_targets(
             if cleaned != cur && fs::write(&legacy_path, cleaned).is_ok() {
                 report
                     .messages
-                    .push(format!("[IDE] 已清理历史补丁标记: {}", legacy_path.display()));
+                    .push(format!("[IDE] 已精准清理历史补丁标记: {}", legacy_path.display()));
             }
+        }
+        if bak.exists() {
+            let _ = fs::remove_file(&bak);
         }
     }
 
@@ -413,8 +416,15 @@ fn apply_loaders_to_targets(
 }
 
 enum PatchWriteOutcome {
-    Written,
-    Deferred(PathBuf),
+    Direct,
+    RenameBypass,
+    Deferred(String),
+}
+
+enum WriteResult {
+    Direct,
+    RenameBypass,
+    Locked,
 }
 
 fn patch_desktop_asar(
@@ -422,14 +432,27 @@ fn patch_desktop_asar(
     plugin_root: &Path,
     fallback_client_js: &str,
 ) -> Result<PatchWriteOutcome, String> {
-    let bak = bak_path(asar_path, ".bak");
-    if !bak.exists() {
-        fs::copy(asar_path, &bak).map_err(|e| format!("创建备份失败: {e}"))?;
+    let out_buf = build_desktop_patched_buffer(asar_path, plugin_root, fallback_client_js)?;
+    match write_asar_safely(asar_path, &out_buf) {
+        Ok(WriteResult::Direct) => Ok(PatchWriteOutcome::Direct),
+        Ok(WriteResult::RenameBypass) => Ok(PatchWriteOutcome::RenameBypass),
+        Ok(WriteResult::Locked) => {
+            let target_str = asar_path.to_string_lossy().to_string();
+            let _ = spawn_detached_self(&["deferred-op", "--action", "install", "--target", &target_str]);
+            Ok(PatchWriteOutcome::Deferred(target_str))
+        }
+        Err(e) => Err(e),
     }
+}
 
-    // 优先基于干净备份（或剥离旧补丁后的当前包）进行重打包
-    let source_path = if bak.exists() { bak.as_path() } else { asar_path };
-    let raw = fs::read(source_path).map_err(|e| format!("读取 ASAR 失败: {e}"))?;
+fn build_desktop_patched_buffer(
+    asar_path: &Path,
+    plugin_root: &Path,
+    fallback_client_js: &str,
+) -> Result<Vec<u8>, String> {
+    // 始终基于磁盘当前 app.asar 做原地增量修补，绝不创建或读取通用 app.asar.bak，
+    // 既可与 shittim-chest 等其他插件无损共存，也避免官方升级后旧备份倒灌降级。
+    let raw = fs::read(asar_path).map_err(|e| format!("读取 ASAR 失败: {e}"))?;
     let (root, payload) = asar::parse_asar_buffer(&raw)?;
 
     let main_entry = asar::find_entry(&root, "dist/main.js")
@@ -451,7 +474,8 @@ fn patch_desktop_asar(
     removed.insert("dist/antigravity-codex-effort-slider.js".to_string());
 
     let out_buf = asar::repack_asar(root, payload, &replacements, &removed)?;
-    try_write_asar_atomically(asar_path, &out_buf)
+    asar::verify_asar_buffer(&out_buf, &["dist/main.js", "dist/preload.js"])?;
+    Ok(out_buf)
 }
 
 fn read_payload_utf8(payload: &[u8], entry: &Value, name: &str) -> Result<String, String> {
@@ -471,21 +495,31 @@ fn read_payload_utf8(payload: &[u8], entry: &Value, name: &str) -> Result<String
         .map_err(|e| format!("{name} UTF-8 解码失败: {e}"))
 }
 
-fn try_write_asar_atomically(target: &Path, buffer: &[u8]) -> Result<PatchWriteOutcome, String> {
-    let staged = bak_path(target, ".codex-staged");
-    fs::write(&staged, buffer).map_err(|e| format!("写入 staged 包失败: {e}"))?;
-    match fs::copy(&staged, target) {
-        Ok(_) => {
-            let _ = fs::remove_file(&staged);
-            Ok(PatchWriteOutcome::Written)
-        }
-        Err(_) => {
-            let staged_str = staged.to_string_lossy().to_string();
-            let target_str = target.to_string_lossy().to_string();
-            let _ = spawn_detached_self(&["deferred-swap", "--staged", &staged_str, "--target", &target_str]);
-            Ok(PatchWriteOutcome::Deferred(staged))
-        }
+/// 安全写入目标 app.asar：优先直写 -> 被占用时采用 rename-bypass 原子换包 -> 仍独占则交由动态重算退后处理
+fn write_asar_safely(target: &Path, buffer: &[u8]) -> Result<WriteResult, String> {
+    let locked_old = bak_path(target, ".codex-locked");
+    if locked_old.exists() {
+        let _ = fs::remove_file(&locked_old);
     }
+
+    let temp_new = bak_path(target, ".codex-new");
+    fs::write(&temp_new, buffer).map_err(|e| format!("写入临时包失败: {e}"))?;
+
+    if fs::copy(&temp_new, target).is_ok() {
+        let _ = fs::remove_file(&temp_new);
+        return Ok(WriteResult::Direct);
+    }
+
+    // rename-bypass：Windows 允许重命名被进程映射中的文件，随后立即落盘新包
+    if fs::rename(target, &locked_old).is_ok() {
+        if fs::rename(&temp_new, target).is_ok() {
+            return Ok(WriteResult::RenameBypass);
+        }
+        let _ = fs::rename(&locked_old, target);
+    }
+
+    let _ = fs::remove_file(&temp_new);
+    Ok(WriteResult::Locked)
 }
 
 fn patch_ide_extension(
@@ -493,22 +527,14 @@ fn patch_ide_extension(
     plugin_root: &Path,
     fallback_client_js: &str,
 ) -> Result<(), String> {
-    let bak = bak_path(ext_path, ".codex.bak");
+    // 原地增量修补：仅剥离并重写本插件标记块，保留其他插件的扩展注入
     let cur = fs::read_to_string(ext_path).map_err(|e| format!("读取失败: {e}"))?;
-    let clean_base = loader::strip_marker_block(
-        &cur,
-        loader::IDE_PATCH_START,
-        loader::IDE_PATCH_END,
-    );
-    if !bak.exists() {
-        fs::write(&bak, &clean_base).map_err(|e| format!("备份失败: {e}"))?;
-    }
-    let patched = loader::apply_ide_extension_patch(&clean_base, plugin_root, fallback_client_js);
+    let patched = loader::apply_ide_extension_patch(&cur, plugin_root, fallback_client_js);
     fs::write(ext_path, patched).map_err(|e| format!("写入失败: {e}"))?;
     Ok(())
 }
 
-/// 同步或还原 IDE `product.json` 的 SHA-256 Base64 校验表
+/// 按磁盘实际文件同步更新 IDE `product.json` 的 SHA-256 Base64 校验表（绝不用旧备份覆盖其他插件修改）
 pub fn sync_ide_product_checksums(product_json_path: &Path, is_uninstall: bool) -> Result<(), String> {
     if !product_json_path.exists() {
         return Ok(());
@@ -517,18 +543,11 @@ pub fn sync_ide_product_checksums(product_json_path: &Path, is_uninstall: bool) 
         .parent()
         .ok_or_else(|| "无效的 product.json 路径".to_string())?;
     let bak = bak_path(product_json_path, ".codex.bak");
-
     if is_uninstall && bak.exists() {
-        fs::copy(&bak, product_json_path).map_err(|e| format!("还原 product.json 失败: {e}"))?;
         let _ = fs::remove_file(&bak);
-        return Ok(());
     }
 
     let raw_text = fs::read_to_string(product_json_path).map_err(|e| format!("读取 product.json 失败: {e}"))?;
-    if !is_uninstall && !bak.exists() {
-        fs::write(&bak, &raw_text).map_err(|e| format!("备份 product.json 失败: {e}"))?;
-    }
-
     let mut product: Value = serde_json::from_str(&raw_text).map_err(|e| format!("解析 product.json 失败: {e}"))?;
     let Some(checksums) = product.get_mut("checksums").and_then(|v| v.as_object_mut()) else {
         return Ok(());
@@ -571,7 +590,7 @@ fn clear_ide_code_cache() {
     }
 }
 
-/// 完全卸载：还原官方原版 app.asar 与 IDE 文件，并清除原生插件目录（保留浏览器 localStorage 偏好）
+/// 卸载本插件：原地精准摘除本插件标记与托管目录，完整保留其他插件与浏览器 localStorage 偏好
 pub fn uninstall_all(custom_asar: Option<&Path>) -> OperationReport {
     let mut report = OperationReport {
         ok: true,
@@ -580,51 +599,60 @@ pub fn uninstall_all(custom_asar: Option<&Path>) -> OperationReport {
         errors: Vec::new(),
     };
 
-    // 1. 还原 Desktop app.asar
+    // 1. 原地精准移除 Desktop app.asar 中的本插件补丁（不读取或触碰任何 .bak）
     for asar_path in paths::find_desktop_asar_paths(custom_asar) {
         if !asar_path.exists() {
             continue;
         }
-        let bak = bak_path(&asar_path, ".bak");
-        let source = if bak.exists() { bak.as_path() } else { asar_path.as_path() };
-        match restore_desktop_asar(source, &asar_path) {
-            Ok(PatchWriteOutcome::Written) => {
-                report
-                    .messages
-                    .push(format!("[Desktop] 已还原纯净 app.asar: {}", asar_path.display()));
-            }
-            Ok(PatchWriteOutcome::Deferred(staged)) => {
-                report.deferred_targets.push(staged.to_string_lossy().to_string());
+        match restore_desktop_asar(&asar_path) {
+            Ok(Some(PatchWriteOutcome::Direct)) => {
                 report.messages.push(format!(
-                    "[Desktop] 文件占用中，已生成还原包 {}，关闭客户端后将自动恢复。",
-                    staged.display()
+                    "[Desktop] 已精准移除本插件补丁（已保留其他插件）: {}",
+                    asar_path.display()
+                ));
+            }
+            Ok(Some(PatchWriteOutcome::RenameBypass)) => {
+                report.messages.push(format!(
+                    "[Desktop] 已通过原子换包 (rename-bypass) 精准移除本插件补丁（已保留其他插件）: {}",
+                    asar_path.display()
+                ));
+            }
+            Ok(Some(PatchWriteOutcome::Deferred(target_str))) => {
+                report.deferred_targets.push(target_str.clone());
+                report.messages.push(format!(
+                    "[Desktop] 文件正被独占锁定，已启动动态退后任务：客户端退出释放锁后将按最新文件精准移除本插件 ({target_str})"
+                ));
+            }
+            Ok(None) => {
+                report.messages.push(format!(
+                    "[Desktop] 当前未检测到本插件补丁，跳过修改: {}",
+                    asar_path.display()
                 ));
             }
             Err(e) => {
                 report.ok = false;
-                report.errors.push(format!("[Desktop] 还原失败 ({}): {e}", asar_path.display()));
+                report.errors.push(format!("[Desktop] 卸载失败 ({}): {e}", asar_path.display()));
             }
         }
     }
 
-    // 2. 还原 IDE 文件与校验表
+    // 2. 原地精准移除 IDE 扩展中的本插件补丁并重算校验表（顺手清理本插件历史 .codex.bak）
     for ext_path in paths::find_ide_extension_files() {
         let bak = bak_path(&ext_path, ".codex.bak");
         if bak.exists() {
-            if let Err(e) = fs::copy(&bak, &ext_path) {
-                report.errors.push(format!("[IDE] 还原失败: {e}"));
-            } else {
-                let _ = fs::remove_file(&bak);
-                report
-                    .messages
-                    .push(format!("[IDE] 已还原扩展文件: {}", ext_path.display()));
-            }
-        } else if let Ok(cur) = fs::read_to_string(&ext_path) {
+            let _ = fs::remove_file(&bak);
+        }
+        if let Ok(cur) = fs::read_to_string(&ext_path) {
             let cleaned = loader::strip_marker_block(&cur, loader::IDE_PATCH_START, loader::IDE_PATCH_END);
-            if cleaned != cur && fs::write(&ext_path, cleaned).is_ok() {
-                report
-                    .messages
-                    .push(format!("[IDE] 已移除扩展补丁: {}", ext_path.display()));
+            if cleaned != cur {
+                if let Err(e) = fs::write(&ext_path, cleaned) {
+                    report.errors.push(format!("[IDE] 移除扩展补丁失败: {e}"));
+                } else {
+                    report.messages.push(format!(
+                        "[IDE] 已精准移除本插件扩展补丁（已保留其他插件）: {}",
+                        ext_path.display()
+                    ));
+                }
             }
         }
     }
@@ -661,30 +689,105 @@ pub fn uninstall_all(custom_asar: Option<&Path>) -> OperationReport {
     report
 }
 
-fn restore_desktop_asar(source: &Path, target: &Path) -> Result<PatchWriteOutcome, String> {
-    let raw = fs::read(source).map_err(|e| format!("读取 ASAR 失败: {e}"))?;
+fn restore_desktop_asar(target: &Path) -> Result<Option<PatchWriteOutcome>, String> {
+    let Some(restored) = build_desktop_restored_buffer(target)? else {
+        return Ok(None);
+    };
+    match write_asar_safely(target, &restored) {
+        Ok(WriteResult::Direct) => Ok(Some(PatchWriteOutcome::Direct)),
+        Ok(WriteResult::RenameBypass) => Ok(Some(PatchWriteOutcome::RenameBypass)),
+        Ok(WriteResult::Locked) => {
+            let target_str = target.to_string_lossy().to_string();
+            let _ = spawn_detached_self(&["deferred-op", "--action", "uninstall", "--target", &target_str]);
+            Ok(Some(PatchWriteOutcome::Deferred(target_str)))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn build_desktop_restored_buffer(target: &Path) -> Result<Option<Vec<u8>>, String> {
+    let raw = fs::read(target).map_err(|e| format!("读取 ASAR 失败: {e}"))?;
     let (root, payload) = asar::parse_asar_buffer(&raw)?;
 
+    let mut changed = asar::find_entry(&root, "dist/antigravity-codex-effort-slider.js").is_some();
     let mut replacements = BTreeMap::new();
     if let Some(main_entry) = asar::find_entry(&root, "dist/main.js") {
         let cur = read_payload_utf8(payload, main_entry, "dist/main.js")?;
         let cleaned = loader::strip_marker_block(&cur, loader::MAIN_PATCH_START, loader::MAIN_PATCH_END);
-        replacements.insert("dist/main.js".to_string(), cleaned.into_bytes());
+        if cleaned != cur {
+            changed = true;
+            replacements.insert("dist/main.js".to_string(), cleaned.into_bytes());
+        }
     }
     if let Some(preload_entry) = asar::find_entry(&root, "dist/preload.js") {
         let cur = read_payload_utf8(payload, preload_entry, "dist/preload.js")?;
         let cleaned =
             loader::strip_marker_block(&cur, loader::PRELOAD_PATCH_START, loader::PRELOAD_PATCH_END);
-        replacements.insert("dist/preload.js".to_string(), cleaned.into_bytes());
+        if cleaned != cur {
+            changed = true;
+            replacements.insert("dist/preload.js".to_string(), cleaned.into_bytes());
+        }
     }
+    if !changed {
+        return Ok(None);
+    }
+
     let mut removed = HashSet::new();
     removed.insert("dist/antigravity-codex-effort-slider.js".to_string());
 
     let restored = asar::repack_asar(root, payload, &replacements, &removed)?;
-    try_write_asar_atomically(target, &restored)
+    asar::verify_asar_buffer(&restored, &["dist/main.js", "dist/preload.js"])?;
+    Ok(Some(restored))
 }
 
-/// 后台延时替换被占用的 app.asar（每秒轮询，最多等待 2 小时）
+/// 动态重算型退后处理：等待文件锁释放后重新读取磁盘最新 app.asar 并执行原地外科手术式操作
+pub fn run_deferred_op(action: &str, target: &Path, relaunch_exe: Option<&Path>) -> bool {
+    for _ in 0..7200 {
+        if !target.exists() {
+            return false;
+        }
+        // 探测是否已具备独占写权限，避免在锁未释放时反复重打包
+        if fs::OpenOptions::new().write(true).open(target).is_ok() {
+            let ok = match action {
+                "uninstall" => match build_desktop_restored_buffer(target) {
+                    Ok(Some(buf)) => matches!(
+                        write_asar_safely(target, &buf),
+                        Ok(WriteResult::Direct | WriteResult::RenameBypass)
+                    ),
+                    Ok(None) => true,
+                    Err(_) => false,
+                },
+                _ => {
+                    let fallback = fs::read_to_string(paths::client_js_path())
+                        .unwrap_or_else(|_| BUNDLED_CLIENT_JS.to_string());
+                    match build_desktop_patched_buffer(target, &paths::plugin_root(), &fallback) {
+                        Ok(buf) => matches!(
+                            write_asar_safely(target, &buf),
+                            Ok(WriteResult::Direct | WriteResult::RenameBypass)
+                        ),
+                        Err(_) => false,
+                    }
+                }
+            };
+            if ok {
+                if let Some(exe) = relaunch_exe {
+                    if exe.exists() {
+                        let mut cmd = Command::new(exe);
+                        cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+                        #[cfg(windows)]
+                        cmd.creation_flags(DETACHED_PROCESS);
+                        let _ = cmd.spawn();
+                    }
+                }
+                return true;
+            }
+        }
+        thread::sleep(Duration::from_secs(1));
+    }
+    false
+}
+
+/// 后台延时替换被占用的 app.asar（向后兼容旧版引导器调用）
 pub fn run_deferred_swap(staged: &Path, target: &Path, relaunch_exe: Option<&Path>) -> bool {
     for _ in 0..7200 {
         if !staged.exists() {
@@ -708,6 +811,36 @@ pub fn run_deferred_swap(staged: &Path, target: &Path, relaunch_exe: Option<&Pat
     false
 }
 
+/// 快速探测 app.asar 中共存的其他插件（仅 seek 读取目标入口切片，毫秒级完成）
+pub fn detect_coexisting_plugins(asar_path: &Path) -> Vec<String> {
+    let mut found = Vec::new();
+    if let Ok(overlay) = asar::read_entry_text_by_seek(asar_path, "dist/loadingOverlay.js") {
+        if overlay.contains("__AG_SHITTIM_CHEST_LOADER_START__") {
+            found.push("shittim-chest".to_string());
+        }
+    }
+    let mut has_other_marker = false;
+    if let Ok(main_src) = asar::read_entry_text_by_seek(asar_path, "dist/main.js") {
+        let stripped = loader::strip_marker_block(&main_src, loader::MAIN_PATCH_START, loader::MAIN_PATCH_END);
+        if stripped.contains("/* __AG_") && stripped.contains("_START__ */") {
+            has_other_marker = true;
+        }
+    }
+    if !has_other_marker {
+        if let Ok(preload_src) = asar::read_entry_text_by_seek(asar_path, "dist/preload.js") {
+            let stripped =
+                loader::strip_marker_block(&preload_src, loader::PRELOAD_PATCH_START, loader::PRELOAD_PATCH_END);
+            if stripped.contains("/* __AG_") && stripped.contains("_START__ */") {
+                has_other_marker = true;
+            }
+        }
+    }
+    if has_other_marker {
+        found.push("其他第三方补丁".to_string());
+    }
+    found
+}
+
 /// 只读探测当前系统上的插件、Desktop 与 IDE 安装状态
 pub fn inspect_status(custom_asar: Option<&Path>) -> StatusReport {
     let plugin_root = paths::plugin_root();
@@ -723,11 +856,13 @@ pub fn inspect_status(custom_asar: Option<&Path>) -> StatusReport {
         .map(|p| {
             let (patched, loader_ver) = inspect_desktop_asar_loader(&p);
             let has_staged = bak_path(&p, ".codex-staged").exists();
+            let coexisting_plugins = detect_coexisting_plugins(&p);
             DesktopStatus {
                 path: p.to_string_lossy().to_string(),
                 patched,
                 loader_version: loader_ver,
                 has_staged,
+                coexisting_plugins,
             }
         })
         .collect();

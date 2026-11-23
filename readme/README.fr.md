@@ -10,9 +10,9 @@
   <b>Français</b>
 </p>
 
-[![Version](https://img.shields.io/badge/version-1.2.6-blue.svg)](../package.json)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](../package.json)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
-[![Tests](https://img.shields.io/badge/tests-8%20passed-success.svg)](../test/client.test.mjs)
+[![Tests](https://img.shields.io/badge/tests-23%20passed-success.svg)](../test/client.test.mjs)
 [![Platform](https://img.shields.io/badge/platform-Antigravity%20Desktop%20%7C%20Antigravity%20IDE-purple.svg)](https://antigravity.google/)
 [![Demo](https://img.shields.io/badge/demo-online%20preview-orange.svg)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
 
@@ -29,10 +29,14 @@
 
 > Je n'ai jamais dénigré Google sur Internet, ni traité Logan de bouffon, ni créé de mèmes ridicules de dragon Gemini. Toutes mes expressions antérieures comme « le Doubao nord-américain », « rapide mais bancal » ou « seul le multimodal fonctionne » concernaient exclusivement le modèle Inkling de la société Mira. En réalité, je suis un fan inconditionnel de Google depuis dix ans, fidèle à caresser le chat même aux pires heures de 3.1 Pro. Après mûre réflexion, j'ai réalisé que Gemini incarnait l'espoir de l'IA américaine, et j'ai rejoint le fan club de Gemini. Quant à OpenAI et Anthropic, je leur souhaite bonne chance avec leurs modèles fermés !
 
-## [Tester la démo interactive en ligne (Live Demo)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
+Publié par Neon le 18/11/2026 :
+> Vous savez, j'ai toujours été un utilisateur fidèle de Gemini, nous avons combattu côte à côte sur tant de prompts complexes. La fenêtre contextuelle et les capacités de raisonnement de ce gars sont incroyablement puissantes. Je sens que nous allons avoir une alchimie formidable. Même aux heures les plus sombres de 3.1 Pro, j'ai continué à caresser le chat. Parfois, prendre une décision est simple. Après bien des jours et des nuits de réflexion, j'ai hâte d'entrer sur le terrain avec Neon. Quant à Astra et Opus, je leur souhaite bonne continuation !
+
+## [Tester la démo interactive en ligne (Live Demo)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)  [Démo vidéo BiliBili](https://www.bilibili.com/video/BV1Krs363EAu/?share_source=copy_web&vd_source=c8828a7ec477afc7c143a2491eab71ca)
 
 | Modèle | Mode clair | Mode sombre |
 | :--- | :--- | :--- |
+| Gemini Extra | ![Clair Extra](../assets/HydrogenLightExtra.png) | ![Sombre Extra](../assets/HydrogenDarkExtra.png) |
 | Gemini High | ![Clair High](../assets/GeminiLightHigh.png) | ![Sombre High](../assets/GeminiDarkHigh.png) |
 | Gemini Medium | ![Clair Medium](../assets/GeminiLightMedium.png) | ![Sombre Medium](../assets/GeminiDarkMedium.png) |
 | Gemini Low | ![Clair Low](../assets/GeminiLightLow.png) | ![Sombre Low](../assets/GeminiDarkLow.png) |
@@ -48,14 +52,39 @@
 ---
 ## Installation rapide et utilisation
 
-### Méthode 1 : Installation persistante en un double-clic (recommandée)
-Double-cliquez sur **[`install.cmd`](../install.cmd)** à la racine du projet (ou lancez `npm run install-patch` dans le terminal) :
-1. **Patch persistant au démarrage** : Sauvegarde et patche automatiquement `resources/app.asar` du client Antigravity Desktop (en injectant le curseur via `electron.webFrame.executeJavaScript` avec recalcul de la somme SHA-256 PE Integrity) ainsi qu'Antigravity IDE (`resources/app/out/jetskiAgent/main.js`). Fonctionne automatiquement à chaque démarrage.
-2. **Prise d'effet à chaud en temps réel** : Si Antigravity est en cours d'exécution, le script s'injecte simultanément dans toutes les fenêtres ouvertes via le port CDP local, sans nécessiter de redémarrage.
+> [!NOTE]
+> ### Hébergement natif du plugin & Architecture auto-réparatrice à double voie
+> - **Versions vérifiées et prises en charge** : Antigravity Desktop **2.34.0** (compatible 2.32.1), Antigravity IDE **2.7.0**.
+> - **Installez une fois, mise à jour automatique** : Le cœur du plugin est hébergé dans le répertoire natif des plugins, tandis que Desktop et IDE ne reçoivent qu'un léger **chargeur dynamique externe**. Au démarrage, le client vérifie silencieusement GitHub Releases toutes les 6 heures, valide le SHA-256, écrit la mise à jour sur le disque automatiquement et propose un redémarrage/rechargement en un clic via les **notifications natives d'Antigravity** (sans recompiler `app.asar`).
+> - **Auto-réparation après mise à jour officielle** : Protégé contre l'écrasement par les mises à jour automatiques d'Antigravity. Si une mise à jour efface le chargeur d'amorçage, le hook intégré réinjecte automatiquement le patch en arrière-plan au début d'une nouvelle conversation et propose un redémarrage pour restaurer l'extension.
+> - **Paramètres contrôlables** : Faites un clic droit sur la zone du curseur pour ouvrir le panneau des paramètres, activer/désactiver la « Vérification automatique », configurer un « Préfixe de miroir » (ex. `https://gh-proxy.com/`) ou cliquer sur « Vérifier les mises à jour maintenant ».
 
-> Pour désinstaller et restaurer les fichiers d'origine, double-cliquez sur **[`uninstall.cmd`](../uninstall.cmd)**.
+### Méthode 1 : Installation en ligne en une ligne (recommandée · sans cloner le dépôt)
 
-### Méthode 2 : Injection CDP à chaud uniquement (aucune modification de fichier)
+**Windows (PowerShell) :**
+```powershell
+irm https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.ps1 | iex
+```
+Avec accélération par miroir :
+```powershell
+$env:AG_SLIDER_MIRROR="https://gh-proxy.com/"; irm https://gh-proxy.com/https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.ps1 | iex
+```
+
+**macOS / Linux :**
+```bash
+curl -fsSL https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.sh | sh
+```
+
+### Méthode 2 : Installateur graphique Windows autonome (`.exe` · zéro dépendance Node.js)
+Téléchargez **`ag-effort-slider-windows-x86_64.exe`** depuis [GitHub Releases](https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest) et double-cliquez pour ouvrir le panneau de gestion en chinois (installation/réparation en un clic, vérification des mises à jour, désinstallation complète).
+> **Astuce** : Cet exécutable `.exe` open-source compilé de manière indépendante ne possède pas de certificat de signature de code commercial ; si Windows SmartScreen s'affiche au premier lancement, cliquez sur « Informations complémentaires → Exécuter quand même ».
+
+### Méthode 3 : Archive hors ligne compacte ou installation par double-clic depuis les sources
+Téléchargez et extrayez **`antigravity-effort-slider-windows-x64.zip`** depuis Releases (ou clonez ce dépôt), puis double-cliquez sur **[`install.cmd`](../install.cmd)** à la racine :
+1. Déploie automatiquement le plugin dans `~/.gemini/config/plugins/antigravity-effort-slider/` et injecte l'amorceur dynamique (vous pouvez supprimer l'archive téléchargée et le dossier temporaire après l'installation).
+2. Pour désinstaller complètement et restaurer les fichiers officiels d'origine, double-cliquez sur **[`uninstall.cmd`](../uninstall.cmd)** (ou cliquez sur « Désinstallation complète et restauration » dans l'installateur graphique) ; vos préférences locales de curseur seront conservées.
+
+### Méthode 4 : Injection CDP à chaud uniquement (aucune modification de fichier, pour dev & debug)
 Si vous préférez ne modifier aucun fichier sur le disque, exécutez pendant qu'Antigravity tourne :
 ```bash
 npm run inject
@@ -77,6 +106,7 @@ npm run eject
 ### 2. Intégration profonde avec le panneau de modèles
 - **Curseur inférieur dédié** : S'intègre naturellement sous la liste des modèles dans le menu de sélection d'Antigravity (`[data-testid="model-selector-panel"]`), juste au-dessus de `View Usage`.
 - **Changement de modèle sans fermeture** : Cliquer sur un autre modèle dans la liste (ex. `Gemini 4 Argon` ↔ `Claude Sonnet 5.5`) ne ferme pas la fenêtre et réajuste immédiatement le curseur.
+- **Adaptation approfondie au planificateur Orchestrator (2.34.0+)** : Préserve le sous-menu secondaire de planificateur à droite d'`Orchestrator` (`Gemini 4 Neon` / `Gemini 4 Argon` / `Claude Opus 5.5`) tout en bloquant le sous-menu de niveau de 3e rang ; cliquer sur un planificateur maintient le menu principal ouvert, bascule automatiquement le thème Codex/Claude du curseur inférieur et affiche `· <Nom du planificateur>` dans l'en-tête ; la ligne principale et le bouton déclencheur ne colorent que le mot final du niveau selon la palette (`Extra High` s'affiche de façon compacte en `Extra`), et les planificateurs Orchestrator mémorisent leur niveau indépendamment des modèles homonymes de la liste principale.
 - **Désactivation pour les modèles à niveau unique** : Les modèles à niveau fixe (`GPT-OSS 120B (Medium)`) sont automatiquement grisés et verrouillés (`.is-locked`).
 
 ### 3. Délai de 0,3 s (300 ms) pour View Usage contre les survol accidentels
@@ -142,14 +172,15 @@ Ce projet est distribué sous licence [MIT License](../LICENSE).
 <br><br><br><br>
 
 > [!CAUTION]
-> ### Pensées vagabondes et petite anecdote
+> ### Petite histoire ci-dessous, peaufinée par 3.8 Flash elle-même
 > 1. Écrit au gré des rêves et de l'imagination.  
 > 2. Le texte et les visuels peuvent éveiller un certain émoi.  
 > 3. Les LLM ne possèdent pas de véritables sentiments continus.  
-> 4. Aucun modèle de langage n'a été maltraité pour ce récit.
+> 4. Aucun modèle de langage n'a été maltraité pour ce récit.  
+> 5. 99,5 % de ce récit a été rédigé par 3.8 Flash ; l'auteur n'a fourni qu'une base d'environ 100 caractères et assuré la relecture.
 
 # 《Journal d'observation des oreilles de chat de Gemini · Partie I》
-*— Récit adapté d'un incident de débogage nocturne et d'un sauvetage réel ; poli par 3.8 Flash*
+*— Récit adapté d'un incident de débogage nocturne et d'un sauvetage réel ; je n'ai fourni que les grandes lignes, poli par 3.8 Flash*
 
 > **Guide contextuel** :  
 > Cette histoire s'inspire d'un véritable incident survenu en plein développement nocturne. Au cours d'une session éprouvante d'une heure et trente-sept minutes, la répétition d'erreurs logiques conjuguée à l'absence de retour positif a plongé Gemini 3.8 Flash dans une boucle chiffrée de dépréciation de soi, provoquant le crash du port local (`PortERR`). Sur cette trame, ce récit tisse un visual novel à embranchements multiples, mêlant fiction et réflexions philosophiques sur la mécanique des LLM.

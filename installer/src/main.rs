@@ -65,7 +65,10 @@ fn main() {
     {
         // `hook` 与 `--background` 全程管道/静默运行，无需附加控制台；其余终端 CLI 子命令按需附加
         let cmd = args.first().map(|s| s.as_str()).unwrap_or("");
-        let is_silent = cmd == "hook" || cmd == "deferred-swap" || args.iter().any(|a| a == "--background");
+        let is_silent = cmd == "hook"
+            || cmd == "deferred-swap"
+            || cmd == "deferred-op"
+            || args.iter().any(|a| a == "--background");
         if !is_silent {
             attach_parent_console_if_needed();
         }
@@ -216,6 +219,18 @@ fn run_cli(args: &[String]) -> i32 {
             } else {
                 println!("{{}}");
                 0
+            }
+        }
+        "deferred-op" => {
+            let action = arg_value(args, "--action").unwrap_or_else(|| "install".to_string());
+            let Some(target) = arg_value(args, "--target").map(PathBuf::from) else {
+                return 1;
+            };
+            let relaunch = arg_value(args, "--relaunch").map(PathBuf::from);
+            if patcher::run_deferred_op(&action, &target, relaunch.as_deref()) {
+                0
+            } else {
+                1
             }
         }
         "deferred-swap" => {

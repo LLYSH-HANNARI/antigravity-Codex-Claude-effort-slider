@@ -25,6 +25,8 @@ const CLIENT_JS_PATH = path.join(ROOT_DIR, "lib", "client.js");
 
 const PATCH_START_MARKER = "/* __AG_CODEX_EFFORT_SLIDER_START__ */";
 const PATCH_END_MARKER = "/* __AG_CODEX_EFFORT_SLIDER_END__ */";
+const MAIN_PATCH_START_MARKER = "/* __AG_CODEX_EFFORT_SLIDER_MAIN_START__ */";
+const MAIN_PATCH_END_MARKER = "/* __AG_CODEX_EFFORT_SLIDER_MAIN_END__ */";
 const LEGACY_REQUIRE_RE = /\r?\ntry\s*\{\s*require\(['"]\.\/antigravity-codex-effort-slider\.js['"]\);\s*\}\s*catch\s*\([^)]*\)\s*\{[^\r\n]*\}\s*/g;
 
 function findDefaultAsarPath() {
@@ -138,17 +140,50 @@ function buildAsarArchive(header, payloadBuffers) {
   return Buffer.concat([pickleHeader, ...payloadBuffers]);
 }
 
-function stripExistingPreloadPatch(source) {
+function stripMarkerBlock(source, startMarker, endMarker) {
   let cleaned = String(source || "").replace(LEGACY_REQUIRE_RE, "\n");
-  const startIdx = cleaned.indexOf(PATCH_START_MARKER);
-  const endIdx = cleaned.indexOf(PATCH_END_MARKER);
-  if (startIdx >= 0 && endIdx > startIdx) {
+  while (true) {
+    const startIdx = cleaned.indexOf(startMarker);
+    const endIdx = startIdx >= 0 ? cleaned.indexOf(endMarker, startIdx + startMarker.length) : -1;
+    if (startIdx < 0 || endIdx <= startIdx) break;
     cleaned =
       cleaned.slice(0, startIdx).replace(/\s+$/, "") +
       "\n" +
-      cleaned.slice(endIdx + PATCH_END_MARKER.length).replace(/^\s+/, "");
+      cleaned.slice(endIdx + endMarker.length).replace(/^\s+/, "");
   }
   return cleaned;
+}
+
+function stripExistingPreloadPatch(source) {
+  return stripMarkerBlock(source, PATCH_START_MARKER, PATCH_END_MARKER);
+}
+
+function stripExistingMainPatch(source) {
+  return stripMarkerBlock(source, MAIN_PATCH_START_MARKER, MAIN_PATCH_END_MARKER);
+}
+
+function verifyAsarBuffer(asarBuffer, requiredEntries = ["dist/preload.js"]) {
+  const { header, payload } = parseAsarArchive(asarBuffer);
+  for (const relPath of requiredEntries) {
+    let cur = header;
+    for (const seg of relPath.split("/")) {
+      cur = cur && cur.files ? cur.files[seg] : null;
+    }
+    if (!cur || cur.offset === undefined || typeof cur.size !== "number") {
+      throw new Error(`ASAR 写前自检失败：缺少条目 ${relPath}`);
+    }
+    const off = Number(cur.offset);
+    if (off + cur.size > payload.length) {
+      throw new Error(`ASAR 写前自检失败：条目 ${relPath} 越界`);
+    }
+    const slice = payload.subarray(off, off + cur.size);
+    if (cur.integrity && cur.integrity.hash) {
+      const actual = crypto.createHash("sha256").update(slice).digest("hex");
+      if (actual.toLowerCase() !== String(cur.integrity.hash).toLowerCase()) {
+        throw new Error(`ASAR 写前自检失败：${relPath} SHA-256 不匹配`);
+      }
+    }
+  }
 }
 
 function buildPatchedPreloadSource(originalPreload, clientCode) {
@@ -335,16 +370,10 @@ function syncIdeProductChecksums(targetFilePath, isUninstall) {
 
   const productBakPath = productJsonPath + ".codex.bak";
   if (isUninstall && fs.existsSync(productBakPath)) {
-    fs.copyFileSync(productBakPath, productJsonPath);
-    console.log(`[CodexSlider IDE] 已还原 product.json 校验表: ${productJsonPath}`);
-    return;
+    try { fs.unlinkSync(productBakPath); } catch {}
   }
 
   const rawText = fs.readFileSync(productJsonPath, "utf8");
-  if (!isUninstall && !fs.existsSync(productBakPath)) {
-    fs.writeFileSync(productBakPath, rawText, "utf8");
-  }
-
   const product = JSON.parse(rawText);
   if (!product || !product.checksums || typeof product.checksums !== "object") return;
 
@@ -539,11 +568,10 @@ function buildIdeExtensionPatch(clientCode) {
     "      sv.BaseVsCodeWebviewDelegate.prototype.renderIframe = async function (a, b, c) {",
     "        try {",
     "          const proxiedUrl = await ensureProxy(b);",
-    "          const d = this.buildIframeUrl(proxiedUrl, c);",
-    "          this.renderWebviewHtml(a, proxiedUrl, d, c);",
+    "          return origRenderIframe.call(this, a, proxiedUrl, c);",
     "        } catch (err) {",
     "          console.error('[CodexSlider] Failed to proxy iframe, falling back to original:', err);",
-    "          origRenderIframe.call(this, a, b, c);",
+    "          return origRenderIframe.call(this, a, b, c);",
     "        }",
     "      };",
     "      console.log('[CodexSlider] Antigravity IDE webview delegate successfully hooked!');",
@@ -571,53 +599,45 @@ function applyIdeExtensionPatch(source, clientCode) {
 }
 
 function patchIdeFiles(clientCode, isUninstall) {
-  // 1. 清理并还原历史遗留的注入文件（workbench.js / jetskiAgent/main.js）
+  // 1. 清理历史遗留的注入文件（workbench.js / jetskiAgent/main.js），原地剥离本插件标记而不覆盖其他插件
   const legacyFiles = findIdeLegacyFiles();
   for (const legacyPath of legacyFiles) {
     const bakPath = legacyPath + ".codex.bak";
     try {
+      const cur = fs.readFileSync(legacyPath, "utf8");
+      const cleaned = stripExistingPreloadPatch(cur);
+      if (cleaned !== cur) {
+        fs.writeFileSync(legacyPath, cleaned, "utf8");
+        console.log(`[CodexSlider IDE] 已精准清除历史补丁标记: ${legacyPath}`);
+      }
       if (fs.existsSync(bakPath)) {
-        fs.copyFileSync(bakPath, legacyPath);
-        console.log(`[CodexSlider IDE] 已清理并还原历史注入文件: ${legacyPath}`);
-      } else {
-        const cur = fs.readFileSync(legacyPath, "utf8");
-        const cleaned = stripExistingPreloadPatch(cur);
-        if (cleaned !== cur) {
-          fs.writeFileSync(legacyPath, cleaned, "utf8");
-          console.log(`[CodexSlider IDE] 已清除历史补丁标记: ${legacyPath}`);
-        }
+        try { fs.unlinkSync(bakPath); } catch {}
       }
     } catch (err) {
       // 忽略清理异常
     }
   }
 
-  // 2. 注入 Antigravity IDE 扩展端反向代理与 Webview 挂钩
+  // 2. 注入或精准移除 Antigravity IDE 扩展端反向代理与 Webview 挂钩（保留其他插件）
   const extFiles = findIdeExtensionFiles();
   for (const extPath of extFiles) {
     const bakPath = extPath + ".codex.bak";
     try {
       if (isUninstall) {
+        const cur = fs.readFileSync(extPath, "utf8");
+        const cleaned = stripExistingPreloadPatch(cur);
+        if (cleaned !== cur) {
+          fs.writeFileSync(extPath, cleaned, "utf8");
+          console.log(`[CodexSlider IDE] 已精准移除扩展补丁（保留其他插件）: ${extPath}`);
+        }
         if (fs.existsSync(bakPath)) {
-          fs.copyFileSync(bakPath, extPath);
-          console.log(`[CodexSlider IDE] 已从备份还原扩展: ${extPath}`);
-        } else {
-          const cur = fs.readFileSync(extPath, "utf8");
-          const cleaned = stripExistingPreloadPatch(cur);
-          if (cleaned !== cur) {
-            fs.writeFileSync(extPath, cleaned, "utf8");
-            console.log(`[CodexSlider IDE] 已移除扩展补丁: ${extPath}`);
-          }
+          try { fs.unlinkSync(bakPath); } catch {}
         }
       } else {
         const cur = fs.readFileSync(extPath, "utf8");
-        const cleanBase = stripExistingPreloadPatch(cur);
-        if (!fs.existsSync(bakPath)) {
-          fs.writeFileSync(bakPath, cleanBase, "utf8");
-        }
-        const patched = applyIdeExtensionPatch(cleanBase, clientCode);
+        const patched = applyIdeExtensionPatch(cur, clientCode);
         fs.writeFileSync(extPath, patched, "utf8");
-        console.log(`[CodexSlider IDE] 已为 Antigravity IDE 写入代理注入补丁: ${extPath}`);
+        console.log(`[CodexSlider IDE] 已为 Antigravity IDE 原地写入代理注入补丁: ${extPath}`);
       }
     } catch (err) {
       console.warn(`[CodexSlider IDE] 处理 ${extPath} 失败: ${err.message}`);
@@ -639,7 +659,6 @@ function runCli() {
     customAsarIdx >= 0 && args[customAsarIdx + 1]
       ? path.resolve(args[customAsarIdx + 1])
       : findDefaultAsarPath();
-  const bakPath = asarPath + ".bak";
   const clientCode = fs.readFileSync(CLIENT_JS_PATH, "utf8");
 
   patchIdeFiles(clientCode, isUninstall);
@@ -651,43 +670,63 @@ function runCli() {
   }
 
   if (isUninstall) {
-    const sourceToRestore = fs.existsSync(bakPath) ? bakPath : asarPath;
-    const rawAsar = fs.readFileSync(sourceToRestore);
+    const rawAsar = fs.readFileSync(asarPath);
     const { header, payload } = parseAsarArchive(rawAsar);
+    const replacements = new Map();
+    let changed = Boolean(header.files?.dist?.files?.["antigravity-codex-effort-slider.js"]);
+
+    const mainEntry = header.files?.dist?.files?.["main.js"];
+    if (mainEntry) {
+      const off = Number(mainEntry.offset);
+      const curMain = payload.subarray(off, off + mainEntry.size).toString("utf8");
+      const cleanMain = stripExistingMainPatch(curMain);
+      if (cleanMain !== curMain) {
+        changed = true;
+        replacements.set("dist/main.js", Buffer.from(cleanMain, "utf8"));
+      }
+    }
+
     const preloadEntry = header.files?.dist?.files?.["preload.js"];
     if (preloadEntry) {
       const off = Number(preloadEntry.offset);
       const curText = payload.subarray(off, off + preloadEntry.size).toString("utf8");
-      const cleanBuf = Buffer.from(stripExistingPreloadPatch(curText), "utf8");
-      const outChunks = [];
-      repackAsarTree(
-        header,
-        payload,
-        "",
-        new Map([["dist/preload.js", cleanBuf]]),
-        new Set(["dist/antigravity-codex-effort-slider.js"]),
-        outChunks,
-        { offset: 0 }
-      );
-      const restoredBuf = buildAsarArchive(header, outChunks);
-      const res = tryWriteFileAtomically(asarPath, restoredBuf);
-      if (res.written) {
-        console.log(`[CodexSlider Asar] 已成功还原纯净包: ${asarPath}`);
-      } else {
-        console.log(
-          `[CodexSlider Asar] 已生成还原包 ${res.stagedPath}，后台守护进程将在 Antigravity 关闭瞬间自动完成覆盖。`
-        );
+      const cleanText = stripExistingPreloadPatch(curText);
+      if (cleanText !== curText) {
+        changed = true;
+        replacements.set("dist/preload.js", Buffer.from(cleanText, "utf8"));
       }
+    }
+
+    if (!changed) {
+      console.log(`[CodexSlider Asar] 未检测到本插件补丁，跳过修改: ${asarPath}`);
+      return;
+    }
+
+    const outChunks = [];
+    repackAsarTree(
+      header,
+      payload,
+      "",
+      replacements,
+      new Set(["dist/antigravity-codex-effort-slider.js"]),
+      outChunks,
+      { offset: 0 }
+    );
+    const restoredBuf = buildAsarArchive(header, outChunks);
+    verifyAsarBuffer(restoredBuf, ["dist/preload.js"]);
+    const res = tryWriteFileAtomically(asarPath, restoredBuf);
+    if (res.written) {
+      console.log(`[CodexSlider Asar] 已精准移除本插件补丁（保留其他插件）: ${asarPath}`);
+    } else {
+      console.log(
+        `[CodexSlider Asar] 已生成卸载包 ${res.stagedPath}，后台守护进程将在 Antigravity 关闭瞬间自动完成移除。`
+      );
     }
     return;
   }
 
-  if (!fs.existsSync(bakPath)) {
-    fs.copyFileSync(asarPath, bakPath);
-    console.log(`[CodexSlider Asar] 已创建原始备份: ${bakPath}`);
-  }
-
-  const patchedBuffer = createPatchedAsarBuffer(bakPath, clientCode);
+  const patchedBuffer = createPatchedAsarBuffer(asarPath, clientCode);
+  verifyAsarBuffer(patchedBuffer, ["dist/preload.js"]);
   const writeResult = tryWriteFileAtomically(asarPath, patchedBuffer);
 
   if (writeResult.written) {

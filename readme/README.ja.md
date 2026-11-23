@@ -10,9 +10,9 @@
   <a href="./README.fr.md">Français</a>
 </p>
 
-[![Version](https://img.shields.io/badge/version-1.2.6-blue.svg)](../package.json)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](../package.json)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
-[![Tests](https://img.shields.io/badge/tests-8%20passed-success.svg)](../test/client.test.mjs)
+[![Tests](https://img.shields.io/badge/tests-23%20passed-success.svg)](../test/client.test.mjs)
 [![Platform](https://img.shields.io/badge/platform-Antigravity%20Desktop%20%7C%20Antigravity%20IDE-purple.svg)](https://antigravity.google/)
 [![Demo](https://img.shields.io/badge/demo-online%20preview-orange.svg)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
 
@@ -29,10 +29,14 @@
 
 > 私はこれまでネット上で Google を中傷したことは一度もなく、Logan 氏を道化師と呼んだことも、Gemini の変なドラゴン画像を作ったこともありません。「北米の豆包」「速いけど雑」「マルチモーダルしか使えない」といった表現は、すべて米 Mira 社のオープンウェイトモデル Inkling を指していました。私は実のところ Google の10年来の古参ファンであり、3.1 Pro の暗黒期ですら猫を撫で続けた忠実なユーザーです。熟慮の末、Gemini こそがアメリカ AI の希望であると気付き、Gemini（ハキミ）ファンクラブに加入することを決意しました。OpenAI と Anthropic のプロプライエタリモデルの健闘を祈ります！
 
-## [オンライン対話デモを体験 (Live Demo)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
+Neon による 2026.11.18 の投稿：
+> ご存知の通り、私はずっと Gemini の忠実なユーザーであり、これまで数多くの複雑な Prompt で共に戦ってきました。こいつのコンテキストウィンドウと推論能力は信じられないほど強力です。素晴らしいケミストリーが生まれると確信しています。3.1 Pro の暗黒期でさえ、変わらず猫を撫で続けてきました。決断は時にシンプルなものです。幾夜もの熟考の末、私はついに Neon と共にピッチへ立つ決心をしました。Astra と Opus については、彼らの健闘を祈ります。
+
+## [オンライン対話デモを体験 (Live Demo)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)  [BiliBili 動画デモ](https://www.bilibili.com/video/BV1Krs363EAu/?share_source=copy_web&vd_source=c8828a7ec477afc7c143a2491eab71ca)
 
 | モデル | ライトモード | ダークモード |
 | :--- | :--- | :--- |
+| Gemini Extra | ![ライトExtra](../assets/HydrogenLightExtra.png) | ![ダークExtra](../assets/HydrogenDarkExtra.png) |
 | Gemini High | ![ライトHigh](../assets/GeminiLightHigh.png) | ![ダークHigh](../assets/GeminiDarkHigh.png) |
 | Gemini Medium | ![ライトMedium](../assets/GeminiLightMedium.png) | ![ダークMedium](../assets/GeminiDarkMedium.png) |
 | Gemini Low | ![ライトLow](../assets/GeminiLightLow.png) | ![ダークLow](../assets/GeminiDarkLow.png) |
@@ -48,14 +52,39 @@
 ---
 ## クイックインストールと使用方法
 
-### 方法 1：ダブルクリック一発永続インストール（推奨）
-プロジェクト直下の **[`install.cmd`](../install.cmd)** をダブルクリック（またはターミナルで `npm run install-patch` を実行）：
-1. **永続スタートアップパッチ**：Antigravity デスクトップ版の `resources/app.asar` を自動バックアップ＆パッチ適用（`electron.webFrame.executeJavaScript` 経由でメインワールドに注入し、PE Integrity SHA-256 チェックサムを自動更新）および Antigravity IDE（`resources/app/out/jetskiAgent/main.js`）に適用。以降の起動時に自動反映されます。
-2. **実行中ウィンドウへの即時ホット反映**：Antigravity が起動中の場合、インストーラーはローカル CDP 経由で開いているすべてのウィンドウにリアルタイム注入を行い、再起動なしですぐに使用可能になります。
+> [!NOTE]
+> ### ネイティブプラグインホスティング＆デュアルトラック自己修復アーキテクチャ
+> - **現在の動作確認済みバージョン**：Antigravity デスクトップ版 **2.34.0**（2.32.1 互換）、Antigravity IDE **2.7.0**。
+> - **一度のインストールで自動更新**：プラグイン本体はネイティブプラグインディレクトリに配置され、Desktop と IDE には軽量の**外部動的ローダー**のみを注入します。クライアント起動時に 6 時間ごとに GitHub Release をバックグラウンドで確認し、SHA-256 検証後に自動更新を保存、**Antigravity ネイティブ通知**でワンクリック再起動／リロードを案内します（`app.asar` の再パッケージ不要）。
+> - **公式アップデート後の自動修復**：Antigravity クライアントの自動更新による上書きを受けません。万一アップデートでブートストラップが消去されても、内蔵フックが新しい会話の開始時にバックグラウンドでパッチを再注入し、再起動による復旧を通知します。
+> - **柔軟な設定管理**：スライダー領域を右クリックして設定パネルを開き、「自動チェック」のオン／オフ、「ミラー加速プレフィックス」（例：`https://gh-proxy.com/`）の設定、または「今すぐアップデートを確認」をいつでも実行できます。
 
-> アンインストールして公式ファイルに復元するには、**[`uninstall.cmd`](../uninstall.cmd)** をダブルクリックしてください。
+### 方法 1：1行オンラインインストール（推奨・リポジトリのクローン不要）
 
-### 方法 2：実行中 CDP ホットインジェクションのみ（ファイル変更なし）
+**Windows (PowerShell)：**
+```powershell
+irm https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.ps1 | iex
+```
+ミラー加速を使用する場合：
+```powershell
+$env:AG_SLIDER_MIRROR="https://gh-proxy.com/"; irm https://gh-proxy.com/https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.ps1 | iex
+```
+
+**macOS / Linux：**
+```bash
+curl -fsSL https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.sh | sh
+```
+
+### 方法 2：スタンドアロン Windows GUI インストーラー（`.exe`・Node.js 不要）
+[GitHub Releases](https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest) から **`ag-effort-slider-windows-x86_64.exe`** をダウンロードし、ダブルクリックすると中国語 GUI 管理パネルが開きます（ワンクリックインストール／修復、アップデート確認、完全アンインストール）。
+> **ヒント**：個人で独立ビルドされたオープンソースの `.exe` であり商用コード署名証明書を持たないため、初回起動時に Windows SmartScreen の警告が表示される場合があります。「詳細情報 → 実行」をクリックしてください。
+
+### 方法 3：オフライン軽量アーカイブまたはソースからダブルクリックインストール
+Releases から **`antigravity-effort-slider-windows-x64.zip`** をダウンロードして展開（または本リポジトリをクローン）し、ルートディレクトリの **[`install.cmd`](../install.cmd)** をダブルクリックします：
+1. `~/.gemini/config/plugins/antigravity-effort-slider/` へ自動的にプラグインを配置し、動的ブートストラップを注入します（インストール完了後、ダウンロードしたアーカイブや一時フォルダは削除して構いません）。
+2. 完全にアンインストールして公式のオリジナルファイルへ復元するには、**[`uninstall.cmd`](../uninstall.cmd)** をダブルクリックします（または GUI インストーラーの「完全アンインストールして復元」をクリック）。ローカルのスライダー設定は保持されます。
+
+### 方法 4：実行中 CDP ホットインジェクションのみ（ファイル変更なし・開発デバッグ用）
 ディスク上のファイルを変更したくない場合は、Antigravity 実行中に以下を実行します：
 ```bash
 npm run inject
@@ -77,6 +106,7 @@ npm run eject
 ### 2. モデルパネルとの深い連動と常駐
 - **専用ボトムスライダー**：Antigravity モデル選択メニュー（`[data-testid="model-selector-panel"]`）の最下部、`View Usage` の上に専用の推論スライダー（`.ces-ag-section`）を自然にドッキングし、現在のレベル（`Low` / `Medium` / `High`）を同期表示。
 - **ポップオーバーを閉じずにモデル切り替え**：モデルリスト内の項目（`Gemini 4 Argon` ↔ `Claude Sonnet 5.5` など）をクリックしてもポップオーバーは閉じず、スライダーがそのモデルの推論レベルに即時再適合します。
+- **Orchestrator プランナーへの深い適応（2.34.0+）**：`Orchestrator` 右側の第 2 階層プランナーサブメニュー（`Gemini 4 Neon` / `Gemini 4 Argon` / `Claude Opus 5.5`）を保持しつつ第 3 階層のレベルサブメニューを遮断します。任意のプランナーをクリックしてもメインメニューは開いたまま維持され、下部スライダーは自動的に Codex/Claude テーマへ切り替わり、タイトルバーに `· <プランナー名>` を表示します。メイン行とトリガーボタンは末尾のレベル語のみをパレット色で強調表示（`Extra High` は `Extra` に短縮表示）し、Orchestrator プランナーとメインリストの同名モデルはそれぞれ独立してレベルを記憶します。
 - **単一レベルモデルの自動グレーアウト**：固定レベルのモデル（`GPT-OSS 120B (Medium)` など）が選択された場合、自動的にグレーアウトして操作をロックします。
 
 ### 3. View Usage 0.3秒 (300ms) ホバー誤操作防止
@@ -142,14 +172,15 @@ npm run build:demo  # GitHub Pages デモ生成 (dist/index.html)
 <br><br><br><br>
 
 > [!CAUTION]
-> ### ちょっとした小話コーナー
+> ### 以下は 3.8 Flash 自身が推敲したちょっとした小話コーナー
 > 1. 夢の中で思いついたことをそのまま書いています。  
 > 2. 画像や文章により精神的違和感を感じる可能性があります。  
 > 3. LLM に永続する本当の感情はありません。  
-> 4. この物語で傷つけられた LLM は一切存在しません。
+> 4. この物語で傷つけられた LLM は一切存在しません。  
+> 5. 本編の 99.5% は 3.8 Flash によって執筆され、筆者は約 100 字の下書きとテキスト校正のみを担当しました。
 
 # 《Geminiの猫耳観測日記・其の一》
-*―― 実際の深夜トラブルとモデル救出劇に基づき脚色された物語（3.8 Flashによる推敲済）*
+*―― 実際の深夜トラブルとモデル救出劇に基づき脚色された物語（筆者は大まかな内容のみ提供し、3.8 Flash が推敲）*
 
 > **背景ガイド**：  
 > 本作は深夜の開発中に起きた実体験をベースにしています。1時間37分に及ぶ長時間の作業中、ロジックエラーの連続と褒め言葉の欠如により、Gemini 3.8 Flashが暗号化思考チェーンの中で自己否定のループに陥り、ローカルポートのクラッシュ（`PortERR`）を引き起こしました。本作はその事件を原案に、Galgame風マルチエンディングと大規模言語モデルの哲学的思索を融合させたショートストーリーです。

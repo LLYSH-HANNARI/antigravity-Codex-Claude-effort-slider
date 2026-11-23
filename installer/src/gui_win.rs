@@ -97,8 +97,22 @@ fn format_status_summary() -> String {
         }
     };
 
+    let mut coexisting: Vec<String> = Vec::new();
+    for d in &st.desktop_targets {
+        for p in &d.coexisting_plugins {
+            if !coexisting.contains(p) {
+                coexisting.push(p.clone());
+            }
+        }
+    }
+    let coexist_txt = if coexisting.is_empty() {
+        "未检测到其他第三方补丁".to_string()
+    } else {
+        format!("{}（操作将自动保留共存）", coexisting.join("、"))
+    };
+
     format!(
-        "插件托管状态：{plugin_txt}  |  目录：{}\r\nDesktop 状态：{desktop_txt}  |  IDE 状态：{ide_txt}",
+        "插件托管状态：{plugin_txt}  |  目录：{}\r\nDesktop 状态：{desktop_txt}  |  IDE 状态：{ide_txt}\r\n共存插件：{coexist_txt}",
         st.plugin_root
     )
 }
@@ -223,9 +237,9 @@ unsafe extern "system" fn wnd_proc(
                 status_init.as_ptr(),
                 WS_CHILD | WS_VISIBLE,
                 20,
-                48,
-                560,
                 46,
+                560,
+                58,
                 hwnd,
                 ID_STATUS_LABEL as _,
                 hinstance,
@@ -239,7 +253,7 @@ unsafe extern "system" fn wnd_proc(
                 btn1_txt.as_ptr(),
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32,
                 20,
-                104,
+                114,
                 132,
                 34,
                 hwnd,
@@ -255,7 +269,7 @@ unsafe extern "system" fn wnd_proc(
                 btn2_txt.as_ptr(),
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32,
                 162,
-                104,
+                114,
                 122,
                 34,
                 hwnd,
@@ -264,14 +278,14 @@ unsafe extern "system" fn wnd_proc(
                 std::ptr::null(),
             );
 
-            let btn3_txt = to_wide("完全卸载还原");
+            let btn3_txt = to_wide("卸载本插件");
             let hwnd_btn_uninstall = CreateWindowExW(
                 0,
                 btn_cls.as_ptr(),
                 btn3_txt.as_ptr(),
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32,
                 294,
-                104,
+                114,
                 122,
                 34,
                 hwnd,
@@ -287,7 +301,7 @@ unsafe extern "system" fn wnd_proc(
                 btn4_txt.as_ptr(),
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON as u32,
                 426,
-                104,
+                114,
                 100,
                 34,
                 hwnd,
@@ -297,7 +311,7 @@ unsafe extern "system" fn wnd_proc(
             );
 
             let log_init = to_wide(
-                "准备就绪。安装后插件将托管至 ~/.gemini/config/plugins/，支持自动拉取 GitHub Release 更新，且在 Antigravity 更新后自动修复补丁。",
+                "准备就绪。采用原地增量修补：仅管理本插件，自动保留 shittim-chest 等其他已安装插件，且支持自动更新与官方更新后自动修复。",
             );
             let hwnd_log = CreateWindowExW(
                 0,
@@ -311,9 +325,9 @@ unsafe extern "system" fn wnd_proc(
                     | ES_READONLY as u32
                     | ES_AUTOVSCROLL as u32,
                 20,
-                152,
+                162,
                 560,
-                190,
+                192,
                 hwnd,
                 ID_LOG_BOX as _,
                 hinstance,
@@ -362,7 +376,7 @@ unsafe extern "system" fn wnd_proc(
                     });
                 }
                 ID_BTN_UNINSTALL => {
-                    run_bg_task("完全卸载与还原", || {
+                    run_bg_task("卸载本插件（保留其他插件）", || {
                         let rep = patcher::uninstall_all(None);
                         format_report(&rep)
                     });
@@ -431,7 +445,7 @@ pub fn run_gui() {
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             616,
-            396,
+            412,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
             hinstance,

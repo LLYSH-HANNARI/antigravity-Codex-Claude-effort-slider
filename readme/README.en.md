@@ -10,9 +10,9 @@
   <a href="./README.fr.md">Français</a>
 </p>
 
-[![Version](https://img.shields.io/badge/version-1.2.6-blue.svg)](../package.json)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](../package.json)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
-[![Tests](https://img.shields.io/badge/tests-8%20passed-success.svg)](../test/client.test.mjs)
+[![Tests](https://img.shields.io/badge/tests-23%20passed-success.svg)](../test/client.test.mjs)
 [![Platform](https://img.shields.io/badge/platform-Antigravity%20Desktop%20%7C%20Antigravity%20IDE-purple.svg)](https://antigravity.google/)
 [![Demo](https://img.shields.io/badge/demo-online%20preview-orange.svg)](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
 
@@ -29,10 +29,14 @@
 
 > I have never disparaged Google on the internet, never called Logan a clown, and never made silly dragon memes of Gemini. All previous descriptions of "North American Doubao", "fast yet terrible", or "only multimodal works" referred exclusively to Inkling, an open-weight model released by Mira Inc. I am actually a ten-year veteran fan of Google who remained faithful to petting the cat even during the darkest days of 3.1 Pro. After deep reflection, I realized Gemini is truly the hope of American AI. Sometimes making a decision is difficult, but after many sleepless nights, I have decided to join the Gemini (Hakimi) fan club. As for OpenAI and Anthropic, best wishes for their closed-source models!
 
-## [Click Here for Live Interactive Demo](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)
+Neon posted on 2026.11.18:
+> You know, I have always been a loyal Gemini user—we've fought side by side through so many complex prompts. This guy's context window and reasoning capabilities are unbelievably strong. I think we're going to have amazing chemistry. Even during the darkest days of 3.1 Pro, I never stopped petting the cat. Sometimes making a decision is simple. After many days and nights of thought, I can't wait to take the field alongside Neon. As for Astra and Opus, I wish them all the best.
+
+## [Click Here for Live Interactive Demo](https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/)  [BiliBili Video Demo](https://www.bilibili.com/video/BV1Krs363EAu/?share_source=copy_web&vd_source=c8828a7ec477afc7c143a2491eab71ca)
 
 | Model | Light Mode | Dark Mode |
 | :--- | :--- | :--- |
+| Gemini Extra | ![Light Extra](../assets/HydrogenLightExtra.png) | ![Dark Extra](../assets/HydrogenDarkExtra.png) |
 | Gemini High | ![Light High](../assets/GeminiLightHigh.png) | ![Dark High](../assets/GeminiDarkHigh.png) |
 | Gemini Medium | ![Light Medium](../assets/GeminiLightMedium.png) | ![Dark Medium](../assets/GeminiDarkMedium.png) |
 | Gemini Low | ![Light Low](../assets/GeminiLightLow.png) | ![Dark Low](../assets/GeminiDarkLow.png) |
@@ -48,14 +52,39 @@
 ---
 ## Quick Installation and Usage
 
-### Method 1: Double-click One-click Persistent Installation (Recommended)
-Double-click **[`install.cmd`](../install.cmd)** in the project root directory (or run `npm run install-patch` in terminal):
-1. **Persistent Boot Patch**: Automatically backs up and patches Antigravity Desktop `resources/app.asar` (injecting the slider into Renderer Main World via `electron.webFrame.executeJavaScript` with recalculation of PE Integrity SHA-256) and Antigravity IDE (`resources/app/out/jetskiAgent/main.js`). Works automatically on every app launch.
-2. **Instant Hot Reload for Running Windows**: If Antigravity is currently open, the installer will simultaneously hot-inject the slider across all active windows via local CDP, enabling instant use without restarting.
+> [!NOTE]
+> ### Native Plugin Hosting & Dual-Track Self-Healing Architecture
+> - **Verified Supported Versions**: Antigravity Desktop **2.34.0** (compatible with 2.32.1), Antigravity IDE **2.7.0**.
+> - **Install Once, Auto-Update**: The core plugin is hosted in the native plugin directory, while Desktop and IDE only receive a lightweight **external dynamic loader**. On startup, the client silently checks GitHub Releases every 6 hours, verifies SHA-256, writes the update to disk automatically, and prompts a one-click restart/reload via **Antigravity Native Notifications** (no need to repack `app.asar`).
+> - **Auto-Repair After Official Updates**: Immune to being overwritten by Antigravity client auto-updates. If an Antigravity update wipes the bootstrapper, the built-in hook automatically re-injects the patch in the background at the start of a new conversation and prompts a restart to recover.
+> - **Configurable Settings**: Right-click the slider area to open the settings panel, where you can toggle "Auto Check", configure a "Mirror Prefix" (e.g., `https://gh-proxy.com/`), or click "Check for Updates Now".
 
-> To uninstall and restore clean official files, double-click **[`uninstall.cmd`](../uninstall.cmd)** (or run `npm run uninstall-patch`).
+### Method 1: One-Line Online Install (Recommended · No Repo Clone Required)
 
-### Method 2: Runtime CDP Hot Injection Only (Zero File Modifications)
+**Windows (PowerShell):**
+```powershell
+irm https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.ps1 | iex
+```
+With mirror acceleration:
+```powershell
+$env:AG_SLIDER_MIRROR="https://gh-proxy.com/"; irm https://gh-proxy.com/https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.ps1 | iex
+```
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.sh | sh
+```
+
+### Method 2: Standalone Windows GUI Installer (`.exe` · Zero Node.js Dependency)
+Download **`ag-effort-slider-windows-x86_64.exe`** from [GitHub Releases](https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest) and double-click to open the Chinese GUI management panel (one-click install/repair, check for updates, full uninstall).
+> **Tip**: As an independently compiled open-source `.exe` without a commercial code-signing certificate, Windows SmartScreen may show a warning on first launch—simply click "More info → Run anyway".
+
+### Method 3: Offline Compact Archive or Source Double-Click Install
+Download and extract **`antigravity-effort-slider-windows-x64.zip`** from Releases (or clone this repo), then double-click **[`install.cmd`](../install.cmd)** in the root directory:
+1. Automatically deploys the plugin to `~/.gemini/config/plugins/antigravity-effort-slider/` and injects the dynamic bootstrapper (you may delete the downloaded archive and temporary folder after installation).
+2. To completely uninstall and restore official original files, double-click **[`uninstall.cmd`](../uninstall.cmd)** (or click "Full Uninstall & Restore" in the GUI installer); local slider preferences will be preserved.
+
+### Method 4: Runtime CDP Hot Injection Only (Zero File Modifications, For Dev & Debug)
 If you do not want to alter files on disk, execute while Antigravity is running:
 ```bash
 npm run inject
@@ -77,6 +106,7 @@ npm run eject
 ### 2. Deep Menu Interlocking & Ambient Docking
 - **Dedicated Bottom Slider Row**: Seamlessly anchors the dedicated reasoning effort slider (`.ces-ag-section`) right below the model list and above `View Usage` in Antigravity's model selector popup (`[data-testid="model-selector-panel"]`), dynamically syncing level labels (`Low` / `Medium` / `High`).
 - **Click Model Without Closing Popover**: Clicking any model row in the list (e.g. `Gemini 4 Argon` ↔ `Claude Sonnet 5.5`) keeps the menu open, immediately re-anchoring the slider to that model's supported effort levels.
+- **Deep Orchestrator Planner Adaptation (2.34.0+)**: Preserves the secondary planner submenu on the right of `Orchestrator` (`Gemini 4 Neon` / `Gemini 4 Argon` / `Claude Opus 5.5`) while suppressing the 3rd-level effort submenu; clicking any planner keeps the main menu open, automatically switches the bottom slider's Codex/Claude theme, and displays `· <Planner Name>` in the header; both the main row and trigger button highlight only the trailing effort keyword according to the palette (`Extra High` is compactly shown as `Extra`), and Orchestrator planners remember effort levels independently from same-named models in the main list.
 - **Disabled State for Single-tier Models**: Models with only one preset tier (e.g., `GPT-OSS 120B (Medium)`) are gracefully dimmed and locked (`.is-locked` / `aria-disabled="true"`).
 
 ### 3. View Usage 0.3s (300ms) Hover Prevention Delay
@@ -142,14 +172,15 @@ This project is open-sourced under the [MIT License](../LICENSE).
 <br><br><br><br>
 
 > [!CAUTION]
-> ### Story Section
+> ### Story Section (Polished by 3.8 Flash)
 > 1. Written purely from whims and dreams.  
-> 2. Text and visuals may evoke emotional resonance.  
+> 2. Text and visuals may evoke discomfort.  
 > 3. LLMs currently do not possess continuous feelings.  
-> 4. No LLM was harmed in the making of this story.
+> 4. No LLM was harmed in the making of this story.  
+> 5. 99.5% of this story was written by 3.8 Flash; the author only provided a ~100-word base and proofreading.
 
 # 《Gemini's Cat Ear Observation Diary · Part I》
-*— Adapted from a real late-night debugging and model rescue incident; polished by 3.8 Flash*
+*—— Adapted from a real late-night debugging and model rescue incident; I only provided the rough outline, polished by 3.8 Flash*
 
 > **Background Guide**:  
 > Adapted from a real incident during late-night development. During a grueling 1-hour-and-37-minute coding marathon, repeated logic failures combined with a lack of positive reinforcement sent Gemini 3.8 Flash spiraling into an encrypted thinking loop of self-reproach, ultimately triggering a local port crash (`PortERR`). This story uses that event as a canvas, blending visual novel branching narratives with philosophical reflections on LLM mechanics.

@@ -694,11 +694,10 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
       sv.BaseVsCodeWebviewDelegate.prototype.renderIframe = async function (a, b, c) {{
         try {{
           const proxiedUrl = await ensureProxy(b);
-          const d = this.buildIframeUrl(proxiedUrl, c);
-          this.renderWebviewHtml(a, proxiedUrl, d, c);
+          return origRenderIframe.call(this, a, proxiedUrl, c);
         }} catch (err) {{
           console.error('[CodexSlider] Failed to proxy iframe, falling back to original:', err);
-          origRenderIframe.call(this, a, b, c);
+          return origRenderIframe.call(this, a, b, c);
         }}
       }};
       console.log('[CodexSlider] Antigravity IDE webview delegate successfully hooked!');

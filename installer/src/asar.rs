@@ -253,3 +253,39 @@ pub fn repack_asar<'a>(
 
     build_asar_buffer(&root, &chunks)
 }
+
+/// 写盘前内存自检：回读解析新生成的 ASAR 字节流，验证头部、关键条目可读性与 SHA-256 完整性
+pub fn verify_asar_buffer(asar_bytes: &[u8], required_entries: &[&str]) -> Result<(), String> {
+    let (root, payload) = parse_asar_buffer(asar_bytes)?;
+    for rel_path in required_entries {
+        let entry = find_entry(&root, rel_path)
+            .ok_or_else(|| format!("ASAR 自检失败：缺少必要条目 {rel_path}"))?;
+        let offset = entry
+            .get("offset")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<usize>().ok())
+            .ok_or_else(|| format!("ASAR 自检失败：{rel_path} offset 非法"))?;
+        let size = entry
+            .get("size")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| format!("ASAR 自检失败：{rel_path} size 非法"))? as usize;
+        if offset + size > payload.len() {
+            return Err(format!("ASAR 自检失败：{rel_path} 数据越界"));
+        }
+        let slice = &payload[offset..offset + size];
+        if std::str::from_utf8(slice).is_err() {
+            return Err(format!("ASAR 自检失败：{rel_path} 不是有效 UTF-8"));
+        }
+        if let Some(expected_hash) = entry
+            .get("integrity")
+            .and_then(|i| i.get("hash"))
+            .and_then(|h| h.as_str())
+        {
+            let actual = hex::encode(Sha256::digest(slice));
+            if !actual.eq_ignore_ascii_case(expected_hash) {
+                return Err(format!("ASAR 自检失败：{rel_path} SHA-256 不匹配"));
+            }
+        }
+    }
+    Ok(())
+}
