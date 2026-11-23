@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="cesBg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#181826"/>
+      <stop offset="100%" stop-color="#2a1650"/>
+    </linearGradient>
+    <linearGradient id="cesTrack" x1="10" y1="32" x2="46" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4d93f8"/>
+      <stop offset="55%" stop-color="#9333ea"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#cesBg)" stroke="rgba(168,85,247,0.45)" stroke-width="2"/>
+  <rect x="10" y="23" width="44" height="18" rx="9" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.16)" stroke-width="1.2"/>
+  <rect x="10" y="23" width="35" height="18" rx="9" fill="url(#cesTrack)"/>
+  <circle cx="20" cy="29" r="1.4" fill="#f5f3ff" opacity="0.9"/>
+  <circle cx="29" cy="34.5" r="1.2" fill="#f5f3ff" opacity="0.8"/>
+  <circle cx="25" cy="27.5" r="1" fill="#f5f3ff" opacity="0.7"/>
+  <circle cx="43" cy="32" r="7.5" fill="#ffffff"/>
+</svg>

@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Codex &amp; Claude Effort Slider // Control Panel</title>
+  <script src="/preload.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #12101d;
+      --panel-grad: radial-gradient(90% 45% at 12% 0%, rgba(139, 92, 246, 0.16), transparent 65%),
+                    radial-gradient(65% 38% at 92% 100%, rgba(77, 147, 248, 0.10), transparent 70%);
+      --card-bg: rgba(28, 22, 54, 0.72);
+      --card-border: rgba(168, 85, 247, 0.24);
+      --row-bg: rgba(24, 19, 46, 0.78);
+      --row-border: rgba(168, 85, 247, 0.22);
+      --accent: #c084fc;
+      --accent-strong: #d8b4fe;
+      --accent-btn: #c084fc;
+      --accent-btn-hover: #d8b4fe;
+      --accent-btn-fg: #180f2e;
+      --accent-soft: rgba(168, 85, 247, 0.16);
+      --text-primary: #f4f1ff;
+      --text-secondary: #c4b5e6;
+      --text-muted: #8e7fb5;
+      --input-bg: rgba(12, 9, 26, 0.55);
+      --danger: #ef4444;
+      --danger-soft: rgba(239, 68, 68, 0.14);
+      --danger-border: rgba(239, 68, 68, 0.48);
+      --danger-fg: #fca5a5;
+      --ok: #4ade80;
+      --ok-soft: rgba(34, 197, 94, 0.14);
+      --ok-border: rgba(34, 197, 94, 0.38);
+      --top-bar: linear-gradient(90deg, #4d93f8 0%, #9333ea 58%, #c084fc 100%);
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f6f4fc;
+      --panel-grad: radial-gradient(90% 45% at 12% 0%, rgba(124, 58, 237, 0.10), transparent 65%),
+                    radial-gradient(65% 38% at 92% 100%, rgba(77, 147, 248, 0.08), transparent 70%);
+      --card-bg: rgba(255, 255, 255, 0.92);
+      --card-border: rgba(124, 58, 237, 0.20);
+      --row-bg: rgba(247, 244, 255, 0.92);
+      --row-border: rgba(124, 58, 237, 0.18);
+      --accent: #7c3aed;
+      --accent-strong: #6d28d9;
+      --accent-btn: #7c3aed;
+      --accent-btn-hover: #6d28d9;
+      --accent-btn-fg: #ffffff;
+      --accent-soft: rgba(124, 58, 237, 0.11);
+      --text-primary: #1a1333;
+      --text-secondary: #4e4273;
+      --text-muted: #7a6e9e;
+      --input-bg: rgba(255, 255, 255, 0.95);
+      --danger: #dc2626;
+      --danger-soft: rgba(220, 38, 38, 0.08);
+      --danger-border: rgba(220, 38, 38, 0.36);
+      --danger-fg: #b91c1c;
+      --ok: #15803d;
+      --ok-soft: rgba(22, 163, 74, 0.10);
+      --ok-border: rgba(22, 163, 74, 0.32);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      min-height: 100%;
+      background-color: var(--bg);
+      background-image: var(--panel-grad);
+      color: var(--text-primary);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      line-height: 1.45;
+      user-select: none;
+      overflow-x: hidden;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      position: relative;
+      padding: 12px 14px;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .header::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 2px;
+      background: var(--top-bar);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
+
+    .brand-logo {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      flex-shrink: 0;
+    }
+
+    .brand-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: ui-monospace, Consolas, monospace;
+    }
+
+    .body {
+      flex: 1;
+      padding: 13px 14px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .section-label {
+      position: relative;
+      isolation: isolate;
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-strong);
+      letter-spacing: 0.5px;
+      padding: 2px 10px;
+    }
+
+    .section-label::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: var(--accent-soft);
+      border: 1px solid var(--row-border);
+      border-radius: 4px;
+      transform: skewX(-12deg);
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: var(--row-bg);
+      border: 1px solid var(--row-border);
+      border-radius: 8px;
+      padding: 9px 11px;
+    }
+
+    .row.col {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 7px;
+    }
+
+    .row-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .row-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .row-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid var(--accent-btn);
+      background: var(--accent-btn);
+      color: var(--accent-btn-fg);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: filter 0.14s ease, transform 0.1s ease, background 0.14s ease;
+    }
+
+    .btn:hover:not(:disabled) {
+      filter: brightness(1.06);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .btn.is-ghost {
+      background: transparent;
+      border-color: var(--row-border);
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .btn.is-ghost:hover:not(:disabled) {
+      background: var(--accent-soft);
+      color: var(--text-primary);
+    }
+
+    .btn.is-off {
+      background: transparent;
+      border-color: var(--row-border);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .btn.sm {
+      padding: 4px 9px;
+      font-size: 11px;
+    }
+
+    .seg-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .seg-btn {
+      appearance: none;
+      border: 1px solid var(--row-border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+      border-radius: 6px;
+      padding: 6px 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      white-space: normal;
+      line-height: 1.25;
+      transition: all 0.14s ease;
+    }
+
+    .seg-btn:hover {
+      background: var(--accent-soft);
+      color: var(--text-primary);
+    }
+
+    .seg-btn.is-on {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent-strong);
+    }
+
+    .mirror-row {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .text-input {
+      flex: 1;
+      min-width: 0;
+      padding: 6px 9px;
+      border-radius: 6px;
+      border: 1px solid var(--row-border);
+      background: var(--input-bg);
+      color: var(--text-primary);
+      font-size: 11.5px;
+      outline: none;
+    }
+
+    .text-input:focus {
+      border-color: var(--accent);
+    }
+
+    .kv-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .kv-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 11.5px;
+    }
+
+    .kv-k {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .kv-v {
+      color: var(--text-primary);
+      text-align: right;
+      word-break: break-all;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 11px;
+    }
+
+    .kv-actions {
+      display: flex;
+      gap: 7px;
+      padding-top: 2px;
+    }
+
+    .kv-actions .btn {
+      flex: 1;
+    }
+
+    .update-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 11px;
+      border-radius: 8px;
+      border: 1px solid var(--ok-border);
+      background: var(--ok-soft);
+    }
+
+    .update-banner.visible {
+      display: flex;
+    }
+
+    .update-banner-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ok);
+    }
+
+    .danger-zone {
+      margin-top: 4px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--row-border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn-danger-full {
+      width: 100%;
+      appearance: none;
+      padding: 8px 12px;
+      border-radius: 7px;
+      border: 1px solid var(--danger-border);
+      background: var(--danger-soft);
+      color: var(--danger-fg);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.14s ease, border-color 0.14s ease;
+    }
+
+    .btn-danger-full:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.24);
+      border-color: var(--danger);
+    }
+
+    .btn-danger-solid {
+      appearance: none;
+      padding: 6px 11px;
+      border-radius: 6px;
+      border: 1px solid var(--danger);
+      background: var(--danger);
+      color: #ffffff;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .confirm-box {
+      padding: 10px 11px;
+      border-radius: 8px;
+      border: 1px solid var(--danger-border);
+      background: var(--danger-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .confirm-actions {
+      display: flex;
+      gap: 7px;
+      justify-content: flex-end;
+    }
+
+    .notice {
+      padding: 8px 10px;
+      border-radius: 7px;
+      font-size: 11.5px;
+      border: 1px solid var(--row-border);
+      background: var(--row-bg);
+      color: var(--text-secondary);
+    }
+
+    .notice.is-ok {
+      border-color: var(--ok-border);
+      background: var(--ok-soft);
+      color: var(--text-primary);
+    }
+
+    .notice.is-err {
+      border-color: var(--danger-border);
+      background: var(--danger-soft);
+      color: var(--danger-fg);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="header">
+      <div class="brand">
+        <img class="brand-logo" src="/assets/logo.svg" alt="Effort Slider Logo" />
+        <div>
+          <div class="brand-title" data-i18n="panelTitle">推理等级滑条</div>
+          <div class="brand-sub" id="headerSub">v1.5.0</div>
+        </div>
+      </div>
+      <button type="button" class="btn is-ghost sm" id="refreshBtn" data-i18n="refresh">刷新</button>
+    </header>
+
+    <main class="body">
+      <div id="globalNotice" class="notice hidden"></div>
+
+      <!-- 1. 外观设置 -->
+      <section class="section">
+        <div class="section-head">
+          <div class="section-label" data-i18n="appearanceSection">滑条外观设置</div>
+          <button type="button" class="btn is-ghost sm" id="resetAppearanceBtn" data-i18n="resetDefault">恢复默认</button>
+        </div>
+
+        <div class="row col">
+          <div class="row-info">
+            <div class="row-title" data-i18n="motionLabel">动画效果</div>
+            <div class="row-desc" data-i18n="motionSyncDesc">修改后立即热同步至 Desktop 与 IDE 对话框滑条</div>
+          </div>
+          <div class="seg-grid" id="motionGroup">
+            <button type="button" class="seg-btn" data-key="motion" data-val="full" data-i18n="motionFull">完整动画</button>
+            <button type="button" class="seg-btn" data-key="motion" data-val="fast" data-i18n="motionFast">快速动画</button>
+            <button type="button" class="seg-btn" data-key="motion" data-val="quick" data-i18n="motionQuick">简洁动画</button>
+          </div>
+        </div>
+
+        <div class="row col">
+          <div class="row-info">
+            <div class="row-title" data-i18n="ticksLabel">已到达档位的刻度点</div>
+          </div>
+          <div class="seg-grid" id="ticksGroup">
+            <button type="button" class="seg-btn" data-key="ticks" data-val="highlight" data-i18n="ticksHighlight">亮白显示</button>
+            <button type="button" class="seg-btn" data-key="ticks" data-val="dim" data-i18n="ticksDim">与未到达同色</button>
+            <button type="button" class="seg-btn" data-key="ticks" data-val="hidden" data-i18n="ticksHidden">隐藏</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. 运行与共存状态 -->
+      <section class="section">
+        <div class="section-label" data-i18n="runtimeSection">运行与共存状态</div>
+        <div class="row col">
+          <div class="kv-list">
+            <div class="kv-row">
+              <span class="kv-k">Desktop app.asar</span>
+              <span class="kv-v" id="kvDesktop">...</span>
+            </div>
+            <div class="kv-row">
+              <span class="kv-k">Antigravity IDE</span>
+              <span class="kv-v" id="kvIde">...</span>
+            </div>
+            <div class="kv-row">
+              <span class="kv-k" data-i18n="coexistLabel">共存插件</span>
+              <span class="kv-v" id="kvCoexist">...</span>
+            </div>
+          </div>
+          <div class="kv-actions">
+            <button type="button" class="btn is-ghost sm" id="repairBtn" data-i18n="repairLoader">修复引导器</button>
+            <button type="button" class="btn is-ghost sm" id="copyDiagBtn" data-i18n="copyEnvDiag">复制环境诊断</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 版本与自动更新 -->
+      <section class="section">
+        <div class="section-label" data-i18n="updateSection">版本与自动更新</div>
+
+        <div class="update-banner" id="updatePendingBanner">
+          <div class="row-info">
+            <div class="update-banner-title" id="updatePendingTitle" data-i18n="pendingTitleFallback">新版本已准备就绪</div>
+            <div class="row-desc" id="updatePendingNotes" data-i18n="pendingNotesFallback">新版本已校验完成，重启 Antigravity 立即生效。</div>
+          </div>
+          <button type="button" class="btn sm" id="relaunchNowBtn" data-i18n="relaunchNow">立即重启生效</button>
+        </div>
+
+        <div class="row">
+          <div class="row-info">
+            <div class="row-title"><span data-i18n="currentVersionPrefix">当前版本：</span><span id="currentVersionText">v1.5.0</span></div>
+            <div class="row-desc" id="updateStatusDesc">...</div>
+          </div>
+          <button type="button" class="btn" id="checkUpdateBtn" data-i18n="checkUpdate">检查更新</button>
+        </div>
+
+        <div class="row">
+          <div class="row-info">
+            <div class="row-title" data-i18n="autoUpdateTitle">每 12 小时自动检查更新</div>
+            <div class="row-desc" data-i18n="autoUpdateDesc">后台静默拉取轻量更新包并弹窗提醒重启生效</div>
+          </div>
+          <button type="button" class="btn" id="toggleAutoUpdateBtn" data-i18n="enabled">已启用</button>
+        </div>
+
+        <div class="row col">
+          <div class="row-info">
+            <div class="row-title" data-i18n="mirrorTitle">GitHub 镜像前缀</div>
+            <div class="row-desc" data-i18n="mirrorDesc">留空使用系统代理直连；国内可填入加速前缀（如 https://gh-proxy.com/）</div>
+          </div>
+          <div class="mirror-row">
+            <input type="text" class="text-input" id="mirrorPrefixInput" data-i18n-placeholder="mirrorPlaceholder" placeholder="https://gh-proxy.com/" />
+            <button type="button" class="btn" id="saveMirrorBtn" data-i18n="save">保存</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 最底端危险操作区 -->
+      <section class="danger-zone">
+        <button type="button" class="btn-danger-full" id="uninstallOpenBtn" data-i18n="uninstallBtn">卸载本插件</button>
+
+        <div class="confirm-box hidden" id="uninstallConfirmBox">
+          <div class="row-title" style="color:var(--danger-fg);" data-i18n="uninstallConfirmTitle">确认卸载「推理等级滑条」？</div>
+          <div class="row-desc" data-i18n="uninstallConfirmDesc">仅移除本插件的补丁与插件目录，不会影响其他已安装的插件及原有设置。</div>
+          <div class="confirm-actions">
+            <button type="button" class="btn is-ghost sm" id="uninstallCancelBtn" data-i18n="cancel">取消</button>
+            <button type="button" class="btn-danger-solid" id="uninstallConfirmBtn" data-i18n="confirmUninstall">确认卸载</button>
+          </div>
+        </div>
+
+        <div class="notice is-ok hidden" id="uninstalledDoneBox">
+          <div class="row-title" style="margin-bottom:4px;" data-i18n="uninstalledDoneTitle">本插件已精准卸载</div>
+          <div class="row-desc" style="margin-bottom:8px;" data-i18n="uninstalledDoneDesc">已移除本插件补丁与插件目录，其他已安装插件不受影响，重启 Antigravity 后彻底生效。</div>
+          <div class="confirm-actions">
+            <button type="button" class="btn sm" id="uninstallRelaunchBtn" data-i18n="relaunchNow">立即重启生效</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      function resolveUiLocale(rawLocale) {
+        const raw = String(rawLocale || "").trim().toLowerCase().replace(/_/g, "-");
+        if (!raw) return "en";
+        if (raw === "zh-tw" || raw === "zh-hk" || raw === "zh-mo" || raw.startsWith("zh-hant")) return "zh-TW";
+        if (raw === "zh" || raw.startsWith("zh-")) return "zh-CN";
+        if (raw === "ja" || raw.startsWith("ja-")) return "ja";
+        if (raw === "ko" || raw.startsWith("ko-")) return "ko";
+        if (raw === "fr" || raw.startsWith("fr-")) return "fr";
+        if (raw === "ru" || raw.startsWith("ru-")) return "ru";
+        return "en";
+      }
+
+      function detectUiLocale() {
+        try {
+          const nav = window.navigator;
+          if (nav) {
+            if (Array.isArray(nav.languages) && nav.languages.length > 0 && nav.languages[0]) {
+              return resolveUiLocale(nav.languages[0]);
+            }
+            if (typeof nav.language === "string" && nav.language.trim()) {
+              return resolveUiLocale(nav.language);
+            }
+          }
+        } catch (_) {}
+        try {
+          if (typeof Intl !== "undefined" && Intl.DateTimeFormat) {
+            const loc = Intl.DateTimeFormat().resolvedOptions().locale;
+            if (loc) return resolveUiLocale(loc);
+          }
+        } catch (_) {}
+        return "en";
+      }
+
+      const DICT = {
+        "zh-CN": {
+          docTitle: "推理等级滑条 // 控制面板",
+          panelTitle: "推理等级滑条",
+          headerSub: "v{version} · 双向实时同步",
+          refresh: "刷新",
+          appearanceSection: "滑条外观设置",
+          resetDefault: "恢复默认",
+          motionLabel: "动画效果",
+          motionSyncDesc: "修改后立即热同步至 Desktop 与 IDE 对话框滑条",
+          motionFull: "完整动画",
+          motionFast: "快速动画",
+          motionQuick: "简洁动画",
+          ticksLabel: "已到达档位的刻度点",
+          ticksHighlight: "亮白显示",
+          ticksDim: "与未到达同色",
+          ticksHidden: "隐藏",
+          runtimeSection: "运行与共存状态",
+          coexistLabel: "共存插件",
+          detecting: "检测中…",
+          notDetected: "未检测到",
+          pendingSwap: "待退出替换 ({s})",
+          injectedCount: "已注入 ({p}/{t})",
+          coexistSafe: "{list}（安全共存）",
+          noOtherPlugin: "未检测到其他第三方插件",
+          repairLoader: "修复引导器",
+          copyEnvDiag: "复制环境诊断",
+          copied: "已复制",
+          clipboardUnavailable: "剪贴板不可用。",
+          repairSuccess: "引导器已修复并保留其他共存插件。",
+          repairFail: "修复失败，请查看环境权限。",
+          repairFailErr: "修复失败：{err}",
+          updateSection: "版本与自动更新",
+          pendingTitle: "新版本 v{version} 已准备就绪",
+          pendingTitleFallback: "新版本已准备就绪",
+          pendingNotesFallback: "新版本已校验完成，重启 Antigravity 立即生效。",
+          relaunchNow: "立即重启生效",
+          currentVersionPrefix: "当前版本：",
+          lastCheckPrefix: "上次检查：{time}",
+          lastCheckNever: "尚未检查",
+          timeJustNow: "刚刚",
+          timeMinutesAgo: "{n} 分钟前",
+          timeHoursAgo: "{n} 小时前",
+          timeDaysAgo: "{n} 天前",
+          checkUpdate: "检查更新",
+          checkingUpdate: "检查中...",
+          checkingRelease: "正在连接 GitHub Release 检查更新...",
+          upToDate: "当前已是最新版本 (v{version})",
+          downloadedReady: "新版本 v{version} 已就绪，请点击「立即重启生效」",
+          checkFailed: "检查失败：{err}",
+          networkError: "网络异常",
+          checkFallbackErr: "请检查网络或代理/镜像设置",
+          autoUpdateTitle: "每 12 小时自动检查更新",
+          autoUpdateDesc: "后台静默拉取轻量更新包并弹窗提醒重启生效",
+          autoUpdateOnHint: "已开启每 12 小时自动检查更新",
+          autoUpdateOffHint: "已切换为仅手动检查更新",
+          enabled: "已启用",
+          disabled: "已禁用",
+          mirrorTitle: "GitHub 镜像前缀",
+          mirrorDesc: "留空使用系统代理直连；国内可填入加速前缀（如 https://gh-proxy.com/）",
+          mirrorPlaceholder: "留空直连，如 https://gh-proxy.com/",
+          mirrorSavedHint: "已保存 GitHub 镜像前缀",
+          mirrorDirectHint: "已恢复直连（无镜像前缀）",
+          save: "保存",
+          uninstallBtn: "卸载本插件",
+          uninstallConfirmTitle: "确认卸载「推理等级滑条」？",
+          uninstallConfirmDesc: "仅移除本插件的补丁与插件目录，不会影响其他已安装的插件及原有设置。",
+          cancel: "取消",
+          confirmUninstall: "确认卸载",
+          uninstalling: "卸载中…",
+          uninstallFail: "卸载失败",
+          uninstallReqFail: "卸载请求失败：{err}",
+          uninstallDoneNotice: "已精准卸载本插件，其他共存插件保持完好。",
+          uninstalledDoneTitle: "本插件已精准卸载",
+          uninstalledDoneDesc: "已移除本插件补丁与插件目录，其他已安装插件不受影响，重启 Antigravity 后彻底生效。"
+        },
+        "zh-TW": {
+          docTitle: "推理等級滑桿 // 控制面板",
+          panelTitle: "推理等級滑桿",
+          headerSub: "v{version} · 雙向即時同步",
+          refresh: "重新整理",
+          appearanceSection: "滑桿外觀設定",
+          resetDefault: "恢復預設",
+          motionLabel: "動畫效果",
+          motionSyncDesc: "修改後立即熱同步至 Desktop 與 IDE 對話框滑桿",
+          motionFull: "完整動畫",
+          motionFast: "快速動畫",
+          motionQuick: "簡潔動畫",
+          ticksLabel: "已到達檔位的刻度點",
+          ticksHighlight: "亮白顯示",
+          ticksDim: "與未到達同色",
+          ticksHidden: "隱藏",
+          runtimeSection: "執行與共存狀態",
+          coexistLabel: "共存外掛",
+          detecting: "偵測中…",
+          notDetected: "未偵測到",
+          pendingSwap: "待結束替換 ({s})",
+          injectedCount: "已注入 ({p}/{t})",
+          coexistSafe: "{list}（安全共存）",
+          noOtherPlugin: "未偵測到其他第三方外掛",
+          repairLoader: "修復引導器",
+          copyEnvDiag: "複製環境診斷",
+          copied: "已複製",
+          clipboardUnavailable: "剪貼簿不可用。",
+          repairSuccess: "引導器已修復並保留其他共存外掛。",
+          repairFail: "修復失敗，請檢查環境權限。",
+          repairFailErr: "修復失敗：{err}",
+          updateSection: "版本與自動更新",
+          pendingTitle: "新版本 v{version} 已準備就緒",
+          pendingTitleFallback: "新版本已準備就緒",
+          pendingNotesFallback: "新版本已校驗完成，重啟 Antigravity 立即生效。",
+          relaunchNow: "立即重啟生效",
+          currentVersionPrefix: "目前版本：",
+          lastCheckPrefix: "上次檢查：{time}",
+          lastCheckNever: "尚未檢查",
+          timeJustNow: "剛剛",
+          timeMinutesAgo: "{n} 分鐘前",
+          timeHoursAgo: "{n} 小時前",
+          timeDaysAgo: "{n} 天前",
+          checkUpdate: "檢查更新",
+          checkingUpdate: "檢查中...",
+          checkingRelease: "正在連線 GitHub Release 檢查更新...",
+          upToDate: "目前已是最新版本 (v{version})",
+          downloadedReady: "新版本 v{version} 已就緒，請點擊「立即重啟生效」",
+          checkFailed: "檢查失敗：{err}",
+          networkError: "網路異常",
+          checkFallbackErr: "請檢查網路或代理/鏡像設定",
+          autoUpdateTitle: "每 12 小時自動檢查更新",
+          autoUpdateDesc: "背景靜默拉取輕量更新包並彈窗提醒重啟生效",
+          autoUpdateOnHint: "已開啟每 12 小時自動檢查更新",
+          autoUpdateOffHint: "已切換為僅手動檢查更新",
+          enabled: "已啟用",
+          disabled: "已停用",
+          mirrorTitle: "GitHub 鏡像前綴",
+          mirrorDesc: "留空使用系統代理直連；需要時可填入加速前綴（如 https://gh-proxy.com/）",
+          mirrorPlaceholder: "留空直連，如 https://gh-proxy.com/",
+          mirrorSavedHint: "已儲存 GitHub 鏡像前綴",
+          mirrorDirectHint: "已恢復直連（無鏡像前綴）",
+          save: "儲存",
+          uninstallBtn: "解除安裝本外掛",
+          uninstallConfirmTitle: "確認解除安裝「推理等級滑桿」？",
+          uninstallConfirmDesc: "僅移除本外掛的修補與外掛目錄，不會影響其他已安裝的外掛與原有設定。",
+          cancel: "取消",
+          confirmUninstall: "確認解除安裝",
+          uninstalling: "解除安裝中…",
+          uninstallFail: "解除安裝失敗",
+          uninstallReqFail: "解除安裝請求失敗：{err}",
+          uninstallDoneNotice: "已精準解除安裝本外掛，其他共存外掛保持完好。",
+          uninstalledDoneTitle: "本外掛已精準解除安裝",
+          uninstalledDoneDesc: "已移除本外掛修補與外掛目錄，其他已安裝外掛不受影響，重啟 Antigravity 後徹底生效。"
+        },
+        "en": {
+          docTitle: "Effort Slider // Control Panel",
+          panelTitle: "Effort Slider",
+          headerSub: "v{version} · Live Sync",
+          refresh: "Refresh",
+          appearanceSection: "Appearance",
+          resetDefault: "Reset",
+          motionLabel: "Animation",
+          motionSyncDesc: "Changes hot-sync immediately to Desktop & IDE sliders",
+          motionFull: "Full",
+          motionFast: "Fast",
+          motionQuick: "Minimal",
+          ticksLabel: "Reached Tick Dots",
+          ticksHighlight: "Bright",
+          ticksDim: "Uniform",
+          ticksHidden: "Hidden",
+          runtimeSection: "Runtime & Coexistence",
+          coexistLabel: "Other Plugins",
+          detecting: "Detecting...",
+          notDetected: "Not detected",
+          pendingSwap: "Pending exit ({s})",
+          injectedCount: "Patched ({p}/{t})",
+          coexistSafe: "{list} (coexisting)",
+          noOtherPlugin: "No other plugins detected",
+          repairLoader: "Repair Loader",
+          copyEnvDiag: "Copy Diagnostics",
+          copied: "Copied",
+          clipboardUnavailable: "Clipboard unavailable.",
+          repairSuccess: "Loader repaired while preserving coexisting plugins.",
+          repairFail: "Repair failed. Check file permissions.",
+          repairFailErr: "Repair failed: {err}",
+          updateSection: "Version & Auto-Update",
+          pendingTitle: "Update v{version} is ready",
+          pendingTitleFallback: "New version is ready",
+          pendingNotesFallback: "Verified update is ready. Restart Antigravity to apply.",
+          relaunchNow: "Restart Now",
+          currentVersionPrefix: "Current version: ",
+          lastCheckPrefix: "Last checked: {time}",
+          lastCheckNever: "Never",
+          timeJustNow: "Just now",
+          timeMinutesAgo: "{n}m ago",
+          timeHoursAgo: "{n}h ago",
+          timeDaysAgo: "{n}d ago",
+          checkUpdate: "Check Updates",
+          checkingUpdate: "Checking...",
+          checkingRelease: "Checking GitHub Release...",
+          upToDate: "Up to date (v{version})",
+          downloadedReady: "v{version} is ready. Click Restart Now to apply.",
+          checkFailed: "Check failed: {err}",
+          networkError: "Network error",
+          checkFallbackErr: "Check network or proxy/mirror settings",
+          autoUpdateTitle: "Auto-check every 12h",
+          autoUpdateDesc: "Silently fetch updates in background and prompt to restart",
+          autoUpdateOnHint: "Auto-check every 12h enabled",
+          autoUpdateOffHint: "Switched to manual update checks",
+          enabled: "Enabled",
+          disabled: "Disabled",
+          mirrorTitle: "GitHub Mirror Prefix",
+          mirrorDesc: "Leave blank to use system proxy directly; optional mirror prefix (e.g. https://gh-proxy.com/)",
+          mirrorPlaceholder: "Direct by default, e.g. https://gh-proxy.com/",
+          mirrorSavedHint: "GitHub mirror prefix saved",
+          mirrorDirectHint: "Restored direct connection",
+          save: "Save",
+          uninstallBtn: "Uninstall Plugin",
+          uninstallConfirmTitle: "Uninstall Effort Slider?",
+          uninstallConfirmDesc: "Only removes this plugin's patches and directory; other installed plugins and settings remain untouched.",
+          cancel: "Cancel",
+          confirmUninstall: "Uninstall",
+          uninstalling: "Removing...",
+          uninstallFail: "Uninstall failed",
+          uninstallReqFail: "Uninstall failed: {err}",
+          uninstallDoneNotice: "Plugin uninstalled cleanly; coexisting plugins remain intact.",
+          uninstalledDoneTitle: "Plugin Uninstalled",
+          uninstalledDoneDesc: "Patches and files removed cleanly; other installed plugins remain untouched. Restart Antigravity to finish."
+        },
+        "ja": {
+          docTitle: "推論スライダー // コントロールパネル",
+          panelTitle: "推論スライダー",
+          headerSub: "v{version} · 双方向ライブ同期",
+          refresh: "更新",
+          appearanceSection: "外観設定",
+          resetDefault: "初期化",
+          motionLabel: "アニメーション",
+          motionSyncDesc: "変更は Desktop / IDE のスライダーに即時同期されます",
+          motionFull: "フル",
+          motionFast: "高速",
+          motionQuick: "シンプル",
+          ticksLabel: "到達済み目盛り点",
+          ticksHighlight: "明るく表示",
+          ticksDim: "未到達と同色",
+          ticksHidden: "非表示",
+          runtimeSection: "動作と共存状態",
+          coexistLabel: "共存プラグイン",
+          detecting: "検出中...",
+          notDetected: "未検出",
+          pendingSwap: "終了時置換 ({s})",
+          injectedCount: "適用済み ({p}/{t})",
+          coexistSafe: "{list}（安全に共存）",
+          noOtherPlugin: "他のプラグインなし",
+          repairLoader: "ローダー修復",
+          copyEnvDiag: "環境診断コピー",
+          copied: "コピー完了",
+          clipboardUnavailable: "クリップボードが利用できません。",
+          repairSuccess: "共存プラグインを保持したままローダーを修復しました。",
+          repairFail: "修復に失敗しました。権限を確認してください。",
+          repairFailErr: "修復失敗: {err}",
+          updateSection: "バージョンと自動更新",
+          pendingTitle: "新バージョン v{version} の準備完了",
+          pendingTitleFallback: "新バージョンの準備完了",
+          pendingNotesFallback: "検証済みアップデートがあります。Antigravity を再起動して適用してください。",
+          relaunchNow: "今すぐ再起動",
+          currentVersionPrefix: "現在バージョン: ",
+          lastCheckPrefix: "最終確認: {time}",
+          lastCheckNever: "未確認",
+          timeJustNow: "たった今",
+          timeMinutesAgo: "{n} 分前",
+          timeHoursAgo: "{n} 時間前",
+          timeDaysAgo: "{n} 日前",
+          checkUpdate: "更新を確認",
+          checkingUpdate: "確認中...",
+          checkingRelease: "GitHub Release を確認中...",
+          upToDate: "最新バージョンです (v{version})",
+          downloadedReady: "v{version} を取得しました。「今すぐ再起動」で適用されます。",
+          checkFailed: "確認失敗: {err}",
+          networkError: "ネットワーク異常",
+          checkFallbackErr: "ネットワークまたはプロキシ設定を確認してください",
+          autoUpdateTitle: "12時間ごとに自動確認",
+          autoUpdateDesc: "バックグラウンドで更新を取得し再起動を通知します",
+          autoUpdateOnHint: "12時間ごとの自動確認を有効化しました",
+          autoUpdateOffHint: "手動確認のみに切り替えました",
+          enabled: "有効",
+          disabled: "無効",
+          mirrorTitle: "GitHub ミラー接頭辞",
+          mirrorDesc: "空欄でシステムプロキシ直結、必要に応じてミラー接頭辞を入力",
+          mirrorPlaceholder: "空欄で直結（例: https://gh-proxy.com/）",
+          mirrorSavedHint: "GitHub ミラー接頭辞を保存しました",
+          mirrorDirectHint: "直接接続に戻しました",
+          save: "保存",
+          uninstallBtn: "プラグインを削除",
+          uninstallConfirmTitle: "「推論スライダー」を削除しますか？",
+          uninstallConfirmDesc: "本プラグインのパッチとフォルダのみを削除します。他のプラグインや設定には影響しません。",
+          cancel: "キャンセル",
+          confirmUninstall: "削除する",
+          uninstalling: "削除中...",
+          uninstallFail: "削除に失敗しました",
+          uninstallReqFail: "削除リクエスト失敗: {err}",
+          uninstallDoneNotice: "本プラグインを削除しました。他のプラグインは維持されています。",
+          uninstalledDoneTitle: "プラグインを削除しました",
+          uninstalledDoneDesc: "パッチとフォルダを削除しました。他のプラグインには影響しません。再起動で完了します。"
+        },
+        "ko": {
+          docTitle: "추론 슬라이더 // 제어판",
+          panelTitle: "추론 슬라이더",
+          headerSub: "v{version} · 양방향 실시간 동기화",
+          refresh: "새로고침",
+          appearanceSection: "외관 설정",
+          resetDefault: "초기화",
+          motionLabel: "애니메이션",
+          motionSyncDesc: "변경 사항이 Desktop 및 IDE 슬라이더에 즉시 동기화됩니다",
+          motionFull: "전체",
+          motionFast: "빠름",
+          motionQuick: "간결",
+          ticksLabel: "도달한 눈금 점",
+          ticksHighlight: "밝게 표시",
+          ticksDim: "동일 색상",
+          ticksHidden: "숨김",
+          runtimeSection: "실행 및 공존 상태",
+          coexistLabel: "공존 플러그인",
+          detecting: "확인 중...",
+          notDetected: "감지되지 않음",
+          pendingSwap: "종료 시 교체 ({s})",
+          injectedCount: "적용됨 ({p}/{t})",
+          coexistSafe: "{list} (안전 공존)",
+          noOtherPlugin: "다른 플러그인 없음",
+          repairLoader: "로더 복구",
+          copyEnvDiag: "환경 진단 복사",
+          copied: "복사됨",
+          clipboardUnavailable: "클립보드를 사용할 수 없습니다.",
+          repairSuccess: "다른 플러그인을 유지한 채 로더를 복구했습니다.",
+          repairFail: "복구 실패. 파일 권한을 확인하세요.",
+          repairFailErr: "복구 실패: {err}",
+          updateSection: "버전 및 자동 업데이트",
+          pendingTitle: "새 버전 v{version} 준비 완료",
+          pendingTitleFallback: "새 버전 준비 완료",
+          pendingNotesFallback: "검증된 업데이트가 준비되었습니다. Antigravity를 재시작하여 적용하세요.",
+          relaunchNow: "지금 재시작",
+          currentVersionPrefix: "현재 버전: ",
+          lastCheckPrefix: "마지막 확인: {time}",
+          lastCheckNever: "확인 안 함",
+          timeJustNow: "방금 전",
+          timeMinutesAgo: "{n}분 전",
+          timeHoursAgo: "{n}시간 전",
+          timeDaysAgo: "{n}일 전",
+          checkUpdate: "업데이트 확인",
+          checkingUpdate: "확인 중...",
+          checkingRelease: "GitHub Release 확인 중...",
+          upToDate: "최신 버전입니다 (v{version})",
+          downloadedReady: "v{version} 준비 완료. 「지금 재시작」을 눌러 적용하세요.",
+          checkFailed: "확인 실패: {err}",
+          networkError: "네트워크 오류",
+          checkFallbackErr: "네트워크 또는 프록시/미러 설정을 확인하세요",
+          autoUpdateTitle: "12시간마다 자동 확인",
+          autoUpdateDesc: "백그라운드에서 업데이트를 받고 재시작 알림을 표시합니다",
+          autoUpdateOnHint: "12시간마다 자동 확인이 켜졌습니다",
+          autoUpdateOffHint: "수동 확인 모드로 전환되었습니다",
+          enabled: "사용 중",
+          disabled: "비활성",
+          mirrorTitle: "GitHub 미러 접두사",
+          mirrorDesc: "비워두면 시스템 프록시로 직접 연결됩니다 (예: https://gh-proxy.com/)",
+          mirrorPlaceholder: "비워두면 직접 연결",
+          mirrorSavedHint: "GitHub 미러 접두사가 저장되었습니다",
+          mirrorDirectHint: "직접 연결로 복원되었습니다",
+          save: "저장",
+          uninstallBtn: "플러그인 제거",
+          uninstallConfirmTitle: "추론 슬라이더를 제거할까요?",
+          uninstallConfirmDesc: "이 플러그인의 패치와 폴더만 제거하며 다른 설치된 플러그인과 설정에는 영향을 주지 않습니다.",
+          cancel: "취소",
+          confirmUninstall: "제거 확인",
+          uninstalling: "제거 중...",
+          uninstallFail: "제거 실패",
+          uninstallReqFail: "제거 요청 실패: {err}",
+          uninstallDoneNotice: "플러그인이 깔끔하게 제거되었으며 다른 플러그인은 유지됩니다.",
+          uninstalledDoneTitle: "플러그인이 제거되었습니다",
+          uninstalledDoneDesc: "패치와 폴더가 제거되었습니다. 다른 플러그인은 영향을 받지 않으며 재시작 후 완료됩니다."
+        },
+        "fr": {
+          docTitle: "Curseur d'effort // Panneau",
+          panelTitle: "Curseur d'effort",
+          headerSub: "v{version} · Synchro directe",
+          refresh: "Actualiser",
+          appearanceSection: "Apparence",
+          resetDefault: "Réinit.",
+          motionLabel: "Animation",
+          motionSyncDesc: "Synchronisation immédiate vers Desktop & IDE",
+          motionFull: "Complète",
+          motionFast: "Rapide",
+          motionQuick: "Minimale",
+          ticksLabel: "Repères atteints",
+          ticksHighlight: "Lumineux",
+          ticksDim: "Uniforme",
+          ticksHidden: "Masqué",
+          runtimeSection: "État & Coexistence",
+          coexistLabel: "Autres plugins",
+          detecting: "Détection...",
+          notDetected: "Non détecté",
+          pendingSwap: "En attente ({s})",
+          injectedCount: "Injecté ({p}/{t})",
+          coexistSafe: "{list} (coexistant)",
+          noOtherPlugin: "Aucun autre plugin détecté",
+          repairLoader: "Réparer le chargeur",
+          copyEnvDiag: "Copier diagnostic",
+          copied: "Copié",
+          clipboardUnavailable: "Presse-papiers indisponible.",
+          repairSuccess: "Chargeur réparé tout en préservant les autres plugins.",
+          repairFail: "Échec de réparation. Vérifiez les permissions.",
+          repairFailErr: "Échec : {err}",
+          updateSection: "Version & Mise à jour",
+          pendingTitle: "Version v{version} prête",
+          pendingTitleFallback: "Nouvelle version prête",
+          pendingNotesFallback: "Mise à jour vérifiée prête. Redémarrez Antigravity.",
+          relaunchNow: "Redémarrer",
+          currentVersionPrefix: "Version : ",
+          lastCheckPrefix: "Vérifié : {time}",
+          lastCheckNever: "Jamais",
+          timeJustNow: "À l'instant",
+          timeMinutesAgo: "Il y a {n} min",
+          timeHoursAgo: "Il y a {n} h",
+          timeDaysAgo: "Il y a {n} j",
+          checkUpdate: "Vérifier",
+          checkingUpdate: "En cours...",
+          checkingRelease: "Vérification GitHub Release...",
+          upToDate: "À jour (v{version})",
+          downloadedReady: "v{version} prêt. Cliquez sur Redémarrer.",
+          checkFailed: "Échec : {err}",
+          networkError: "Erreur réseau",
+          checkFallbackErr: "Vérifiez le réseau ou le proxy",
+          autoUpdateTitle: "Vérif. auto toutes les 12h",
+          autoUpdateDesc: "Téléchargement silencieux en arrière-plan avec rappel",
+          autoUpdateOnHint: "Vérification auto toutes les 12h activée",
+          autoUpdateOffHint: "Passé en vérification manuelle",
+          enabled: "Activé",
+          disabled: "Désactivé",
+          mirrorTitle: "Préfixe miroir GitHub",
+          mirrorDesc: "Laisser vide pour connexion directe ; préfixe optionnel (ex. https://gh-proxy.com/)",
+          mirrorPlaceholder: "Direct par défaut",
+          mirrorSavedHint: "Préfixe miroir enregistré",
+          mirrorDirectHint: "Connexion directe restaurée",
+          save: "Enreg.",
+          uninstallBtn: "Désinstaller le plugin",
+          uninstallConfirmTitle: "Désinstaller le curseur ?",
+          uninstallConfirmDesc: "Supprime uniquement les patchs et fichiers de ce plugin sans affecter les autres extensions.",
+          cancel: "Annuler",
+          confirmUninstall: "Confirmer",
+          uninstalling: "Suppression...",
+          uninstallFail: "Échec de désinstallation",
+          uninstallReqFail: "Échec : {err}",
+          uninstallDoneNotice: "Plugin désinstallé ; les autres plugins sont intacts.",
+          uninstalledDoneTitle: "Plugin désinstallé",
+          uninstalledDoneDesc: "Patchs et fichiers supprimés sans toucher aux autres extensions. Redémarrez Antigravity."
+        },
+        "ru": {
+          docTitle: "Слайдер усилий // Панель",
+          panelTitle: "Слайдер усилий",
+          headerSub: "v{version} · Живая синхр.",
+          refresh: "Обновить",
+          appearanceSection: "Внешний вид",
+          resetDefault: "Сброс",
+          motionLabel: "Анимация",
+          motionSyncDesc: "Изменения сразу применяются к слайдерам Desktop и IDE",
+          motionFull: "Полная",
+          motionFast: "Быстрая",
+          motionQuick: "Простая",
+          ticksLabel: "Пройденные деления",
+          ticksHighlight: "Яркие",
+          ticksDim: "Обычные",
+          ticksHidden: "Скрыты",
+          runtimeSection: "Состояние и совместимость",
+          coexistLabel: "Другие плагины",
+          detecting: "Проверка...",
+          notDetected: "Не найдено",
+          pendingSwap: "Ждёт выхода ({s})",
+          injectedCount: "Активно ({p}/{t})",
+          coexistSafe: "{list} (совместимо)",
+          noOtherPlugin: "Других плагинов не найдено",
+          repairLoader: "Починить загрузчик",
+          copyEnvDiag: "Копировать статус",
+          copied: "Скопировано",
+          clipboardUnavailable: "Буфер обмена недоступен.",
+          repairSuccess: "Загрузчик восстановлен, другие плагины сохранены.",
+          repairFail: "Ошибка восстановления. Проверьте права.",
+          repairFailErr: "Ошибка: {err}",
+          updateSection: "Версия и обновления",
+          pendingTitle: "Версия v{version} готова",
+          pendingTitleFallback: "Новая версия готова",
+          pendingNotesFallback: "Обновление проверено. Перезапустите Antigravity.",
+          relaunchNow: "Перезапустить",
+          currentVersionPrefix: "Версия: ",
+          lastCheckPrefix: "Проверка: {time}",
+          lastCheckNever: "Никогда",
+          timeJustNow: "Только что",
+          timeMinutesAgo: "{n} мин назад",
+          timeHoursAgo: "{n} ч назад",
+          timeDaysAgo: "{n} дн назад",
+          checkUpdate: "Проверить",
+          checkingUpdate: "Проверка...",
+          checkingRelease: "Проверка GitHub Release...",
+          upToDate: "Актуально (v{version})",
+          downloadedReady: "v{version} готова. Нажмите «Перезапустить».",
+          checkFailed: "Ошибка: {err}",
+          networkError: "Ошибка сети",
+          checkFallbackErr: "Проверьте сеть или настройки прокси",
+          autoUpdateTitle: "Автопроверка каждые 12 ч",
+          autoUpdateDesc: "Тихая загрузка обновлений в фоне с уведомлением",
+          autoUpdateOnHint: "Автопроверка каждые 12 ч включена",
+          autoUpdateOffHint: "Включён ручной режим проверки",
+          enabled: "Вкл",
+          disabled: "Выкл",
+          mirrorTitle: "Зеркало GitHub",
+          mirrorDesc: "Оставьте пустым для прямого подключения (или напр. https://gh-proxy.com/)",
+          mirrorPlaceholder: "По умолчанию напрямую",
+          mirrorSavedHint: "Зеркало GitHub сохранено",
+          mirrorDirectHint: "Восстановлено прямое подключение",
+          save: "Сохр.",
+          uninstallBtn: "Удалить плагин",
+          uninstallConfirmTitle: "Удалить слайдер усилий?",
+          uninstallConfirmDesc: "Удалит только файлы и патчи этого плагина, не затрагивая другие установленные плагины.",
+          cancel: "Отмена",
+          confirmUninstall: "Удалить",
+          uninstalling: "Удаление...",
+          uninstallFail: "Ошибка удаления",
+          uninstallReqFail: "Ошибка запроса: {err}",
+          uninstallDoneNotice: "Плагин удалён, остальные плагины сохранены.",
+          uninstalledDoneTitle: "Плагин удалён",
+          uninstalledDoneDesc: "Файлы и патчи удалены, другие плагины сохранены. Перезапустите Antigravity."
+        }
+      };
+
+      const locale = detectUiLocale();
+      document.documentElement.lang = locale;
+
+      function t(key, vars) {
+        const table = DICT[locale] || DICT.en;
+        let text = table[key] || DICT.en[key] || key;
+        if (vars && typeof vars === "object") {
+          for (const [k, v] of Object.entries(vars)) {
+            text = text.split("{" + k + "}").join(String(v));
+          }
+        }
+        return text;
+      }
+
+      document.title = t("docTitle");
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const k = el.getAttribute("data-i18n");
+        if (k) el.textContent = t(k);
+      });
+      document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+        const k = el.getAttribute("data-i18n-placeholder");
+        if (k) el.setAttribute("placeholder", t(k));
+      });
+
+      const $ = (id) => document.getElementById(id);
+      const token = new URLSearchParams(window.location.search).get("token") || "";
+
+      async function apiFetch(url, options) {
+        if (window.sidecar && typeof window.sidecar.fetch === "function") {
+          return window.sidecar.fetch(url, options);
+        }
+        const opts = Object.assign({}, options || {});
+        const headers = new Headers(opts.headers || {});
+        if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+        if (token) headers.set("X-Sidecar-Token", token);
+        opts.headers = headers;
+        return fetch(url, opts);
+      }
+
+      let state = {
+        version: "1.5.0",
+        motion: "full",
+        ticks: "highlight",
+        autoUpdate: true,
+        checkIntervalHours: 12,
+        mirrorPrefix: "",
+        lastCheckAt: 0,
+        pendingUpdateVersion: null,
+        pendingUpdateNotes: null
+      };
+      let envStatus = null;
+      let hostIsDark = true;
+      let updateStatusHint = "";
+      let isCheckingUpdate = false;
+      let isUninstalled = false;
+
+      function showNotice(text, kind) {
+        const el = $("globalNotice");
+        if (!text) {
+          el.classList.add("hidden");
+          return;
+        }
+        el.textContent = text;
+        el.className = "notice" + (kind ? " is-" + kind : "");
+      }
+
+      function formatCheckTime(ts) {
+        const raw = Number(ts || 0);
+        if (!raw) return t("lastCheckNever");
+        const ms = raw > 1e11 ? raw : raw * 1000;
+        const diffMin = Math.max(0, Math.floor((Date.now() - ms) / 60000));
+        if (diffMin < 1) return t("timeJustNow");
+        if (diffMin < 60) return t("timeMinutesAgo", { n: diffMin });
+        const diffHour = Math.floor(diffMin / 60);
+        if (diffHour < 24) return t("timeHoursAgo", { n: diffHour });
+        return t("timeDaysAgo", { n: Math.floor(diffHour / 24) });
+      }
+
+      function renderTheme() {
+        document.documentElement.setAttribute("data-theme", hostIsDark ? "dark" : "light");
+      }
+
+      function renderAll() {
+        renderTheme();
+        const ver = state.version || "1.5.0";
+        $("headerSub").textContent = t("headerSub", { version: ver });
+        $("currentVersionText").textContent = "v" + ver;
+
+        document.querySelectorAll(".seg-btn").forEach((btn) => {
+          const k = btn.getAttribute("data-key");
+          const v = btn.getAttribute("data-val");
+          btn.classList.toggle("is-on", state[k] === v);
+        });
+
+        const banner = $("updatePendingBanner");
+        const pendingVer = state.pendingUpdateVersion;
+        banner.classList.toggle("visible", Boolean(pendingVer));
+        if (pendingVer) {
+          $("updatePendingTitle").textContent = t("pendingTitle", { version: pendingVer });
+          $("updatePendingNotes").textContent = state.pendingUpdateNotes || t("pendingNotesFallback");
+        }
+
+        $("updateStatusDesc").textContent =
+          updateStatusHint || t("lastCheckPrefix", { time: formatCheckTime(state.lastCheckAt) });
+
+        const checkBtn = $("checkUpdateBtn");
+        checkBtn.disabled = isCheckingUpdate;
+        checkBtn.textContent = isCheckingUpdate ? t("checkingUpdate") : t("checkUpdate");
+
+        const autoOn = state.autoUpdate !== false;
+        const autoBtn = $("toggleAutoUpdateBtn");
+        autoBtn.textContent = autoOn ? t("enabled") : t("disabled");
+        autoBtn.classList.toggle("is-off", !autoOn);
+
+        const mirrorInput = $("mirrorPrefixInput");
+        if (document.activeElement !== mirrorInput) {
+          mirrorInput.value = typeof state.mirrorPrefix === "string" ? state.mirrorPrefix : "";
+        }
+
+        if (envStatus) {
+          const dList = envStatus.desktopTargets || [];
+          if (dList.length === 0) {
+            $("kvDesktop").textContent = t("notDetected");
+          } else {
+            const pCnt = dList.filter((d) => d.patched).length;
+            const sCnt = dList.filter((d) => d.hasStaged).length;
+            $("kvDesktop").textContent = sCnt > 0
+              ? t("pendingSwap", { s: sCnt })
+              : t("injectedCount", { p: pCnt, t: dList.length });
+          }
+          const iList = envStatus.ideTargets || [];
+          if (iList.length === 0) {
+            $("kvIde").textContent = t("notDetected");
+          } else {
+            const pCnt = iList.filter((d) => d.patched).length;
+            $("kvIde").textContent = t("injectedCount", { p: pCnt, t: iList.length });
+          }
+          const co = [];
+          dList.forEach((d) => (d.coexistingPlugins || []).forEach((p) => { if (!co.includes(p)) co.push(p); }));
+          $("kvCoexist").textContent = co.length > 0 ? t("coexistSafe", { list: co.join(", ") }) : t("noOtherPlugin");
+        } else {
+          $("kvDesktop").textContent = t("detecting");
+          $("kvIde").textContent = t("detecting");
+          $("kvCoexist").textContent = t("detecting");
+        }
+      }
+
+      async function pullState() {
+        if (isUninstalled) return;
+        try {
+          const res = await apiFetch("/api/state", { method: "GET" });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data && data.state) state = Object.assign({}, state, data.state);
+          if (data && data.status) envStatus = data.status;
+          if (typeof data.hostIsDark === "boolean") hostIsDark = data.hostIsDark;
+          renderAll();
+        } catch (_) {}
+      }
+
+      async function pushSettings(payload) {
+        if (!payload.reset) {
+          Object.assign(state, payload);
+        } else {
+          state.motion = "full";
+          state.ticks = "highlight";
+        }
+        renderAll();
+        try {
+          const res = await apiFetch("/api/settings", {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (data && data.state) {
+            state = Object.assign({}, state, data.state);
+            renderAll();
+          }
+        } catch (_) {}
+      }
+
+      async function pushUpdateConfig(payload) {
+        Object.assign(state, payload);
+        renderAll();
+        try {
+          const res = await apiFetch("/api/update/config", {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (data && data.state) {
+            state = Object.assign({}, state, data.state);
+            renderAll();
+          }
+        } catch (_) {}
+      }
+
+      function parseCssColorLuminance(colorStr) {
+        const s = String(colorStr || "").trim().toLowerCase();
+        if (s.startsWith("#")) {
+          const hex = s.slice(1);
+          const full = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+          if (full.length >= 6) {
+            const r = parseInt(full.slice(0, 2), 16);
+            const g = parseInt(full.slice(2, 4), 16);
+            const b = parseInt(full.slice(4, 6), 16);
+            return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+          }
+        }
+        const m = s.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+        if (m) {
+          return (0.299 * Number(m[1]) + 0.587 * Number(m[2]) + 0.114 * Number(m[3])) / 255;
+        }
+        return null;
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "theme-change") {
+          const vars = (event.data.payload && event.data.payload.cssVariables) || {};
+          const bg = vars["--background"] || vars["--vscode-editor-background"];
+          const lum = parseCssColorLuminance(bg);
+          if (lum !== null) {
+            hostIsDark = lum < 0.5;
+            renderTheme();
+          }
+        }
+      });
+
+      document.querySelectorAll(".seg-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const k = btn.getAttribute("data-key");
+          const v = btn.getAttribute("data-val");
+          void pushSettings({ [k]: v });
+        });
+      });
+
+      $("resetAppearanceBtn").addEventListener("click", () => {
+        void pushSettings({ reset: true });
+      });
+
+      $("refreshBtn").addEventListener("click", () => {
+        showNotice("");
+        void pullState();
+      });
+
+      $("repairBtn").addEventListener("click", async () => {
+        $("repairBtn").disabled = true;
+        try {
+          const res = await apiFetch("/api/repair", { method: "POST", body: "{}" });
+          const data = await res.json();
+          if (data && data.status) envStatus = data.status;
+          if (data && data.state) state = Object.assign({}, state, data.state);
+          renderAll();
+          showNotice(data && data.ok ? t("repairSuccess") : t("repairFail"), data && data.ok ? "ok" : "err");
+        } catch (err) {
+          showNotice(t("repairFailErr", { err: err && err.message ? err.message : err }), "err");
+        } finally {
+          $("repairBtn").disabled = false;
+        }
+      });
+
+      $("copyDiagBtn").addEventListener("click", async () => {
+        try {
+          const payload = JSON.stringify({ state, envStatus }, null, 2);
+          await navigator.clipboard.writeText(payload);
+          $("copyDiagBtn").textContent = t("copied");
+          setTimeout(() => { $("copyDiagBtn").textContent = t("copyEnvDiag"); }, 1200);
+        } catch (_) {
+          showNotice(t("clipboardUnavailable"), "err");
+        }
+      });
+
+      $("checkUpdateBtn").addEventListener("click", async () => {
+        if (isCheckingUpdate) return;
+        isCheckingUpdate = true;
+        updateStatusHint = t("checkingRelease");
+        renderAll();
+        try {
+          const res = await apiFetch("/api/update/check", { method: "POST", body: "{}" });
+          const data = await res.json();
+          if (data && data.state) state = Object.assign({}, state, data.state);
+          const result = data && data.result;
+          if (!data || !data.ok) {
+            updateStatusHint = t("checkFailed", { err: (result && result.message) || t("checkFallbackErr") });
+          } else if (result && result.status === "updated") {
+            updateStatusHint = t("downloadedReady", { version: result.version });
+          } else {
+            updateStatusHint = t("upToDate", { version: state.version || "1.5.0" });
+          }
+        } catch (err) {
+          updateStatusHint = t("checkFailed", { err: err && err.message ? err.message : t("networkError") });
+        } finally {
+          isCheckingUpdate = false;
+          renderAll();
+        }
+      });
+
+      $("toggleAutoUpdateBtn").addEventListener("click", () => {
+        const nextAuto = !(state.autoUpdate !== false);
+        updateStatusHint = nextAuto ? t("autoUpdateOnHint") : t("autoUpdateOffHint");
+        void pushUpdateConfig({ autoUpdate: nextAuto });
+      });
+
+      $("saveMirrorBtn").addEventListener("click", () => {
+        const val = ($("mirrorPrefixInput").value || "").trim();
+        updateStatusHint = val ? t("mirrorSavedHint") : t("mirrorDirectHint");
+        void pushUpdateConfig({ mirrorPrefix: val });
+      });
+
+      $("mirrorPrefixInput").addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          const val = ($("mirrorPrefixInput").value || "").trim();
+          updateStatusHint = val ? t("mirrorSavedHint") : t("mirrorDirectHint");
+          void pushUpdateConfig({ mirrorPrefix: val });
+        }
+      });
+
+      async function triggerRelaunch() {
+        try {
+          await apiFetch("/api/relaunch", { method: "POST", body: "{}" });
+        } catch (_) {}
+      }
+
+      $("relaunchNowBtn").addEventListener("click", triggerRelaunch);
+      $("uninstallRelaunchBtn").addEventListener("click", triggerRelaunch);
+
+      $("uninstallOpenBtn").addEventListener("click", () => {
+        $("uninstallConfirmBox").classList.remove("hidden");
+      });
+
+      $("uninstallCancelBtn").addEventListener("click", () => {
+        $("uninstallConfirmBox").classList.add("hidden");
+      });
+
+      $("uninstallConfirmBtn").addEventListener("click", async () => {
+        $("uninstallConfirmBtn").disabled = true;
+        $("uninstallConfirmBtn").textContent = t("uninstalling");
+        try {
+          const res = await apiFetch("/api/uninstall", { method: "POST", body: "{}" });
+          const data = await res.json();
+          if (data && data.ok) {
+            isUninstalled = true;
+            $("uninstallConfirmBox").classList.add("hidden");
+            $("uninstallOpenBtn").classList.add("hidden");
+            $("uninstalledDoneBox").classList.remove("hidden");
+            showNotice(t("uninstallDoneNotice"), "ok");
+          } else {
+            const errMsg = data && data.report && Array.isArray(data.report.errors) ? data.report.errors.join("; ") : t("uninstallFail");
+            showNotice(errMsg, "err");
+            $("uninstallConfirmBtn").disabled = false;
+            $("uninstallConfirmBtn").textContent = t("confirmUninstall");
+          }
+        } catch (err) {
+          showNotice(t("uninstallReqFail", { err: err && err.message ? err.message : err }), "err");
+          $("uninstallConfirmBtn").disabled = false;
+          $("uninstallConfirmBtn").textContent = t("confirmUninstall");
+        }
+      });
+
+      window.addEventListener("focus", () => { void pullState(); });
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") void pullState();
+      });
+      setInterval(() => {
+        if (document.visibilityState === "visible") void pullState();
+      }, 1200);
+
+      renderAll();
+      void pullState();
+    })();
+  </script>
+</body>
+</html>

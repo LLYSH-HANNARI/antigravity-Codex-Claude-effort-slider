@@ -23,6 +23,10 @@ use crate::state::{self, PluginState, BUNDLED_VERSION, LOADER_VERSION};
 
 /// 内嵌编译时的最新版 lib/client.js，使单文件安装器无需额外附件即可离线安装
 pub const BUNDLED_CLIENT_JS: &str = include_str!("../../lib/client.js");
+/// 内嵌编译时的品牌图标 assets/logo.svg
+pub const BUNDLED_LOGO_SVG: &str = include_str!("../../assets/logo.svg");
+/// 内嵌编译时的 Sidecar 控制面板网页 lib/sidecar-panel.html
+pub const BUNDLED_SIDECAR_HTML: &str = include_str!("../../lib/sidecar-panel.html");
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -133,16 +137,20 @@ pub fn atomic_write_bytes(target: &Path, data: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
-/// 写入 Antigravity 原生插件清单 (`plugin.json`) 与 `SessionStart` 自愈钩子 (`hooks.json`)
+/// 写入 Antigravity 原生插件清单 (`plugin.json`)、`SessionStart` 自愈钩子 (`hooks.json`) 与 Sidecar 清单
 pub fn write_plugin_metadata(version: &str) -> Result<(), String> {
     let root = paths::plugin_root();
     fs::create_dir_all(&root).map_err(|e| format!("创建插件目录失败: {e}"))?;
+
+    atomic_write_bytes(&paths::logo_svg_path(), BUNDLED_LOGO_SVG.as_bytes())?;
+    atomic_write_bytes(&paths::sidecar_html_path(), BUNDLED_SIDECAR_HTML.as_bytes())?;
 
     let plugin_json = serde_json::json!({
         "name": "antigravity-effort-slider",
         "displayName": "Codex & Claude 推理等级滑条",
         "version": version,
-        "description": "Codex 风格物理推理等级滑条与 Claude 像素点阵滑条（支持 GitHub Release 自动更新与官方更新后自动修复）",
+        "logo": "assets/logo.svg",
+        "description": "Codex 风格物理推理等级滑条与 Claude 像素点阵滑条（支持 Sidecar 控制面板、GitHub Release 自动更新与官方更新后自动修复）",
         "homepage": "https://llysh-hannari.github.io/antigravity-Codex-Claude-effort-slider/",
         "repository": {
             "type": "git",
@@ -176,6 +184,34 @@ pub fn write_plugin_metadata(version: &str) -> Result<(), String> {
         serde_json::to_string_pretty(&hooks_json).map_err(|e| e.to_string())?
     );
     atomic_write_bytes(&paths::hooks_json_path(), hooks_bytes.as_bytes())?;
+
+    // 注册右侧 Overview -> Plugins 原生 Sidecar 控制面板
+    let sidecar_json = serde_json::json!({
+        "command": paths::installed_binary_path().to_string_lossy(),
+        "args": ["sidecar"],
+        "restart_policy": "always",
+        "display_name": "推理滑条控制面板",
+        "description": "调整推理等级滑条动画与刻度设置、查看共存插件状态与管理自动更新",
+        "has_web_ui": true,
+        "agent_permissions": {
+            "allows_user_interactions": false
+        },
+        "ui_config": {
+            "display_name": "推理滑条控制面板",
+            "views": [
+                {
+                    "path": "/",
+                    "entrypoint": "SIDECAR_UI_ENTRYPOINT_AUX_PANE",
+                    "title": "推理滑条"
+                }
+            ]
+        }
+    });
+    let sidecar_bytes = format!(
+        "{}\n",
+        serde_json::to_string_pretty(&sidecar_json).map_err(|e| e.to_string())?
+    );
+    atomic_write_bytes(&paths::sidecar_json_path(), sidecar_bytes.as_bytes())?;
     Ok(())
 }
 
@@ -296,6 +332,15 @@ pub fn install_all(custom_asar: Option<&Path>, custom_client: Option<&Path>) -> 
         "已部署原生插件目录 (v{client_version}): {}",
         paths::plugin_root().display()
     ));
+
+    if let Some(legacy_dir) = paths::legacy_prototype_plugin_dir() {
+        if legacy_dir.exists() && fs::remove_dir_all(&legacy_dir).is_ok() {
+            report.messages.push(format!(
+                "已自动清理旧实验插件目录: {}",
+                legacy_dir.display()
+            ));
+        }
+    }
 
     apply_loaders_to_targets(custom_asar, &client_code, &mut report);
     report
@@ -451,7 +496,7 @@ fn build_desktop_patched_buffer(
     fallback_client_js: &str,
 ) -> Result<Vec<u8>, String> {
     // 始终基于磁盘当前 app.asar 做原地增量修补，绝不创建或读取通用 app.asar.bak，
-    // 既可与 shittim-chest 等其他插件无损共存，也避免官方升级后旧备份倒灌降级。
+    // 既可与其他第三方插件无损共存，也避免官方升级后旧备份倒灌降级。
     let raw = fs::read(asar_path).map_err(|e| format!("读取 ASAR 失败: {e}"))?;
     let (root, payload) = asar::parse_asar_buffer(&raw)?;
 
@@ -662,16 +707,28 @@ pub fn uninstall_all(custom_asar: Option<&Path>) -> OperationReport {
     }
     clear_ide_code_cache();
 
-    // 3. 清除插件目录（若当前运行的正是目录内二进制，Windows 上先清理其余文件并跳过自删错误）
+    // 3. 清除旧实验目录与本插件目录（若当前运行的正是目录内二进制，Windows 上先清理其余文件并挂起退出后清理）
+    if let Some(legacy_dir) = paths::legacy_prototype_plugin_dir() {
+        if legacy_dir.exists() && fs::remove_dir_all(&legacy_dir).is_ok() {
+            report.messages.push(format!(
+                "已清理旧实验插件目录: {}",
+                legacy_dir.display()
+            ));
+        }
+    }
+
     let plugin_root = paths::plugin_root();
     if plugin_root.exists() {
-        if fs::remove_dir_all(&plugin_root).is_ok() {
+        // 先尝试保留 .uninstall-request（若有）给运行中的 Desktop 主进程读取后自删；
+        // 若无 .uninstall-request 则可直接整目录删除
+        let has_uninstall_signal = paths::uninstall_request_path().exists();
+        if !has_uninstall_signal && fs::remove_dir_all(&plugin_root).is_ok() {
             report
                 .messages
                 .push(format!("已移除原生插件目录: {}", plugin_root.display()));
         } else {
-            // 逐个删除非锁定文件
-            for sub in ["lib", "plugin.json", "hooks.json", "state.json"] {
+            // 逐个删除非锁定文件与目录（保留 .uninstall-request 让宿主主进程读取并自删）
+            for sub in ["lib", "assets", "sidecars", "plugin.json", "hooks.json", "state.json"] {
                 let p = plugin_root.join(sub);
                 if p.is_dir() {
                     let _ = fs::remove_dir_all(&p);
@@ -679,14 +736,42 @@ pub fn uninstall_all(custom_asar: Option<&Path>) -> OperationReport {
                     let _ = fs::remove_file(&p);
                 }
             }
+            schedule_windows_self_cleanup(&plugin_root);
             report.messages.push(format!(
-                "已清理插件配置与脚本（bin 目录因自身占用将在退出后可手动删除）: {}",
+                "已清理插件配置与脚本（占用中的程序将在退出 Antigravity 后自动清理）: {}",
                 plugin_root.display()
             ));
         }
     }
 
     report
+}
+
+fn schedule_windows_self_cleanup(plugin_root: &Path) {
+    if cfg!(test) || env::var("AG_SLIDER_SKIP_DETACHED_SPAWN").as_deref() == Ok("1") {
+        return;
+    }
+    #[cfg(windows)]
+    {
+        if plugin_root.file_name().and_then(|s| s.to_str()) != Some(paths::PLUGIN_DIR_NAME) {
+            return;
+        }
+        let dir_str = plugin_root.to_string_lossy().replace('"', "");
+        let script = format!(
+            "for /L %i in (1,1,90) do (ping -n 3 127.0.0.1 >nul & rd /s /q \"{dir_str}\" >nul 2>&1 & if not exist \"{dir_str}\" exit 0)"
+        );
+        let mut cmd = Command::new("cmd.exe");
+        cmd.args(["/C", &script])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS);
+        let _ = cmd.spawn();
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = plugin_root;
+    }
 }
 
 fn restore_desktop_asar(target: &Path) -> Result<Option<PatchWriteOutcome>, String> {
@@ -811,31 +896,100 @@ pub fn run_deferred_swap(staged: &Path, target: &Path, relaunch_exe: Option<&Pat
     false
 }
 
-/// 快速探测 app.asar 中共存的其他插件（仅 seek 读取目标入口切片，毫秒级完成）
-pub fn detect_coexisting_plugins(asar_path: &Path) -> Vec<String> {
-    let mut found = Vec::new();
-    if let Ok(overlay) = asar::read_entry_text_by_seek(asar_path, "dist/loadingOverlay.js") {
-        if overlay.contains("__AG_SHITTIM_CHEST_LOADER_START__") {
-            found.push("shittim-chest".to_string());
+/// 动态扫描同级 plugins 目录下其他已安装插件的 plugin.json（零硬编码项目名）
+fn detect_sibling_installed_plugins() -> Vec<String> {
+    let cur_root = paths::plugin_root();
+    let Some(plugins_dir) = cur_root.parent() else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(plugins_dir) else {
+        return Vec::new();
+    };
+
+    let cur_canon = fs::canonicalize(&cur_root).unwrap_or_else(|_| cur_root.clone());
+    let cur_name = cur_root.file_name().and_then(|s| s.to_str()).unwrap_or("");
+
+    let mut names = Vec::new();
+    for entry in entries.flatten() {
+        let dir = entry.path();
+        if !dir.is_dir() {
+            continue;
+        }
+        let dir_name = dir.file_name().and_then(|s| s.to_str()).unwrap_or("");
+        if dir_name.is_empty() || dir_name == cur_name || dir_name == "codex-effort-slider" {
+            continue;
+        }
+        let canon = fs::canonicalize(&dir).unwrap_or_else(|_| dir.clone());
+        if canon == cur_canon {
+            continue;
+        }
+
+        let plugin_json_path = dir.join("plugin.json");
+        if !plugin_json_path.is_file() {
+            continue;
+        }
+        let Ok(raw) = fs::read_to_string(&plugin_json_path) else {
+            continue;
+        };
+        let Ok(parsed) = serde_json::from_str::<Value>(&raw) else {
+            continue;
+        };
+        let label = parsed
+            .get("displayName")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                parsed
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+            })
+            .unwrap_or(dir_name)
+            .to_string();
+        if !names.contains(&label) {
+            names.push(label);
         }
     }
+    names.sort();
+    names
+}
+
+fn has_third_party_asar_marker(source: &str, self_start: &str, self_end: &str) -> bool {
+    let stripped = if self_start.is_empty() {
+        source.to_string()
+    } else {
+        loader::strip_marker_block(source, self_start, self_end)
+    };
+    stripped.contains("/* __AG_") && stripped.contains("_START__ */")
+}
+
+/// 快速探测共存的其他插件：动态读取同级插件清单 + seek 探测 app.asar 中的第三方补丁标记
+pub fn detect_coexisting_plugins(asar_path: &Path) -> Vec<String> {
+    let mut found = detect_sibling_installed_plugins();
+
     let mut has_other_marker = false;
     if let Ok(main_src) = asar::read_entry_text_by_seek(asar_path, "dist/main.js") {
-        let stripped = loader::strip_marker_block(&main_src, loader::MAIN_PATCH_START, loader::MAIN_PATCH_END);
-        if stripped.contains("/* __AG_") && stripped.contains("_START__ */") {
+        if has_third_party_asar_marker(&main_src, loader::MAIN_PATCH_START, loader::MAIN_PATCH_END) {
             has_other_marker = true;
         }
     }
     if !has_other_marker {
         if let Ok(preload_src) = asar::read_entry_text_by_seek(asar_path, "dist/preload.js") {
-            let stripped =
-                loader::strip_marker_block(&preload_src, loader::PRELOAD_PATCH_START, loader::PRELOAD_PATCH_END);
-            if stripped.contains("/* __AG_") && stripped.contains("_START__ */") {
+            if has_third_party_asar_marker(&preload_src, loader::PRELOAD_PATCH_START, loader::PRELOAD_PATCH_END) {
                 has_other_marker = true;
             }
         }
     }
-    if has_other_marker {
+    if !has_other_marker {
+        if let Ok(overlay_src) = asar::read_entry_text_by_seek(asar_path, "dist/loadingOverlay.js") {
+            if has_third_party_asar_marker(&overlay_src, "", "") {
+                has_other_marker = true;
+            }
+        }
+    }
+    if has_other_marker && found.is_empty() {
         found.push("其他第三方补丁".to_string());
     }
     found

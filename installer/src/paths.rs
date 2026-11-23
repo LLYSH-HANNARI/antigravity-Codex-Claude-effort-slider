@@ -24,6 +24,16 @@ pub fn home_dir() -> PathBuf {
     PathBuf::from(".")
 }
 
+/// 获取 Antigravity 全局配置目录 `~/.gemini/config`
+pub fn gemini_config_dir() -> PathBuf {
+    if let Ok(custom) = env::var("AG_SLIDER_GEMINI_CONFIG_DIR") {
+        if !custom.trim().is_empty() {
+            return PathBuf::from(custom);
+        }
+    }
+    home_dir().join(".gemini").join("config")
+}
+
 /// 获取插件托管根目录：默认 ~/.gemini/config/plugins/antigravity-effort-slider/
 /// 若设置了 AG_SLIDER_PLUGIN_ROOT 环境变量则优先使用，用于隔离测试。
 pub fn plugin_root() -> PathBuf {
@@ -32,11 +42,19 @@ pub fn plugin_root() -> PathBuf {
             return PathBuf::from(custom);
         }
     }
-    home_dir()
-        .join(".gemini")
-        .join("config")
+    gemini_config_dir()
         .join("plugins")
         .join(PLUGIN_DIR_NAME)
+}
+
+/// 若当前处于标准插件目录名 `antigravity-effort-slider` 下，返回同级旧实验目录 `codex-effort-slider` 以便自动清理；
+/// 隔离测试中目录名非 `antigravity-effort-slider` 时返回 None，避免误触真实环境。
+pub fn legacy_prototype_plugin_dir() -> Option<PathBuf> {
+    let root = plugin_root();
+    if root.file_name().and_then(|s| s.to_str()) != Some(PLUGIN_DIR_NAME) {
+        return None;
+    }
+    root.parent().map(|p| p.join("codex-effort-slider"))
 }
 
 /// 插件二进制所在目录 `<plugin_root>/bin`
@@ -61,6 +79,34 @@ pub fn installed_binary_path() -> PathBuf {
 /// 动态加载的客户端脚本路径 `<plugin_root>/lib/client.js`
 pub fn client_js_path() -> PathBuf {
     plugin_root().join("lib").join("client.js")
+}
+
+/// Sidecar 控制面板 HTML 路径 `<plugin_root>/lib/sidecar-panel.html`
+pub fn sidecar_html_path() -> PathBuf {
+    plugin_root().join("lib").join("sidecar-panel.html")
+}
+
+/// 插件图标路径 `<plugin_root>/assets/logo.svg`
+pub fn logo_svg_path() -> PathBuf {
+    plugin_root().join("assets").join("logo.svg")
+}
+
+/// Sidecar 清单路径 `<plugin_root>/sidecars/slider_panel/sidecar.json`
+pub fn sidecar_json_path() -> PathBuf {
+    plugin_root()
+        .join("sidecars")
+        .join("slider_panel")
+        .join("sidecar.json")
+}
+
+/// 重启请求信号文件 `<plugin_root>/.relaunch-request`
+pub fn relaunch_request_path() -> PathBuf {
+    plugin_root().join(".relaunch-request")
+}
+
+/// 卸载通知信号文件 `<plugin_root>/.uninstall-request`
+pub fn uninstall_request_path() -> PathBuf {
+    plugin_root().join(".uninstall-request")
 }
 
 /// 插件运行时状态与配置路径 `<plugin_root>/state.json`

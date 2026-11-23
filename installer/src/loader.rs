@@ -117,10 +117,15 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
       try {{
         const raw = fs.readFileSync(getStatePath(), 'utf8');
         const parsed = JSON.parse(raw);
+        const motion = (parsed.motion === 'fast' || parsed.motion === 'quick') ? parsed.motion : 'full';
+        const ticks = (parsed.ticks === 'dim' || parsed.ticks === 'hidden') ? parsed.ticks : 'highlight';
         return {{
-          version: parsed.version || '1.4.0',
+          version: parsed.version || '1.5.0',
           loaderVersion: parsed.loaderVersion || {ver},
+          motion,
+          ticks,
           autoUpdate: parsed.autoUpdate !== false,
+          checkIntervalHours: Number(parsed.checkIntervalHours || 12),
           mirrorPrefix: typeof parsed.mirrorPrefix === 'string' ? parsed.mirrorPrefix : '',
           lastCheckAt: Number(parsed.lastCheckAt || 0),
           pendingUpdateVersion: parsed.pendingUpdateVersion || null,
@@ -131,9 +136,12 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
         }};
       }} catch {{
         return {{
-          version: '1.4.0',
+          version: '1.5.0',
           loaderVersion: {ver},
+          motion: 'full',
+          ticks: 'highlight',
           autoUpdate: true,
+          checkIntervalHours: 12,
           mirrorPrefix: '',
           lastCheckAt: 0,
           pendingUpdateVersion: null,
@@ -143,6 +151,83 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
           canRelaunch: true
         }};
       }}
+    }}
+
+    let lastBroadcastStateJson = '';
+    function broadcastToAllWindows(channel, payload) {{
+      try {{
+        for (const win of BrowserWindow.getAllWindows()) {{
+          if (win && !win.isDestroyed() && win.webContents) {{
+            win.webContents.send(channel, payload);
+          }}
+        }}
+      }} catch {{}}
+    }}
+
+    function broadcastStateChanged(st) {{
+      const s = st || readStateSafe();
+      const fp = JSON.stringify({{ m: s.motion, t: s.ticks, a: s.autoUpdate, r: s.mirrorPrefix, l: s.lastCheckAt, p: s.pendingUpdateVersion, v: s.version }});
+      if (fp === lastBroadcastStateJson) return;
+      lastBroadcastStateJson = fp;
+      broadcastToAllWindows('codex-slider:state-changed', s);
+    }}
+
+    function writeStatePatchSafe(cfg) {{
+      try {{
+        const statePath = getStatePath();
+        const dir = path.dirname(statePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, {{ recursive: true }});
+        let rawObj = {{}};
+        try {{
+          rawObj = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+        }} catch {{
+          rawObj = {{
+            version: '1.5.0',
+            loaderVersion: {ver},
+            motion: 'full',
+            ticks: 'highlight',
+            autoUpdate: true,
+            checkIntervalHours: 12,
+            mirrorPrefix: '',
+            lastCheckAt: 0,
+            pendingUpdateVersion: null,
+            pendingUpdateNotes: null,
+            pendingLoaderUpgrade: false
+          }};
+        }}
+        if (cfg && typeof cfg === 'object') {{
+          if (cfg.resetAppearance) {{
+            rawObj.motion = 'full';
+            rawObj.ticks = 'highlight';
+          }}
+          if (cfg.motion === 'full' || cfg.motion === 'fast' || cfg.motion === 'quick') {{
+            rawObj.motion = cfg.motion;
+          }}
+          if (cfg.ticks === 'highlight' || cfg.ticks === 'dim' || cfg.ticks === 'hidden') {{
+            rawObj.ticks = cfg.ticks;
+          }}
+          if (typeof cfg.autoUpdate === 'boolean') {{
+            rawObj.autoUpdate = cfg.autoUpdate;
+          }}
+          if (typeof cfg.mirrorPrefix === 'string') {{
+            rawObj.mirrorPrefix = cfg.mirrorPrefix.trim();
+          }}
+        }}
+        const nextText = JSON.stringify(rawObj, null, 2) + '\n';
+        const tmpPath = statePath + '.tmp';
+        fs.writeFileSync(tmpPath, nextText, 'utf8');
+        try {{
+          fs.renameSync(tmpPath, statePath);
+        }} catch {{
+          fs.writeFileSync(statePath, nextText, 'utf8');
+          try {{ fs.unlinkSync(tmpPath); }} catch {{}}
+        }}
+      }} catch (err) {{
+        console.error('[CodexSlider] writeStatePatchSafe error:', err);
+      }}
+      const nextState = readStateSafe();
+      broadcastStateChanged(nextState);
+      return nextState;
     }}
 
     function runEngine(args) {{
@@ -166,13 +251,7 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
     }}
 
     function broadcastUpdateReady(payload) {{
-      try {{
-        for (const win of BrowserWindow.getAllWindows()) {{
-          if (win && !win.isDestroyed() && win.webContents) {{
-            win.webContents.send('codex-slider:update-ready', payload);
-          }}
-        }}
-      }} catch {{}}
+      broadcastToAllWindows('codex-slider:update-ready', payload);
     }}
 
     function showNativeUpdateNotification(version) {{
@@ -228,16 +307,8 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
 
       ipcMain.handle('codex-slider:get-state', () => readStateSafe());
 
-      ipcMain.handle('codex-slider:save-config', async (_ev, cfg) => {{
-        const args = ['config', '--json'];
-        if (cfg && typeof cfg.autoUpdate === 'boolean') {{
-          args.push('--auto-update', cfg.autoUpdate ? 'true' : 'false');
-        }}
-        if (cfg && typeof cfg.mirrorPrefix === 'string') {{
-          args.push('--mirror', cfg.mirrorPrefix);
-        }}
-        await runEngine(args);
-        return readStateSafe();
+      ipcMain.handle('codex-slider:save-config', (_ev, cfg) => {{
+        return writeStatePatchSafe(cfg);
       }});
 
       ipcMain.handle('codex-slider:check-update', async () => {{
@@ -246,7 +317,17 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
           showNativeUpdateNotification(res.version);
           broadcastUpdateReady(res);
         }}
-        return Object.assign({{}}, res, {{ state: readStateSafe() }});
+        const st = readStateSafe();
+        broadcastStateChanged(st);
+        return Object.assign({{}}, res, {{ state: st }});
+      }});
+
+      ipcMain.handle('codex-slider:uninstall', async () => {{
+        const res = await runEngine(['uninstall', '--json']);
+        if (res && res.ok) {{
+          broadcastToAllWindows('codex-slider:uninstalled', res);
+        }}
+        return res;
       }});
 
       ipcMain.handle('codex-slider:relaunch', () => {{
@@ -257,6 +338,36 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
 
     if (app && typeof app.whenReady === 'function') {{
       app.whenReady().then(() => {{
+        const rootDir = getPluginRoot();
+        let watchDebounce = null;
+        const checkSignalsAndState = () => {{
+          try {{
+            const relaunchFile = path.join(rootDir, '.relaunch-request');
+            if (fs.existsSync(relaunchFile)) {{
+              try {{ fs.unlinkSync(relaunchFile); }} catch {{}}
+              triggerRelaunch();
+              return;
+            }}
+            const uninstallFile = path.join(rootDir, '.uninstall-request');
+            if (fs.existsSync(uninstallFile)) {{
+              try {{ fs.unlinkSync(uninstallFile); }} catch {{}}
+              broadcastToAllWindows('codex-slider:uninstalled', {{ ok: true, fromSidecar: true }});
+              return;
+            }}
+            broadcastStateChanged(readStateSafe());
+          }} catch {{}}
+        }};
+
+        try {{
+          if (fs.existsSync(rootDir)) {{
+            fs.watch(rootDir, {{ persistent: false }}, () => {{
+              if (watchDebounce) clearTimeout(watchDebounce);
+              watchDebounce = setTimeout(checkSignalsAndState, 60);
+            }});
+          }}
+        }} catch {{}}
+        setInterval(checkSignalsAndState, 1500);
+
         setTimeout(async () => {{
           const st = readStateSafe();
           if (!st.autoUpdate) return;
@@ -309,7 +420,28 @@ try {{
         getState: () => __agElectron.ipcRenderer.invoke('codex-slider:get-state'),
         saveConfig: (cfg) => __agElectron.ipcRenderer.invoke('codex-slider:save-config', cfg),
         checkUpdate: () => __agElectron.ipcRenderer.invoke('codex-slider:check-update'),
+        uninstall: () => __agElectron.ipcRenderer.invoke('codex-slider:uninstall'),
         relaunch: () => __agElectron.ipcRenderer.invoke('codex-slider:relaunch'),
+        onStateChanged: (callback) => {{
+          if (typeof callback !== 'function') return () => {{}};
+          const handler = (_ev, payload) => {{
+            try {{ callback(payload); }} catch {{}}
+          }};
+          __agElectron.ipcRenderer.on('codex-slider:state-changed', handler);
+          return () => {{
+            try {{ __agElectron.ipcRenderer.removeListener('codex-slider:state-changed', handler); }} catch {{}}
+          }};
+        }},
+        onUninstalled: (callback) => {{
+          if (typeof callback !== 'function') return () => {{}};
+          const handler = (_ev, payload) => {{
+            try {{ callback(payload); }} catch {{}}
+          }};
+          __agElectron.ipcRenderer.on('codex-slider:uninstalled', handler);
+          return () => {{
+            try {{ __agElectron.ipcRenderer.removeListener('codex-slider:uninstalled', handler); }} catch {{}}
+          }};
+        }},
         onUpdateReady: (callback) => {{
           if (typeof callback !== 'function') return () => {{}};
           const handler = (_ev, payload) => {{
@@ -408,10 +540,15 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
       try {{
         const p = path.join(getPluginRoot(), 'state.json');
         const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+        const motion = (parsed.motion === 'fast' || parsed.motion === 'quick') ? parsed.motion : 'full';
+        const ticks = (parsed.ticks === 'dim' || parsed.ticks === 'hidden') ? parsed.ticks : 'highlight';
         return {{
-          version: parsed.version || '1.4.0',
+          version: parsed.version || '1.5.0',
           loaderVersion: parsed.loaderVersion || {ver},
+          motion,
+          ticks,
           autoUpdate: parsed.autoUpdate !== false,
+          checkIntervalHours: Number(parsed.checkIntervalHours || 12),
           mirrorPrefix: typeof parsed.mirrorPrefix === 'string' ? parsed.mirrorPrefix : '',
           lastCheckAt: Number(parsed.lastCheckAt || 0),
           pendingUpdateVersion: parsed.pendingUpdateVersion || null,
@@ -421,9 +558,12 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
         }};
       }} catch {{
         return {{
-          version: '1.4.0',
+          version: '1.5.0',
           loaderVersion: {ver},
+          motion: 'full',
+          ticks: 'highlight',
           autoUpdate: true,
+          checkIntervalHours: 12,
           mirrorPrefix: '',
           lastCheckAt: 0,
           pendingUpdateVersion: null,
@@ -432,6 +572,80 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
           canRelaunch: true
         }};
       }}
+    }}
+
+    const sseClients = new Set();
+    let lastIdeStateFp = '';
+    function pushIdeStateChanged(st) {{
+      const s = st || readStateSafe();
+      const fp = JSON.stringify({{ m: s.motion, t: s.ticks, a: s.autoUpdate, r: s.mirrorPrefix, l: s.lastCheckAt, p: s.pendingUpdateVersion, v: s.version }});
+      if (fp === lastIdeStateFp) return;
+      lastIdeStateFp = fp;
+      const chunk = 'event: state-changed\ndata: ' + JSON.stringify(s) + '\n\n';
+      for (const clientRes of Array.from(sseClients)) {{
+        try {{
+          clientRes.write(chunk);
+        }} catch {{
+          sseClients.delete(clientRes);
+        }}
+      }}
+    }}
+
+    function writeStatePatchSafe(cfg) {{
+      try {{
+        const statePath = path.join(getPluginRoot(), 'state.json');
+        const dir = path.dirname(statePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, {{ recursive: true }});
+        let rawObj = {{}};
+        try {{
+          rawObj = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+        }} catch {{
+          rawObj = {{
+            version: '1.5.0',
+            loaderVersion: {ver},
+            motion: 'full',
+            ticks: 'highlight',
+            autoUpdate: true,
+            checkIntervalHours: 12,
+            mirrorPrefix: '',
+            lastCheckAt: 0,
+            pendingUpdateVersion: null,
+            pendingUpdateNotes: null
+          }};
+        }}
+        if (cfg && typeof cfg === 'object') {{
+          if (cfg.resetAppearance) {{
+            rawObj.motion = 'full';
+            rawObj.ticks = 'highlight';
+          }}
+          if (cfg.motion === 'full' || cfg.motion === 'fast' || cfg.motion === 'quick') {{
+            rawObj.motion = cfg.motion;
+          }}
+          if (cfg.ticks === 'highlight' || cfg.ticks === 'dim' || cfg.ticks === 'hidden') {{
+            rawObj.ticks = cfg.ticks;
+          }}
+          if (typeof cfg.autoUpdate === 'boolean') {{
+            rawObj.autoUpdate = cfg.autoUpdate;
+          }}
+          if (typeof cfg.mirrorPrefix === 'string') {{
+            rawObj.mirrorPrefix = cfg.mirrorPrefix.trim();
+          }}
+        }}
+        const nextText = JSON.stringify(rawObj, null, 2) + '\n';
+        const tmpPath = statePath + '.tmp';
+        fs.writeFileSync(tmpPath, nextText, 'utf8');
+        try {{
+          fs.renameSync(tmpPath, statePath);
+        }} catch {{
+          fs.writeFileSync(statePath, nextText, 'utf8');
+          try {{ fs.unlinkSync(tmpPath); }} catch {{}}
+        }}
+      }} catch (err) {{
+        console.error('[CodexSlider IDE] writeStatePatchSafe error:', err);
+      }}
+      const nextState = readStateSafe();
+      pushIdeStateChanged(nextState);
+      return nextState;
     }}
 
     function runEngine(args) {{
@@ -538,17 +752,28 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
               return;
             }}
 
+            if (reqUrl === '/__ag_codex_slider/events' && req.method === 'GET') {{
+              res.writeHead(200, {{
+                'Content-Type': 'text/event-stream; charset=utf-8',
+                'Cache-Control': 'no-cache, no-transform',
+                'Connection': 'keep-alive'
+              }});
+              res.write('event: state-changed\ndata: ' + JSON.stringify(readStateSafe()) + '\n\n');
+              sseClients.add(res);
+              const timer = setInterval(() => {{
+                pushIdeStateChanged(readStateSafe());
+                try {{ res.write(': ping\n\n'); }} catch {{}}
+              }}, 1500);
+              req.on('close', () => {{
+                clearInterval(timer);
+                sseClients.delete(res);
+              }});
+              return;
+            }}
+
             if (reqUrl === '/__ag_codex_slider/config' && req.method === 'POST') {{
               const body = await readJsonBody(req);
-              const args = ['config', '--json'];
-              if (typeof body.autoUpdate === 'boolean') {{
-                args.push('--auto-update', body.autoUpdate ? 'true' : 'false');
-              }}
-              if (typeof body.mirrorPrefix === 'string') {{
-                args.push('--mirror', body.mirrorPrefix);
-              }}
-              await runEngine(args);
-              sendJson(res, 200, readStateSafe());
+              sendJson(res, 200, writeStatePatchSafe(body));
               return;
             }}
 
@@ -557,7 +782,15 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
               if (result && result.status === 'updated' && result.version) {{
                 notifyIdeUpdateReady(result.version);
               }}
-              sendJson(res, 200, Object.assign({{}}, result, {{ state: readStateSafe() }}));
+              const st = readStateSafe();
+              pushIdeStateChanged(st);
+              sendJson(res, 200, Object.assign({{}}, result, {{ state: st }}));
+              return;
+            }}
+
+            if (reqUrl === '/__ag_codex_slider/uninstall' && req.method === 'POST') {{
+              const result = await runEngine(['uninstall', '--json']);
+              sendJson(res, 200, result);
               return;
             }}
 

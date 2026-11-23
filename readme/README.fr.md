@@ -134,7 +134,9 @@ npm run eject
 - **Clic droit** sur le curseur (ou appui long de 500 ms sur écran tactile) pour afficher les paramètres (`.ces-set`) :
   - **Animation** : `Complète` (par défaut) / `Rapide` (magnétisme en ~70 ms) / `Simple`.
   - **Repères de graduation** : `Blanc éclatant` (défaut) / `Couleur de piste` / `Masqué`.
-  - **Diagnostics & Réinitialisation** : Copie des 200 derniers événements en JSON / Restauration par défaut.
+  - **Diagnostics & Réinitialisation** : Copie des 200 derniers événements en JSON / Restauration par défaut.  
+    
+  ![Plugins](../assets/Plugins.png) 
 
 ---
 

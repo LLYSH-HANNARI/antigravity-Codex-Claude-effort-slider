@@ -18,8 +18,9 @@ use crate::state::{self, LOADER_VERSION};
 pub const DEFAULT_MANIFEST_URL: &str =
     "https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/manifest.json";
 
-/// 默认自动检查冷却时间（6 小时）
-pub const CHECK_COOLDOWN_SECS: u64 = 6 * 3600;
+/// 默认自动检查冷却时间（12 小时）
+#[allow(dead_code)]
+pub const CHECK_COOLDOWN_SECS: u64 = 12 * 3600;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -213,7 +214,7 @@ fn build_http_agent() -> ureq::Agent {
     let mut builder = ureq::AgentBuilder::new()
         .timeout_connect(Duration::from_secs(10))
         .timeout_read(Duration::from_secs(30))
-        .user_agent("ag-effort-slider/1.4.0");
+        .user_agent(concat!("ag-effort-slider/", env!("CARGO_PKG_VERSION")));
     if let Some(proxy_str) = detect_system_proxy() {
         if let Ok(proxy) = ureq::Proxy::new(&proxy_str) {
             builder = builder.proxy(proxy);
@@ -254,7 +255,8 @@ pub fn check_and_apply_update(force: bool, background: bool) -> UpdateResult {
     }
 
     let now = state::now_unix_secs();
-    if !force && st.last_check_at > 0 && now.saturating_sub(st.last_check_at) < CHECK_COOLDOWN_SECS {
+    let cooldown_secs = st.check_interval_hours.max(1) * 3600;
+    if !force && st.last_check_at > 0 && now.saturating_sub(st.last_check_at) < cooldown_secs {
         return UpdateResult {
             ok: true,
             status: "cooldown".to_string(),

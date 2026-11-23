@@ -16,12 +16,13 @@ use windows_sys::Win32::UI::HiDpi::{
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW,
-    LoadCursorW, PostMessageW, PostQuitMessage, RegisterClassExW, SendMessageW,
-    SetWindowTextW, ShowWindow, TranslateMessage, BS_PUSHBUTTON, CW_USEDEFAULT,
-    ES_AUTOVSCROLL, ES_MULTILINE, ES_READONLY, IDC_ARROW, MSG, SW_SHOW, WM_APP,
-    WM_COMMAND, WM_CREATE, WM_DESTROY, WM_SETFONT, WNDCLASSEXW, WS_BORDER,
-    WS_CAPTION, WS_CHILD, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU, WS_VISIBLE,
-    WS_VSCROLL,
+    LoadCursorW, LoadIconW, LoadImageW, MessageBoxW, PostMessageW, PostQuitMessage,
+    RegisterClassExW, SendMessageW, SetWindowTextW, ShowWindow, TranslateMessage,
+    BS_PUSHBUTTON, CW_USEDEFAULT, ES_AUTOVSCROLL, ES_MULTILINE, ES_READONLY,
+    HICON, IDC_ARROW, IMAGE_ICON, LR_DEFAULTCOLOR, MB_DEFBUTTON2, MB_ICONWARNING,
+    MB_YESNO, IDYES, MSG, SW_SHOW, WM_APP, WM_COMMAND, WM_CREATE, WM_DESTROY,
+    WM_SETFONT, WNDCLASSEXW, WS_BORDER, WS_CAPTION, WS_CHILD, WS_MINIMIZEBOX,
+    WS_OVERLAPPED, WS_SYSMENU, WS_VISIBLE, WS_VSCROLL,
 };
 
 use crate::patcher;
@@ -106,7 +107,7 @@ fn format_status_summary() -> String {
         }
     }
     let coexist_txt = if coexisting.is_empty() {
-        "未检测到其他第三方补丁".to_string()
+        "未检测到其他第三方插件".to_string()
     } else {
         format!("{}（操作将自动保留共存）", coexisting.join("、"))
     };
@@ -311,7 +312,7 @@ unsafe extern "system" fn wnd_proc(
             );
 
             let log_init = to_wide(
-                "准备就绪。采用原地增量修补：仅管理本插件，自动保留 shittim-chest 等其他已安装插件，且支持自动更新与官方更新后自动修复。",
+                "准备就绪。采用原地增量修补，仅管理本插件并保留其他已安装插件，支持自动更新与官方更新后自动修复。",
             );
             let hwnd_log = CreateWindowExW(
                 0,
@@ -376,10 +377,22 @@ unsafe extern "system" fn wnd_proc(
                     });
                 }
                 ID_BTN_UNINSTALL => {
-                    run_bg_task("卸载本插件（保留其他插件）", || {
-                        let rep = patcher::uninstall_all(None);
-                        format_report(&rep)
-                    });
+                    let confirm_msg = to_wide(
+                        "确定要卸载「Antigravity 推理等级滑条」吗？\r\n\r\n仅移除本插件的补丁与插件目录，不会影响其他已安装的插件及原有设置。",
+                    );
+                    let confirm_title = to_wide("确认卸载本插件");
+                    let choice = MessageBoxW(
+                        hwnd,
+                        confirm_msg.as_ptr(),
+                        confirm_title.as_ptr(),
+                        MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2,
+                    );
+                    if choice == IDYES {
+                        run_bg_task("卸载本插件（保留其他插件）", || {
+                            let rep = patcher::uninstall_all(None);
+                            format_report(&rep)
+                        });
+                    }
                 }
                 ID_BTN_REFRESH => {
                     run_bg_task("刷新环境状态", || "已刷新当前本机环境状态。".to_string());
@@ -419,6 +432,15 @@ pub fn run_gui() {
     unsafe {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         let hinstance = GetModuleHandleW(std::ptr::null());
+        let icon_res = 1usize as *const u16;
+        let mut h_icon = LoadImageW(hinstance, icon_res, IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR) as HICON;
+        if h_icon.is_null() {
+            h_icon = LoadIconW(hinstance, icon_res);
+        }
+        let mut h_icon_sm = LoadImageW(hinstance, icon_res, IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR) as HICON;
+        if h_icon_sm.is_null() {
+            h_icon_sm = h_icon;
+        }
         let class_name = to_wide("AgEffortSliderInstallerWnd");
         let wc = WNDCLASSEXW {
             cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
@@ -427,12 +449,12 @@ pub fn run_gui() {
             cbClsExtra: 0,
             cbWndExtra: 0,
             hInstance: hinstance,
-            hIcon: std::ptr::null_mut(),
+            hIcon: h_icon,
             hCursor: LoadCursorW(std::ptr::null_mut(), IDC_ARROW),
             hbrBackground: GetStockObject(WHITE_BRUSH as i32) as _,
             lpszMenuName: std::ptr::null(),
             lpszClassName: class_name.as_ptr(),
-            hIconSm: std::ptr::null_mut(),
+            hIconSm: h_icon_sm,
         };
         RegisterClassExW(&wc);
 

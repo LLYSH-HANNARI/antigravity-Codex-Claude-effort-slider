@@ -15,6 +15,7 @@ mod loader;
 mod notify;
 mod patcher;
 mod paths;
+mod sidecar;
 mod state;
 #[cfg(test)]
 mod tests;
@@ -66,6 +67,7 @@ fn main() {
         // `hook` 与 `--background` 全程管道/静默运行，无需附加控制台；其余终端 CLI 子命令按需附加
         let cmd = args.first().map(|s| s.as_str()).unwrap_or("");
         let is_silent = cmd == "hook"
+            || cmd == "sidecar"
             || cmd == "deferred-swap"
             || cmd == "deferred-op"
             || args.iter().any(|a| a == "--background");
@@ -189,8 +191,25 @@ fn run_cli(args: &[String]) -> i32 {
         }
         "config" => {
             let mut st = state::load_state();
+            if has_flag(args, "--reset-appearance") {
+                st.motion = state::default_motion();
+                st.ticks = state::default_ticks();
+            }
+            if let Some(m) = arg_value(args, "--motion") {
+                st.motion = state::normalize_motion(&m).to_string();
+            }
+            if let Some(t) = arg_value(args, "--ticks") {
+                st.ticks = state::normalize_ticks(&t).to_string();
+            }
             if let Some(val) = arg_value(args, "--auto-update") {
                 st.auto_update = matches!(val.to_ascii_lowercase().as_str(), "true" | "1" | "yes");
+            }
+            if let Some(hours_raw) = arg_value(args, "--check-interval-hours") {
+                if let Ok(h) = hours_raw.trim().parse::<u64>() {
+                    if h > 0 {
+                        st.check_interval_hours = h;
+                    }
+                }
             }
             if let Some(mirror) = arg_value(args, "--mirror") {
                 st.mirror_prefix = mirror.trim().to_string();
@@ -206,9 +225,23 @@ fn run_cli(args: &[String]) -> i32 {
             if json_mode {
                 println!("{}", serde_json::to_string(&st).unwrap_or_default());
             } else {
-                println!("已保存配置: autoUpdate={}, mirrorPrefix={}", st.auto_update, st.mirror_prefix);
+                println!(
+                    "已保存配置: motion={}, ticks={}, autoUpdate={}, mirrorPrefix={}",
+                    st.motion, st.ticks, st.auto_update, st.mirror_prefix
+                );
             }
             0
+        }
+        "sidecar" => {
+            let port = arg_value(args, "--port").and_then(|s| s.parse::<u16>().ok());
+            let token = arg_value(args, "--token");
+            match sidecar::run_sidecar_server(port, token) {
+                Ok(()) => 0,
+                Err(e) => {
+                    eprintln!("Sidecar 启动失败: {e}");
+                    1
+                }
+            }
         }
         "hook" => {
             let sub = args.get(1).map(|s| s.as_str()).unwrap_or("");
@@ -252,7 +285,7 @@ fn run_cli(args: &[String]) -> i32 {
             0
         }
         _ => {
-            eprintln!("用法: ag-effort-slider <install|uninstall|repair|status|update|config|hook|version> [选项]");
+            eprintln!("用法: ag-effort-slider <install|uninstall|repair|status|update|config|hook|sidecar|version> [选项]");
             1
         }
     }

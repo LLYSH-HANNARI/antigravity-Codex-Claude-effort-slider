@@ -134,7 +134,9 @@ npm run eject
 - **Right-click** on the slider (or long-press 500ms on touchscreens) to summon settings (`.ces-set`), saved in `localStorage["ag.codexEffortSlider.settings.v1"]`:
   - **Animation Mode**: `Full` (Default, continuous chasing + stardust fade-in) / `Fast` (Snaps across 1/3 detents · ~70ms) / `Simple` (Instant snap).
   - **Tick Points**: `Bright White` (Default) / `Muted Track Color` / `Hidden`.
-  - **Diagnostics & Reset**: Copy recent 200 interaction trace records as JSON and restore defaults.
+  - **Diagnostics & Reset**: Copy recent 200 interaction trace records as JSON and restore defaults.  
+    
+  ![Plugins](../assets/Plugins.png) 
 
 ---
 

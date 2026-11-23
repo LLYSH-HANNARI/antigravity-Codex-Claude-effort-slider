@@ -8,12 +8,45 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::paths;
 
 /// 当前动态引导器协议版本
-pub const LOADER_VERSION: u32 = 1;
+pub const LOADER_VERSION: u32 = 2;
 
 /// 当前二进制内置打包的客户端版本号
 pub const BUNDLED_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// 插件运行状态与用户更新配置
+/// 默认自动检查更新周期（小时）
+pub const DEFAULT_CHECK_INTERVAL_HOURS: u64 = 12;
+
+pub fn default_motion() -> String {
+    "full".to_string()
+}
+
+pub fn default_ticks() -> String {
+    "highlight".to_string()
+}
+
+pub fn default_check_interval_hours() -> u64 {
+    DEFAULT_CHECK_INTERVAL_HOURS
+}
+
+/// 归一化动画模式（"full" | "fast" | "quick"）
+pub fn normalize_motion(raw: &str) -> &'static str {
+    match raw.trim() {
+        "fast" => "fast",
+        "quick" => "quick",
+        _ => "full",
+    }
+}
+
+/// 归一化刻度点显示模式（"highlight" | "dim" | "hidden"）
+pub fn normalize_ticks(raw: &str) -> &'static str {
+    match raw.trim() {
+        "dim" => "dim",
+        "hidden" => "hidden",
+        _ => "highlight",
+    }
+}
+
+/// 插件运行状态与用户更新配置（同时作为 Sidecar 与 Desktop/IDE 外观设置的单一事实源）
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginState {
@@ -21,8 +54,17 @@ pub struct PluginState {
     pub version: String,
     /// 当前本地引导器协议版本
     pub loader_version: u32,
+    /// 滑条动画模式："full" | "fast" | "quick"
+    #[serde(default = "default_motion")]
+    pub motion: String,
+    /// 已到达档位刻度点模式："highlight" | "dim" | "hidden"
+    #[serde(default = "default_ticks")]
+    pub ticks: String,
     /// 是否开启自动检查并静默下载更新（默认开启）
     pub auto_update: bool,
+    /// 自动检查周期（小时，默认 12 小时）
+    #[serde(default = "default_check_interval_hours")]
+    pub check_interval_hours: u64,
     /// 可选自定义 GitHub Release 镜像前缀（如 https://gh-proxy.com/）
     pub mirror_prefix: String,
     /// 上次检查更新的 Unix 秒级时间戳
@@ -46,7 +88,10 @@ impl Default for PluginState {
         Self {
             version: BUNDLED_VERSION.to_string(),
             loader_version: LOADER_VERSION,
+            motion: default_motion(),
+            ticks: default_ticks(),
             auto_update: true,
+            check_interval_hours: DEFAULT_CHECK_INTERVAL_HOURS,
             mirror_prefix: String::new(),
             last_check_at: 0,
             pending_update_version: None,
@@ -55,6 +100,16 @@ impl Default for PluginState {
             last_repaired_fingerprint: None,
         }
     }
+}
+
+/// 对加载后的状态字段进行合法性归一化
+pub fn normalize_state(mut st: PluginState) -> PluginState {
+    st.motion = normalize_motion(&st.motion).to_string();
+    st.ticks = normalize_ticks(&st.ticks).to_string();
+    if st.check_interval_hours == 0 {
+        st.check_interval_hours = DEFAULT_CHECK_INTERVAL_HOURS;
+    }
+    st
 }
 
 /// 获取当前 Unix 秒级时间戳
@@ -74,7 +129,8 @@ pub fn load_state_from(path: &Path) -> PluginState {
     let Ok(raw) = fs::read_to_string(path) else {
         return PluginState::default();
     };
-    serde_json::from_str::<PluginState>(&raw).unwrap_or_default()
+    let parsed = serde_json::from_str::<PluginState>(&raw).unwrap_or_default();
+    normalize_state(parsed)
 }
 
 /// 原子保存 state.json（先写临时文件再 rename/覆盖）
@@ -86,7 +142,8 @@ pub fn save_state_to(path: &Path, state: &PluginState) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("创建状态目录失败: {e}"))?;
     }
-    let json = serde_json::to_string_pretty(state)
+    let normalized = normalize_state(state.clone());
+    let json = serde_json::to_string_pretty(&normalized)
         .map_err(|e| format!("序列化 state.json 失败: {e}"))?;
     let tmp = path.with_extension("json.tmp");
     fs::write(&tmp, format!("{json}\n")).map_err(|e| format!("写入临时状态文件失败: {e}"))?;

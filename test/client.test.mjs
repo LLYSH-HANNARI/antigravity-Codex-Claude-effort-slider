@@ -5,9 +5,9 @@ const require = createRequire(import.meta.url);
 const slider = require("../lib/client.js");
 
 let passedCount = 0;
-function test(name, fn) {
+async function test(name, fn) {
   try {
-    fn();
+    await fn();
     passedCount += 1;
     console.log("  ✓", name);
   } catch (err) {
@@ -3555,20 +3555,28 @@ test("22. v1.3.1 解法一/二/四：零 Layout GPU 定位、拖动回响节流�
   obs.stop();
 });
 
-test("23. v1.4.0 宿主桥接、自动更新设置区块与原生风格更新 Toast 生命周期", async () => {
-  assert.equal(slider.PLUGIN_VERSION, "1.4.0");
+await test("23. v1.5.0 单页右键菜单（外观 + 图二更新区 + 底部红色二次确认卸载）与双向热同步", async () => {
+  assert.equal(slider.PLUGIN_VERSION, "1.5.0");
   const env = createPerfTestEnv();
+  env.win.navigator = { language: "zh-CN", languages: ["zh-CN"] };
   assert.equal(slider.resolveHostBridge(env.win), null, "无桥接环境下应返回 null 静默降级");
 
-  // 1. 构造模拟 Desktop 宿主桥接
+  // 1. 构造模拟 Desktop 宿主桥接（含双向热同步与卸载回调）
   let hostState = {
-    version: "1.4.0",
+    version: "1.5.0",
+    motion: "full",
+    ticks: "highlight",
     autoUpdate: true,
+    checkIntervalHours: 12,
     mirrorPrefix: "",
+    lastCheckAt: 0,
     pendingUpdateVersion: null
   };
   let relaunchCalls = 0;
+  let uninstallCalls = 0;
   let updateReadyListener = null;
+  let stateChangedListener = null;
+  let uninstalledListener = null;
 
   const mockBridge = {
     platform: "desktop",
@@ -3576,22 +3584,41 @@ test("23. v1.4.0 宿主桥接、自动更新设置区块与原生风格更新 To
       return { ...hostState };
     },
     async saveConfig(cfg) {
+      if (typeof cfg.motion === "string") hostState.motion = cfg.motion;
+      if (typeof cfg.ticks === "string") hostState.ticks = cfg.ticks;
       if (typeof cfg.autoUpdate === "boolean") hostState.autoUpdate = cfg.autoUpdate;
       if (typeof cfg.mirrorPrefix === "string") hostState.mirrorPrefix = cfg.mirrorPrefix;
       return { ...hostState };
     },
     async checkUpdate() {
-      hostState.pendingUpdateVersion = "1.4.1";
+      hostState.pendingUpdateVersion = "1.5.1";
+      hostState.lastCheckAt = Math.floor(Date.now() / 1000);
       return {
         ok: true,
         status: "updated",
-        version: "1.4.1",
+        version: "1.5.1",
         state: { ...hostState }
       };
+    },
+    async uninstall() {
+      uninstallCalls += 1;
+      return { ok: true, messages: ["已精准卸载本插件"] };
     },
     async relaunch() {
       relaunchCalls += 1;
       return true;
+    },
+    onStateChanged(cb) {
+      stateChangedListener = cb;
+      return () => {
+        if (stateChangedListener === cb) stateChangedListener = null;
+      };
+    },
+    onUninstalled(cb) {
+      uninstalledListener = cb;
+      return () => {
+        if (uninstalledListener === cb) uninstalledListener = null;
+      };
     },
     onUpdateReady(cb) {
       updateReadyListener = cb;
@@ -3601,7 +3628,7 @@ test("23. v1.4.0 宿主桥接、自动更新设置区块与原生风格更新 To
     }
   };
 
-  // 2. 设置面板双 Tab 渲染与交互（外观 / 更新、自动更新开关、镜像前缀、立即检查更新）
+  // 2. 单页右键设置面板渲染（无 Tab 栏，外观 + 图二更新区 + 底部红色二次确认卸载）
   const closeSettings = slider.openSettingsPanel({
     document: env.doc,
     window: env.win,
@@ -3614,56 +3641,76 @@ test("23. v1.4.0 宿主桥接、自动更新设置区块与原生风格更新 To
 
   const panel = env.doc.querySelector(".ces-set");
   assert.ok(panel, "设置面板应当渲染");
-  const verEl = panel.querySelector(".ces-set-ver");
-  assert.equal(verEl.textContent, "v1.4.0");
+  assert.equal(panel.querySelector(".ces-set-tabs"), null, "单页布局不应渲染旧版双 Tab 栏");
+  assert.ok(panel.querySelector(".ces-set-logo"), "头部应渲染品牌 SVG 图标");
+  assert.equal(panel.querySelector(".ces-set-ver").textContent, "v1.5.0");
 
-  const tabsBar = panel.querySelector(".ces-set-tabs");
-  assert.ok(tabsBar, "存在 bridge 时应渲染双 Tab 栏");
-  const appearancePane = panel.querySelector('[data-ces-tab-pane="appearance"]');
-  const updatePane = panel.querySelector('[data-ces-tab-pane="update"]');
-  assert.ok(appearancePane && updatePane, "应存在外观与更新两个面板");
-  assert.ok(!appearancePane.hidden, "默认应显示外观页");
-  assert.equal(updatePane.hidden, true, "默认应隐藏更新页");
+  const updateSec = panel.querySelector('[data-ces-section="update"]');
+  const dangerSec = panel.querySelector('[data-ces-section="danger"]');
+  assert.ok(updateSec && dangerSec, "存在 bridge 时应同时渲染更新设置区与底部危险卸载区");
 
-  const updateTabBtn = panel.querySelector('[data-ces-tab="update"]');
-  assert.ok(updateTabBtn, "应存在更新 Tab 按钮");
-  updateTabBtn.dispatch("click", {});
-  assert.equal(appearancePane.hidden, true, "切到更新 Tab 后应隐藏外观页");
-  assert.equal(updatePane.hidden, false, "切到更新 Tab 后应显示更新页");
-
-  const optButtons = panel.querySelectorAll(".ces-set-opt");
-  const manualBtn = optButtons.find((b) => b.textContent === "仅手动");
-  assert.ok(manualBtn, "应存在仅手动按钮");
-  manualBtn.dispatch("click", {});
+  const autoToggleBtn = panel.querySelector('[data-ces-action="toggle-auto-update"]');
+  assert.equal(autoToggleBtn.textContent, "已启用");
+  autoToggleBtn.dispatch("click", {});
   await Promise.resolve();
-  assert.equal(hostState.autoUpdate, false, "点击仅手动应同步保存到宿主状态");
+  assert.equal(hostState.autoUpdate, false, "点击已启用应切换为仅手动并保存");
+  assert.equal(autoToggleBtn.textContent, "已禁用");
 
   const mirrorInput = panel.querySelector(".ces-set-input");
+  const saveMirrorBtn = panel.querySelector('[data-ces-action="save-mirror"]');
   mirrorInput.value = "https://gh-proxy.com/";
-  mirrorInput.dispatch("blur", {});
+  saveMirrorBtn.dispatch("click", {});
   await Promise.resolve();
-  assert.equal(hostState.mirrorPrefix, "https://gh-proxy.com/");
+  assert.equal(hostState.mirrorPrefix, "https://gh-proxy.com/", "点击保存按钮应同步镜像前缀");
 
-  const checkBtn = panel.querySelectorAll(".ces-set-btn").find((b) => b.textContent === "立即检查更新");
-  assert.ok(checkBtn, "应存在立即检查更新按钮");
+  const checkBtn = panel.querySelectorAll(".ces-set-primary-btn").find((b) => b.textContent === "检查更新");
+  assert.ok(checkBtn, "应存在检查更新按钮");
   checkBtn.dispatch("click", {});
   await Promise.resolve();
   await Promise.resolve();
 
-  const updateDot = panel.querySelector('[data-ces-part="update-dot"]');
-  assert.ok(updateDot && updateDot.classList.contains("is-visible"), "存在待重启新版时更新 Tab 应点亮提示圆点");
+  const pendingBanner = panel.querySelector('[data-ces-part="pending-banner"]');
+  assert.ok(pendingBanner && pendingBanner.classList.contains("is-visible"), "存在待重启新版时应显示待重启横幅");
 
   const toastAfterCheck = env.doc.querySelector(".ces-update-toast");
   assert.ok(toastAfterCheck, "检查到新版本后应弹出更新就绪 Toast");
-  assert.ok(toastAfterCheck.querySelector(".ces-update-toast-title").textContent.includes("1.4.1"));
+  assert.ok(toastAfterCheck.querySelector(".ces-update-toast-title").textContent.includes("1.5.1"));
   const restartBtn = toastAfterCheck.querySelectorAll(".ces-update-toast-btn").find((b) => b.classList.contains("is-primary"));
   assert.equal(restartBtn.textContent, "立即重启");
   restartBtn.dispatch("click", {});
   await Promise.resolve();
   assert.equal(relaunchCalls, 1, "点击立即重启应调用 bridge.relaunch()");
-
-  closeSettings();
   if (toastAfterCheck.parentNode) toastAfterCheck.parentNode.removeChild(toastAfterCheck);
+
+  // 2.2 远端 Sidecar 推送 state-changed 实时热同步到已打开的右键面板与 localStorage
+  assert.ok(typeof stateChangedListener === "function", "面板打开期间应监听 onStateChanged");
+  stateChangedListener({ ...hostState, motion: "fast", ticks: "dim" });
+  assert.equal(slider.readSettings(env.win).motion, "fast", "远端变更应热同步至 localStorage");
+  assert.equal(slider.readSettings(env.win).ticks, "dim");
+  const fastOpt = panel.querySelectorAll(".ces-set-opt").find((b) => b.textContent === "快速动画");
+  assert.ok(fastOpt && fastOpt.classList.contains("is-on"), "面板按钮应同步高亮快速动画");
+
+  // 2.3 底部红色卸载按钮二次确认（取消 -> 再打开 -> 确认卸载）
+  const uninstallOpenBtn = panel.querySelector('[data-ces-action="uninstall-open"]');
+  const confirmBox = panel.querySelector('[data-ces-part="uninstall-confirm"]');
+  const cancelBtn = panel.querySelector('[data-ces-action="uninstall-cancel"]');
+  const confirmBtn = panel.querySelector('[data-ces-action="uninstall-confirm"]');
+  assert.equal(confirmBox.hidden, true, "二次确认区默认应折叠");
+  uninstallOpenBtn.dispatch("click", {});
+  assert.equal(confirmBox.hidden, false, "点击卸载本插件应展开二次确认区");
+  cancelBtn.dispatch("click", {});
+  assert.equal(confirmBox.hidden, true, "点击取消应收起二次确认区");
+  assert.equal(uninstallCalls, 0);
+
+  uninstallOpenBtn.dispatch("click", {});
+  confirmBtn.dispatch("click", {});
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(uninstallCalls, 1, "点击确认卸载应调用 bridge.uninstall()");
+  const uninstallToast = env.doc.querySelector(".ces-update-toast");
+  assert.ok(uninstallToast && uninstallToast.querySelector(".ces-update-toast-title").textContent.includes("已卸载"));
+  if (uninstallToast.parentNode) uninstallToast.parentNode.removeChild(uninstallToast);
+  closeSettings();
 
   // 2.5 底部右键智能向上翻转防溢出 + 亮色主题自适应 + 无 bridge 单页兼容
   env.win.innerHeight = 600;
@@ -3672,7 +3719,7 @@ test("23. v1.4.0 宿主桥接、自动更新设置区块与原生风格更新 To
   const origCE = env.doc.createElement.bind(env.doc);
   env.doc.createElement = (tag) => {
     const el = origCE(tag);
-    el.getBoundingClientRect = () => ({ left: 0, top: 0, width: 288, height: 240 });
+    el.getBoundingClientRect = () => ({ left: 0, top: 0, width: 316, height: 320 });
     return el;
   };
   const closeFlip = slider.openSettingsPanel({
@@ -3686,9 +3733,9 @@ test("23. v1.4.0 宿主桥接、自动更新设置区块与原生风格更新 To
   assert.ok(flipPanel.classList.contains("is-light"), "亮色背景下设置面板应自动添加 .is-light");
   const topPx = parseFloat(flipPanel.style.top);
   const leftPx = parseFloat(flipPanel.style.left);
-  assert.ok(topPx + 240 <= 590, "弹窗底部不得超出视口下边界");
-  assert.ok(topPx <= 560 - 240, "底部右键空间不足时应智能向上翻转至鼠标上方");
-  assert.ok(leftPx + 288 <= 790, "右侧空间不足时应自动左移防溢出");
+  assert.ok(topPx + 320 <= 590, "弹窗底部不得超出视口下边界");
+  assert.ok(topPx <= 560 - 320, "底部右键空间不足时应智能向上翻转至鼠标上方");
+  assert.ok(leftPx + 316 <= 790, "右侧空间不足时应自动左移防溢出");
   closeFlip();
 
   env.doc.createElement = origCE;
@@ -3700,23 +3747,112 @@ test("23. v1.4.0 宿主桥接、自动更新设置区块与原生风格更新 To
     y: 20
   });
   const offlinePanel = env.doc.querySelector(".ces-set");
-  assert.equal(offlinePanel.querySelector(".ces-set-tabs"), null, "无 bridge 离线模式下不得渲染双 Tab 栏");
+  assert.equal(offlinePanel.querySelector('[data-ces-section="update"]'), null, "无 bridge 离线模式下不得渲染更新区");
+  assert.equal(offlinePanel.querySelector('[data-ces-section="danger"]'), null, "无 bridge 离线模式下不得渲染卸载区");
   closeOffline();
 
-  // 3. installCodexEffortSlider 注册 onUpdateReady 与 stop() 清理
+  // 3. installCodexEffortSlider 双向同步 + 卸载信号 + stop() 清理
   env.win.__agCodexSliderBridge = mockBridge;
   hostState.pendingUpdateVersion = null;
+  hostState.motion = "quick";
   const inst = slider.installCodexEffortSlider({ document: env.doc, window: env.win });
   await Promise.resolve();
   assert.ok(typeof updateReadyListener === "function", "应订阅 onUpdateReady 事件");
+  assert.equal(slider.readSettings(env.win).motion, "quick", "启动时应从宿主 state.json 同步外观设置");
 
-  updateReadyListener({ version: "1.4.2" });
+  // 3.1 本地修改外观应自动调用 bridge.saveConfig 同步给 Sidecar
+  slider.writeSettings({ motion: "full", ticks: "highlight" }, env.win);
+  await Promise.resolve();
+  assert.equal(hostState.motion, "full");
+  assert.equal(hostState.ticks, "highlight");
+
+  updateReadyListener({ version: "1.5.2" });
   const liveToast = env.doc.querySelector(".ces-update-toast");
-  assert.ok(liveToast && liveToast.querySelector(".ces-update-toast-title").textContent.includes("1.4.2"), "收到推送事件后应弹出 Toast");
+  assert.ok(liveToast && liveToast.querySelector(".ces-update-toast-title").textContent.includes("1.5.2"), "收到推送事件后应弹出 Toast");
 
   inst.stop();
   assert.equal(updateReadyListener, null, "stop() 后应注销 onUpdateReady 监听");
   assert.equal(env.doc.querySelector(".ces-update-toast"), null, "stop() 后应清理残留 Toast DOM");
+});
+
+await test("24. 7 语自动多语言识别、词典完整性与非支持语言回退英语验证", async () => {
+  assert.equal(slider.resolveUiLocale("zh-CN"), "zh-CN");
+  assert.equal(slider.resolveUiLocale("zh-SG"), "zh-CN");
+  assert.equal(slider.resolveUiLocale("zh"), "zh-CN");
+  assert.equal(slider.resolveUiLocale("zh-TW"), "zh-TW");
+  assert.equal(slider.resolveUiLocale("zh-HK"), "zh-TW");
+  assert.equal(slider.resolveUiLocale("zh-Hant-MO"), "zh-TW");
+  assert.equal(slider.resolveUiLocale("ja-JP"), "ja");
+  assert.equal(slider.resolveUiLocale("ko-KR"), "ko");
+  assert.equal(slider.resolveUiLocale("fr-FR"), "fr");
+  assert.equal(slider.resolveUiLocale("ru-RU"), "ru");
+  assert.equal(slider.resolveUiLocale("en-US"), "en");
+  assert.equal(slider.resolveUiLocale("de-DE"), "en");
+  assert.equal(slider.resolveUiLocale("es-ES"), "en");
+  assert.equal(slider.resolveUiLocale(""), "en");
+
+  const langs = ["zh-CN", "zh-TW", "en", "ja", "ko", "fr", "ru"];
+  const baseKeys = Object.keys(slider.I18N_MESSAGES["zh-CN"]).sort();
+  for (const lang of langs) {
+    assert.deepEqual(
+      Object.keys(slider.I18N_MESSAGES[lang]).sort(),
+      baseKeys,
+      `${lang} 词典键集合应与基准语言完全一致`
+    );
+  }
+
+  const cases = [
+    { navLang: "en-US", title: "Effort Slider", checkBtn: "Check Updates", uninstallBtn: "Uninstall Plugin", toastTitle: "Ready" },
+    { navLang: "de-DE", title: "Effort Slider", checkBtn: "Check Updates", uninstallBtn: "Uninstall Plugin", toastTitle: "Ready" },
+    { navLang: "ja-JP", title: "推論スライダー", checkBtn: "更新を確認", uninstallBtn: "プラグインを削除", toastTitle: "準備完了" },
+    { navLang: "fr-FR", title: "Curseur d'effort", checkBtn: "Vérifier", uninstallBtn: "Désinstaller le plugin", toastTitle: "prêt" }
+  ];
+
+  for (const c of cases) {
+    const env = createPerfTestEnv();
+    env.win.navigator = { language: c.navLang, languages: [c.navLang] };
+    assert.equal(slider.detectUiLocale(env.win), slider.resolveUiLocale(c.navLang));
+
+    const closePanel = slider.openSettingsPanel({
+      document: env.doc,
+      window: env.win,
+      bridge: {
+        platform: "desktop",
+        async getState() { return { version: "1.5.0", autoUpdate: true, mirrorPrefix: "" }; }
+      },
+      x: 20,
+      y: 20
+    });
+    await Promise.resolve();
+    const panel = env.doc.querySelector(".ces-set");
+    assert.ok(
+      panel.querySelectorAll("span").some((s) => s.textContent === c.title),
+      `${c.navLang} 面板标题应为 ${c.title}`
+    );
+    assert.ok(
+      panel.querySelectorAll(".ces-set-primary-btn").some((b) => b.textContent === c.checkBtn),
+      `${c.navLang} 检查更新按钮应为 ${c.checkBtn}`
+    );
+    assert.equal(
+      panel.querySelector('[data-ces-action="uninstall-open"]').textContent,
+      c.uninstallBtn,
+      `${c.navLang} 卸载按钮应为 ${c.uninstallBtn}`
+    );
+    closePanel();
+
+    const closeToast = slider.showUpdateReadyToast({
+      document: env.doc,
+      window: env.win,
+      version: "1.5.1",
+      platform: "desktop"
+    });
+    const toast = env.doc.querySelector(".ces-update-toast");
+    assert.ok(
+      toast.querySelector(".ces-update-toast-title").textContent.includes(c.toastTitle),
+      `${c.navLang} 更新 Toast 标题应包含 ${c.toastTitle}`
+    );
+    closeToast();
+  }
 });
 
 console.log(`All ${passedCount} test suites passed!`);

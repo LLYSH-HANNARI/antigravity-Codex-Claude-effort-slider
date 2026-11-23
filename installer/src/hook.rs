@@ -11,7 +11,6 @@ use std::io::Read;
 use crate::notify;
 use crate::patcher;
 use crate::state;
-use crate::updater;
 
 /// 执行 `SessionStart` 钩子并返回标准 JSON 字符串
 pub fn handle_session_start() -> String {
@@ -56,7 +55,8 @@ pub fn handle_session_start() -> String {
     // 补丁完好：按冷却时间在后台静默检查 Release 更新
     let st = state::load_state();
     let now = state::now_unix_secs();
-    if st.auto_update && (st.last_check_at == 0 || now.saturating_sub(st.last_check_at) >= updater::CHECK_COOLDOWN_SECS) {
+    let cooldown_secs = st.check_interval_hours.max(1) * 3600;
+    if st.auto_update && (st.last_check_at == 0 || now.saturating_sub(st.last_check_at) >= cooldown_secs) {
         let _ = patcher::spawn_detached_self(&["update", "--background"]);
     }
 

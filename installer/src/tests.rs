@@ -239,14 +239,14 @@ fn test_e2e_isolated_install_status_hook_and_uninstall() {
 }
 
 #[test]
-fn test_multi_plugin_coexistence_with_shittim_chest() {
+fn test_multi_plugin_coexistence_with_third_party_plugin() {
     let _guard = ENV_LOCK.lock().unwrap();
     let tmp = make_temp_dir("coexist");
     let plugin_dir = tmp.join("plugin-root");
     let desktop_res = tmp.join("desktop").join("resources");
     let desktop_asar = desktop_res.join("app.asar");
     let old_generic_bak = desktop_res.join("app.asar.bak");
-    let shittim_bak = desktop_res.join("app.asar.shittim.bak");
+    let third_party_bak = desktop_res.join("app.asar.thirdparty.bak");
 
     let ide_root = tmp.join("ide");
     let ide_app = ide_root.join("resources").join("app");
@@ -262,17 +262,17 @@ fn test_multi_plugin_coexistence_with_shittim_chest() {
     fs::create_dir_all(ide_out_file.parent().unwrap()).unwrap();
     fs::create_dir_all(&cached_data).unwrap();
 
-    // 构造已安装 shittim-chest 的 Desktop app.asar（含 main/preload 注入 + 第三方额外条目 dist/shittim-chest.js）
-    let shittim_main = "const m=1;\n/* __SHITTIM_CHEST_MAIN_START__ */\nconsole.log('shittim-main');\n/* __SHITTIM_CHEST_MAIN_END__ */\n";
-    let shittim_preload = "const p=1;\n/* __SHITTIM_CHEST_PRELOAD_START__ */\nconsole.log('shittim-preload');\n/* __SHITTIM_CHEST_PRELOAD_END__ */\n";
-    let shittim_extra = b"/* shittim-chest payload */";
+    // 构造已安装第三方插件的 Desktop app.asar（含 main/preload 注入 + 第三方额外条目 dist/third-party-plugin.js）
+    let third_party_main = "const m=1;\n/* __THIRD_PARTY_MAIN_START__ */\nconsole.log('tp-main');\n/* __THIRD_PARTY_MAIN_END__ */\n";
+    let third_party_preload = "const p=1;\n/* __THIRD_PARTY_PRELOAD_START__ */\nconsole.log('tp-preload');\n/* __THIRD_PARTY_PRELOAD_END__ */\n";
+    let third_party_extra = b"/* third-party-plugin payload */";
 
     let mut payload = Vec::new();
     let mut dist_files = serde_json::Map::new();
     for (name, bytes) in [
-        ("main.js", shittim_main.as_bytes()),
-        ("preload.js", shittim_preload.as_bytes()),
-        ("shittim-chest.js", shittim_extra),
+        ("main.js", third_party_main.as_bytes()),
+        ("preload.js", third_party_preload.as_bytes()),
+        ("third-party-plugin.js", third_party_extra),
     ] {
         let off = payload.len();
         payload.extend_from_slice(bytes);
@@ -288,17 +288,17 @@ fn test_multi_plugin_coexistence_with_shittim_chest() {
     let root = json!({ "files": { "dist": { "files": dist_files } } });
     fs::write(&desktop_asar, asar::build_asar_buffer(&root, &[&payload]).unwrap()).unwrap();
 
-    // 同目录存在旧 app.asar.bak（不含 shittim）与第三方 app.asar.shittim.bak，验证均不被读写或覆盖
+    // 同目录存在旧 app.asar.bak（不含第三方插件）与第三方备份文件，验证均不被读写或覆盖
     fs::write(&old_generic_bak, b"OLD_GENERIC_BAK_DO_NOT_USE").unwrap();
-    fs::write(&shittim_bak, b"SHITTIM_BAK_KEEP_INTACT").unwrap();
+    fs::write(&third_party_bak, b"THIRD_PARTY_BAK_KEEP_INTACT").unwrap();
 
-    // 构造已安装 shittim-chest 的 IDE extension.js 与历史残留 .codex.bak
-    let shittim_ide = "function init(){}\n/* __SHITTIM_CHEST_IDE_START__ */\nconsole.log('shittim-ide');\n/* __SHITTIM_CHEST_IDE_END__ */\n}.call(Object.assign(Object.create(globalThis), {}));";
-    fs::write(&ide_ext, shittim_ide).unwrap();
-    fs::write(&ide_ext_bak, "LEGACY_CODEX_BAK_WITHOUT_SHITTIM").unwrap();
+    // 构造已安装第三方插件的 IDE extension.js 与历史残留 .codex.bak
+    let third_party_ide = "function init(){}\n/* __THIRD_PARTY_IDE_START__ */\nconsole.log('tp-ide');\n/* __THIRD_PARTY_IDE_END__ */\n}.call(Object.assign(Object.create(globalThis), {}));";
+    fs::write(&ide_ext, third_party_ide).unwrap();
+    fs::write(&ide_ext_bak, "LEGACY_CODEX_BAK_WITHOUT_TP").unwrap();
 
-    fs::write(&ide_out_file, b"console.log('out-with-shittim');").unwrap();
-    let actual_b64 = STANDARD_NO_PAD.encode(Sha256::digest(b"console.log('out-with-shittim');"));
+    fs::write(&ide_out_file, b"console.log('out-with-tp');").unwrap();
+    let actual_b64 = STANDARD_NO_PAD.encode(Sha256::digest(b"console.log('out-with-tp');"));
     fs::write(
         &ide_product,
         json!({ "nameShort": "Antigravity IDE", "checksums": { "vs/test.js": actual_b64 } }).to_string(),
@@ -311,46 +311,46 @@ fn test_multi_plugin_coexistence_with_shittim_chest() {
     env::set_var("ANTIGRAVITY_IDE_PATH", &ide_root);
     env::set_var("AG_SLIDER_IDE_CACHED_DATA", &cached_data);
 
-    // 1. 安装 effort-slider：必须保留 shittim-chest 全部代码与第三方文件
+    // 1. 安装 effort-slider：必须保留第三方插件全部代码与额外文件
     let rep = patcher::install_all(None, None);
     assert!(rep.ok, "coexist install errors: {:?}", rep.errors);
 
     let main_after_install = asar::read_entry_text_by_seek(&desktop_asar, "dist/main.js").unwrap();
     let preload_after_install = asar::read_entry_text_by_seek(&desktop_asar, "dist/preload.js").unwrap();
-    let extra_after_install = asar::read_entry_text_by_seek(&desktop_asar, "dist/shittim-chest.js").unwrap();
-    assert!(main_after_install.contains("__SHITTIM_CHEST_MAIN_START__"));
+    let extra_after_install = asar::read_entry_text_by_seek(&desktop_asar, "dist/third-party-plugin.js").unwrap();
+    assert!(main_after_install.contains("__THIRD_PARTY_MAIN_START__"));
     assert!(main_after_install.contains(loader::MAIN_PATCH_START));
-    assert!(preload_after_install.contains("__SHITTIM_CHEST_PRELOAD_START__"));
+    assert!(preload_after_install.contains("__THIRD_PARTY_PRELOAD_START__"));
     assert!(preload_after_install.contains(loader::PRELOAD_PATCH_START));
-    assert_eq!(extra_after_install, "/* shittim-chest payload */");
+    assert_eq!(extra_after_install, "/* third-party-plugin payload */");
 
     let ext_after_install = fs::read_to_string(&ide_ext).unwrap();
-    assert!(ext_after_install.contains("__SHITTIM_CHEST_IDE_START__"));
+    assert!(ext_after_install.contains("__THIRD_PARTY_IDE_START__"));
     assert!(ext_after_install.contains(loader::IDE_PATCH_START));
     assert!(ext_after_install.contains("origRenderIframe.call(this, a, proxiedUrl, c)"));
 
-    // 2. 修复引导器：同样不得抹掉 shittim-chest
+    // 2. 修复引导器：同样不得抹掉第三方插件
     let rep_repair = patcher::repair_loaders_only(None);
     assert!(rep_repair.ok);
     let main_after_repair = asar::read_entry_text_by_seek(&desktop_asar, "dist/main.js").unwrap();
-    assert!(main_after_repair.contains("__SHITTIM_CHEST_MAIN_START__"));
+    assert!(main_after_repair.contains("__THIRD_PARTY_MAIN_START__"));
 
-    // 3. 卸载 effort-slider：精准摘除本插件，shittim-chest 必须 100% 完好
+    // 3. 卸载 effort-slider：精准摘除本插件，第三方插件必须 100% 完好
     let un = patcher::uninstall_all(None);
     assert!(un.ok, "coexist uninstall errors: {:?}", un.errors);
 
     let main_after_un = asar::read_entry_text_by_seek(&desktop_asar, "dist/main.js").unwrap();
     let preload_after_un = asar::read_entry_text_by_seek(&desktop_asar, "dist/preload.js").unwrap();
-    let extra_after_un = asar::read_entry_text_by_seek(&desktop_asar, "dist/shittim-chest.js").unwrap();
+    let extra_after_un = asar::read_entry_text_by_seek(&desktop_asar, "dist/third-party-plugin.js").unwrap();
     assert!(!main_after_un.contains(loader::MAIN_PATCH_START));
-    assert!(main_after_un.contains("__SHITTIM_CHEST_MAIN_START__"));
+    assert!(main_after_un.contains("__THIRD_PARTY_MAIN_START__"));
     assert!(!preload_after_un.contains(loader::PRELOAD_PATCH_START));
-    assert!(preload_after_un.contains("__SHITTIM_CHEST_PRELOAD_START__"));
-    assert_eq!(extra_after_un, "/* shittim-chest payload */");
+    assert!(preload_after_un.contains("__THIRD_PARTY_PRELOAD_START__"));
+    assert_eq!(extra_after_un, "/* third-party-plugin payload */");
 
     let ext_after_un = fs::read_to_string(&ide_ext).unwrap();
     assert!(!ext_after_un.contains(loader::IDE_PATCH_START));
-    assert!(ext_after_un.contains("__SHITTIM_CHEST_IDE_START__"));
+    assert!(ext_after_un.contains("__THIRD_PARTY_IDE_START__"));
     assert!(!ide_ext_bak.exists(), "历史遗留 extension.js.codex.bak 应被清理");
     assert!(!ide_product_bak.exists(), "历史遗留 product.json.codex.bak 应被清理");
 
@@ -358,7 +358,7 @@ fn test_multi_plugin_coexistence_with_shittim_chest() {
     assert_eq!(prod_after_un["checksums"]["vs/test.js"].as_str(), Some(actual_b64.as_str()));
 
     assert_eq!(fs::read(&old_generic_bak).unwrap(), b"OLD_GENERIC_BAK_DO_NOT_USE");
-    assert_eq!(fs::read(&shittim_bak).unwrap(), b"SHITTIM_BAK_KEEP_INTACT");
+    assert_eq!(fs::read(&third_party_bak).unwrap(), b"THIRD_PARTY_BAK_KEEP_INTACT");
 
     env::remove_var("AG_SLIDER_PLUGIN_ROOT");
     env::remove_var("ANTIGRAVITY_ASAR_PATH");
@@ -371,14 +371,15 @@ fn test_multi_plugin_coexistence_with_shittim_chest() {
 fn test_coexisting_detection_and_deferred_op_preserves_late_plugin() {
     let _guard = ENV_LOCK.lock().unwrap();
     let tmp = make_temp_dir("deferred-op");
-    let plugin_dir = tmp.join("plugin-root");
+    let plugins_dir = tmp.join("plugins");
+    let plugin_dir = plugins_dir.join(paths::PLUGIN_DIR_NAME);
     let desktop_asar = tmp.join("desktop").join("resources").join("app.asar");
     fs::create_dir_all(desktop_asar.parent().unwrap()).unwrap();
 
-    // 1. 构造含 shittim-chest 的 app.asar 并验证 inspect_status 共存探测
+    // 1. 构造含第三方补丁标记的 app.asar（无同级插件目录时应通用探测为「其他第三方补丁」）
     let main_raw = b"const m=1;\n";
     let preload_raw = b"const p=1;\n";
-    let overlay_shittim = b"/* __AG_SHITTIM_CHEST_LOADER_START__ */\nexports.attachLoadingOverlay=()=>{};\n";
+    let overlay_tp = b"/* __AG_THIRD_PARTY_LOADER_START__ */\nexports.attachLoadingOverlay=()=>{};\n";
     let tray_raw = b"const trayOrig = true;\n";
 
     let build_custom_asar = |entries: &[(&str, &[u8])]| -> Vec<u8> {
@@ -405,7 +406,7 @@ fn test_coexisting_detection_and_deferred_op_preserves_late_plugin() {
         build_custom_asar(&[
             ("main.js", main_raw),
             ("preload.js", preload_raw),
-            ("loadingOverlay.js", overlay_shittim),
+            ("loadingOverlay.js", overlay_tp),
             ("tray.js", tray_raw),
         ]),
     )
@@ -417,21 +418,35 @@ fn test_coexisting_detection_and_deferred_op_preserves_late_plugin() {
 
     let st = patcher::inspect_status(None);
     assert_eq!(st.desktop_targets.len(), 1);
-    assert_eq!(st.desktop_targets[0].coexisting_plugins, vec!["shittim-chest".to_string()]);
+    assert_eq!(st.desktop_targets[0].coexisting_plugins, vec!["其他第三方补丁".to_string()]);
 
-    // 2. 模拟先安装 effort-slider，之后 shittim-chest 更新写入了新内容，再执行动态重算卸载
+    // 1.5 同级目录存在任意第三方插件 plugin.json 时，应动态识别其 displayName
+    let other_plugin_dir = plugins_dir.join("other-plugin");
+    fs::create_dir_all(&other_plugin_dir).unwrap();
+    fs::write(
+        other_plugin_dir.join("plugin.json"),
+        r#"{"name":"other-plugin","displayName":"示例第三方插件"}"#,
+    )
+    .unwrap();
+    let st_with_sibling = patcher::inspect_status(None);
+    assert_eq!(
+        st_with_sibling.desktop_targets[0].coexisting_plugins,
+        vec!["示例第三方插件".to_string()]
+    );
+
+    // 2. 模拟先安装 effort-slider，之后第三方插件更新写入了新内容，再执行动态重算卸载
     let rep = patcher::install_all(None, None);
     assert!(rep.ok);
 
     let cur_main = asar::read_entry_text_by_seek(&desktop_asar, "dist/main.js").unwrap();
     let cur_preload = asar::read_entry_text_by_seek(&desktop_asar, "dist/preload.js").unwrap();
-    let late_tray = b"/* __AG_SHITTIM_PATCH:TRAY_ICON:ORIG=dHJheQ==__ */const lateIcon=1;/* __AG_SHITTIM_PATCH:TRAY_ICON:END__ */";
+    let late_tray = b"/* __AG_TP_PATCH:TRAY_ICON:ORIG=dHJheQ==__ */const lateIcon=1;/* __AG_TP_PATCH:TRAY_ICON:END__ */";
     fs::write(
         &desktop_asar,
         build_custom_asar(&[
             ("main.js", cur_main.as_bytes()),
             ("preload.js", cur_preload.as_bytes()),
-            ("loadingOverlay.js", overlay_shittim),
+            ("loadingOverlay.js", overlay_tp),
             ("tray.js", late_tray),
         ]),
     )
@@ -446,10 +461,112 @@ fn test_coexisting_detection_and_deferred_op_preserves_late_plugin() {
 
     assert!(!final_main.contains(loader::MAIN_PATCH_START));
     assert!(!final_preload.contains(loader::PRELOAD_PATCH_START));
-    assert_eq!(final_overlay.as_bytes(), overlay_shittim);
+    assert_eq!(final_overlay.as_bytes(), overlay_tp);
     assert_eq!(final_tray.as_bytes(), late_tray);
+    assert!(other_plugin_dir.exists());
 
     env::remove_var("AG_SLIDER_PLUGIN_ROOT");
+    env::remove_var("ANTIGRAVITY_ASAR_PATH");
+    env::remove_var("ANTIGRAVITY_IDE_PATH");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn test_sidecar_http_auth_settings_sync_and_surgical_uninstall() {
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::sync::Arc;
+    use std::thread;
+
+    let _guard = ENV_LOCK.lock().unwrap();
+    let tmp = make_temp_dir("sidecar-http");
+    let plugins_dir = tmp.join("plugins");
+    let plugin_dir = plugins_dir.join(paths::PLUGIN_DIR_NAME);
+    let legacy_dir = plugins_dir.join("codex-effort-slider");
+    let other_dir = plugins_dir.join("other-third-party-plugin");
+    fs::create_dir_all(&legacy_dir).unwrap();
+    fs::write(legacy_dir.join("plugin.json"), "{}").unwrap();
+    fs::create_dir_all(&other_dir).unwrap();
+    fs::write(other_dir.join("plugin.json"), r#"{"name":"other-third-party-plugin"}"#).unwrap();
+
+    let desktop_asar = tmp.join("desktop").join("resources").join("app.asar");
+    fs::create_dir_all(desktop_asar.parent().unwrap()).unwrap();
+    fs::write(&desktop_asar, build_mock_asar("const m=1;", "const p=1;", false)).unwrap();
+
+    env::set_var("AG_SLIDER_PLUGIN_ROOT", &plugin_dir);
+    env::set_var("AG_SLIDER_GEMINI_CONFIG_DIR", tmp.join("gemini-cfg"));
+    env::set_var("ANTIGRAVITY_ASAR_PATH", &desktop_asar);
+    env::set_var("ANTIGRAVITY_IDE_PATH", tmp.join("no-ide"));
+
+    let rep = patcher::install_all(None, None);
+    assert!(rep.ok);
+    assert!(!legacy_dir.exists(), "安装时应自动清理旧实验目录 codex-effort-slider");
+    assert!(other_dir.exists(), "安装时绝不能触碰其他第三方插件目录");
+    assert!(paths::logo_svg_path().exists(), "应写入 assets/logo.svg");
+    assert!(paths::sidecar_html_path().exists(), "应写入 lib/sidecar-panel.html");
+    assert!(paths::sidecar_json_path().exists(), "应写入 sidecars/slider_panel/sidecar.json");
+
+    let plugin_json: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(paths::plugin_json_path()).unwrap()).unwrap();
+    assert_eq!(plugin_json["logo"].as_str(), Some("assets/logo.svg"));
+
+    let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let cfg = Arc::new(crate::sidecar::SidecarConfig {
+        token: Some("tok-150".to_string()),
+    });
+    thread::spawn(move || {
+        for inc in listener.incoming().take(6) {
+            if let Ok(s) = inc {
+                let c = Arc::clone(&cfg);
+                thread::spawn(move || crate::sidecar::handle_client_stream(s, c));
+            }
+        }
+    });
+
+    let send_http = |req: &str| -> String {
+        let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        s.write_all(req.as_bytes()).unwrap();
+        s.flush().unwrap();
+        let mut resp = String::new();
+        let _ = s.read_to_string(&mut resp);
+        resp
+    };
+
+    // 1. 无 token 访问 /api/state -> 401
+    let r1 = send_http("GET /api/state HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    assert!(r1.starts_with("HTTP/1.1 401"));
+
+    // 2. 获取 /assets/logo.svg -> 200 & 拦截路径穿越 -> 400
+    let r2 = send_http("GET /assets/logo.svg HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    assert!(r2.starts_with("HTTP/1.1 200"));
+    assert!(r2.contains("<svg"));
+    let r3 = send_http("GET /assets/..%2Fsecret HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    assert!(r3.starts_with("HTTP/1.1 400"));
+
+    // 3. POST /api/settings 修改 motion 与 ticks 并持久化到 state.json
+    let body = r#"{"motion":"fast","ticks":"dim"}"#;
+    let r4 = send_http(&format!(
+        "POST /api/settings HTTP/1.1\r\nHost: localhost\r\nX-Sidecar-Token: tok-150\r\nContent-Length: {}\r\n\r\n{}",
+        body.len(),
+        body
+    ));
+    assert!(r4.starts_with("HTTP/1.1 200"));
+    assert!(r4.contains(r#""motion":"fast""#));
+    assert_eq!(state::load_state().motion, "fast");
+    assert_eq!(state::load_state().ticks, "dim");
+
+    // 4. POST /api/uninstall 精准卸载并保留其他第三方插件
+    let r5 = send_http(
+        "POST /api/uninstall HTTP/1.1\r\nHost: localhost\r\nX-Sidecar-Token: tok-150\r\nContent-Length: 2\r\n\r\n{}",
+    );
+    assert!(r5.starts_with("HTTP/1.1 200"));
+    assert!(r5.contains(r#""ok":true"#));
+    assert!(other_dir.exists(), "卸载后必须保留其他第三方插件目录");
+    assert!(!paths::plugin_json_path().exists(), "卸载后应移除本插件 plugin.json");
+
+    env::remove_var("AG_SLIDER_PLUGIN_ROOT");
+    env::remove_var("AG_SLIDER_GEMINI_CONFIG_DIR");
     env::remove_var("ANTIGRAVITY_ASAR_PATH");
     env::remove_var("ANTIGRAVITY_IDE_PATH");
     let _ = fs::remove_dir_all(&tmp);

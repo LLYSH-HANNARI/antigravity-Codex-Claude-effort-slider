@@ -24,7 +24,7 @@ const version = getArg("--version", pkg.version).replace(/^v/i, "");
 const tag = `v${version}`;
 const repo = getArg("--repo", "LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider");
 const distDir = path.resolve(getArg("--dir", path.join(ROOT_DIR, "release-assets")));
-const minLoaderVersion = Number(getArg("--min-loader", "1"));
+const minLoaderVersion = Number(getArg("--min-loader", "2"));
 
 function sha256File(filePath) {
   const buf = fs.readFileSync(filePath);

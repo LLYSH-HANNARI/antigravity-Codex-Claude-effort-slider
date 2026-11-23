@@ -54,7 +54,7 @@ Neon于26.11.18发布：
 ## 快速安装与使用
 
 > [!NOTE]
-> ### 原生插件托管与双轨自愈架构
+> ### 原生插件托管
 > - **当前已验证支持版本**：Antigravity 桌面端 **2.34.0**（兼容 2.32.1）、Antigravity IDE **2.7.0**。
 > - **一次安装，自动更新**：插件主体托管于原生插件目录，Desktop 与 IDE 仅注入轻量**外置动态加载器**。客户端启动时每 6 小时静默检查 GitHub Release，校验 SHA-256 后自动落盘更新，并通过 **Antigravity 原生通知**提醒一键重启/重载生效（无需重打包 `app.asar`）。
 > - **官方更新自动修复**：不受 Antigravity 客户端自动更新覆盖。若 Antigravity 更新冲掉了引导器，内置的钩子会在新对话开始时自动在后台重新注入补丁并提醒重启恢复。
@@ -76,7 +76,7 @@ $env:AG_SLIDER_MIRROR="https://gh-proxy.com/"; irm https://gh-proxy.com/https://
 curl -fsSL https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest/download/install.sh | sh
 ```
 
-### 方式二：独立 Windows 图形安装器（`.exe` · 零 Node.js 依赖）
+### 方式二：独立 Windows 图形安装器
 前往 [GitHub Releases](https://github.com/LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider/releases/latest) 下载 **`ag-effort-slider-windows-x86_64.exe`**，双击即可打开中文安装管理面板（一键安装/修复、检查更新、完全卸载）。
 > **提示**：开源独立编译的 `.exe` 未购买商业代码签名证书，首次运行若弹出 Windows SmartScreen 拦截提示，点击「更多信息 → 仍要运行」即可。
 
@@ -135,8 +135,9 @@ npm run eject
 - 在滑条区域 **右键单击**（或触屏长按 500ms）即可呼出设置面板（`.ces-set`），所有配置实时写入 `localStorage["ag.codexEffortSlider.settings.v1"]` 并跨窗口同步：
   - **动画效果**：`完整动画`（默认，匀变速追赶 + 星尘渐亮）/ `快速动画`（拨过 1/3 即切档 · ~70ms 快速吸附）/ `简洁动画`（无过渡直接跳档）。
   - **已到达档位的刻度点**：`亮白显示`（默认）/ `与未到达同色` / `隐藏`。
-  - **诊断与重置**：支持一键复制最近 200 条交互诊断轨迹（JSON）与恢复默认设置。
-
+  - **诊断与重置**：支持一键复制最近 200 条交互诊断轨迹（JSON）与恢复默认设置。  
+  
+![Plugins](assets/Plugins.png) 
 ---
 
 ## 本地开发、离线预览与单元测试
