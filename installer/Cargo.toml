@@ -1,6 +1,6 @@
 [package]
 name = "ag-effort-slider"
-version = "1.5.0"
+version = "1.5.1"
 edition = "2021"
 description = "Antigravity Codex & Claude 推理等级滑条原生安装、动态加载与自更新引擎"
 license = "MIT"

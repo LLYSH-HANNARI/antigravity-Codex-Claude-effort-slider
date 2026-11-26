@@ -436,7 +436,38 @@ fn apply_loaders_to_targets(
         }
     }
 
-    for ext_path in paths::find_ide_extension_files() {
+    let selected_ide_files = paths::find_ide_extension_files();
+    let selected_keys: HashSet<String> = selected_ide_files
+        .iter()
+        .map(|p| {
+            let resolved = fs::canonicalize(p).unwrap_or_else(|_| p.clone());
+            let s = resolved.to_string_lossy().to_string();
+            if cfg!(windows) { s.to_lowercase() } else { s }
+        })
+        .collect();
+
+    // 若同目录下其他非目标入口文件（例如曾误打过补丁的 dist/extension.js）含有本插件旧标记，先顺手精准剥离
+    for cand_path in paths::find_all_ide_extension_candidates() {
+        let resolved = fs::canonicalize(&cand_path).unwrap_or_else(|_| cand_path.clone());
+        let key = {
+            let s = resolved.to_string_lossy().to_string();
+            if cfg!(windows) { s.to_lowercase() } else { s }
+        };
+        if selected_keys.contains(&key) {
+            continue;
+        }
+        if let Ok(cur) = fs::read_to_string(&cand_path) {
+            let cleaned = loader::strip_marker_block(&cur, loader::IDE_PATCH_START, loader::IDE_PATCH_END);
+            if cleaned != cur && fs::write(&cand_path, cleaned).is_ok() {
+                report.messages.push(format!(
+                    "[IDE] 已清理非目标扩展入口中的历史本插件标记: {}",
+                    cand_path.display()
+                ));
+            }
+        }
+    }
+
+    for ext_path in selected_ide_files {
         match patch_ide_extension(&ext_path, &plugin_root, fallback_client_js) {
             Ok(()) => {
                 report
@@ -574,7 +605,7 @@ fn patch_ide_extension(
 ) -> Result<(), String> {
     // 原地增量修补：仅剥离并重写本插件标记块，保留其他插件的扩展注入
     let cur = fs::read_to_string(ext_path).map_err(|e| format!("读取失败: {e}"))?;
-    let patched = loader::apply_ide_extension_patch(&cur, plugin_root, fallback_client_js);
+    let patched = loader::apply_ide_extension_patch(&cur, plugin_root, fallback_client_js)?;
     fs::write(ext_path, patched).map_err(|e| format!("写入失败: {e}"))?;
     Ok(())
 }
@@ -681,8 +712,8 @@ pub fn uninstall_all(custom_asar: Option<&Path>) -> OperationReport {
         }
     }
 
-    // 2. 原地精准移除 IDE 扩展中的本插件补丁并重算校验表（顺手清理本插件历史 .codex.bak）
-    for ext_path in paths::find_ide_extension_files() {
+    // 2. 原地精准移除 IDE 所有候选扩展入口中的本插件补丁并重算校验表（顺手清理本插件历史 .codex.bak）
+    for ext_path in paths::find_all_ide_extension_candidates() {
         let bak = bak_path(&ext_path, ".codex.bak");
         if bak.exists() {
             let _ = fs::remove_file(&bak);

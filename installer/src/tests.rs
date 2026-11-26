@@ -127,10 +127,12 @@ fn test_loader_strip_legacy_and_idempotence() {
     assert!(patched1.contains("__agCodexSliderBridge"));
     assert_eq!(loader::parse_loader_version(&patched1), Some(LOADER_VERSION));
 
-    let ide_raw = "var x=1;\n}.call(Object.assign(Object.create(globalThis), {}));";
-    let ide1 = loader::apply_ide_extension_patch(ide_raw, Path::new("C:/tmp/plugin"), "console.log(1);");
-    let ide2 = loader::apply_ide_extension_patch(&ide1, Path::new("C:/tmp/plugin"), "console.log(1);");
+    let ide_raw = "var Jx={};Jx.BaseVsCodeWebviewDelegate=class{renderIframe(){}};\n}.call(Object.assign(Object.create(globalThis), {}));";
+    let ide1 = loader::apply_ide_extension_patch(ide_raw, Path::new("C:/tmp/plugin"), "console.log(1);").unwrap();
+    let ide2 = loader::apply_ide_extension_patch(&ide1, Path::new("C:/tmp/plugin"), "console.log(1);").unwrap();
     assert_eq!(ide1, ide2);
+    assert!(ide1.contains("Jx.BaseVsCodeWebviewDelegate.prototype.renderIframe"));
+    assert!(!ide1.contains("sv.BaseVsCodeWebviewDelegate"));
     let anchor_pos = ide1.find(loader::IDE_INSERT_ANCHOR).unwrap();
     let patch_pos = ide1.find(loader::IDE_PATCH_START).unwrap();
     assert!(patch_pos < anchor_pos);
@@ -177,7 +179,11 @@ fn test_e2e_isolated_install_status_hook_and_uninstall() {
     fs::create_dir_all(&cached_data).unwrap();
 
     fs::write(&desktop_asar, build_mock_asar("const m=1;", "const p=1;", true)).unwrap();
-    fs::write(&ide_ext, "function init(){}\n}.call(Object.assign(Object.create(globalThis), {}));").unwrap();
+    fs::write(
+        &ide_ext,
+        "var Jx={};Jx.BaseVsCodeWebviewDelegate=class{renderIframe(){}};\n}.call(Object.assign(Object.create(globalThis), {}));",
+    )
+    .unwrap();
     fs::write(&ide_out_file, b"console.log('out');").unwrap();
     let init_b64 = STANDARD_NO_PAD.encode(Sha256::digest(b"console.log('out');"));
     fs::write(
@@ -293,7 +299,7 @@ fn test_multi_plugin_coexistence_with_third_party_plugin() {
     fs::write(&third_party_bak, b"THIRD_PARTY_BAK_KEEP_INTACT").unwrap();
 
     // 构造已安装第三方插件的 IDE extension.js 与历史残留 .codex.bak
-    let third_party_ide = "function init(){}\n/* __THIRD_PARTY_IDE_START__ */\nconsole.log('tp-ide');\n/* __THIRD_PARTY_IDE_END__ */\n}.call(Object.assign(Object.create(globalThis), {}));";
+    let third_party_ide = "var Jx={};Jx.BaseVsCodeWebviewDelegate=class{renderIframe(){}};\n/* __THIRD_PARTY_IDE_START__ */\nconsole.log('tp-ide');\n/* __THIRD_PARTY_IDE_END__ */\n}.call(Object.assign(Object.create(globalThis), {}));";
     fs::write(&ide_ext, third_party_ide).unwrap();
     fs::write(&ide_ext_bak, "LEGACY_CODEX_BAK_WITHOUT_TP").unwrap();
 
@@ -569,5 +575,124 @@ fn test_sidecar_http_auth_settings_sync_and_surgical_uninstall() {
     env::remove_var("AG_SLIDER_GEMINI_CONFIG_DIR");
     env::remove_var("ANTIGRAVITY_ASAR_PATH");
     env::remove_var("ANTIGRAVITY_IDE_PATH");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn test_ide_dynamic_namespace_and_content_based_entry_resolution() {
+    let _guard = ENV_LOCK.lock().unwrap();
+
+    // 1. 动态命名空间解析：兼容 2.6 (sv)、2.9 (Jx)、自定义标识符并忽略字符串/关键字干扰
+    assert_eq!(
+        loader::extract_ide_webview_delegate_namespace(
+            r#"const msg="fake.BaseVsCodeWebviewDelegate";class A extends sv.BaseVsCodeWebviewDelegate{}sv.BaseVsCodeWebviewDelegate=class{};"#
+        ),
+        Some("sv".to_string())
+    );
+    assert_eq!(
+        loader::extract_ide_webview_delegate_namespace(
+            r#"Jx.BaseVsCodeWebviewDelegate=class{renderIframe(){}}"#
+        ),
+        Some("Jx".to_string())
+    );
+    assert_eq!(
+        loader::extract_ide_webview_delegate_namespace(
+            r#"const noop = "no delegate here";"#
+        ),
+        None
+    );
+
+    // 2. 缺失 BaseVsCodeWebviewDelegate 或 Closure 锚点时必须报错中止，绝不盲写
+    let err_no_ns = loader::apply_ide_extension_patch(
+        "function init(){}\n}.call(Object.assign(Object.create(globalThis), {}));",
+        Path::new("C:/tmp/plugin"),
+        "console.log(1);",
+    );
+    assert!(err_no_ns.is_err(), "缺少 BaseVsCodeWebviewDelegate 时应返回错误");
+
+    let err_no_anchor = loader::apply_ide_extension_patch(
+        "Jx.BaseVsCodeWebviewDelegate=class{renderIframe(){}};",
+        Path::new("C:/tmp/plugin"),
+        "console.log(1);",
+    );
+    assert!(err_no_anchor.is_err(), "缺少 Closure 锚点时应返回错误");
+
+    // 3. 模拟 Antigravity IDE 2.8/2.9 真实布局：package.json.main 指向 dist/extension.js（Webpack 转发壳），
+    //    真正的 BaseVsCodeWebviewDelegate（前缀 Jx）在 vscode/extension.js；同时假设 dist/extension.js 被历史误打过补丁
+    let tmp = make_temp_dir("ide-290-layout");
+    let plugin_dir = tmp.join("plugin-root");
+    let desktop_asar = tmp.join("desktop").join("resources").join("app.asar");
+    let ide_root = tmp.join("ide");
+    let ide_app = ide_root.join("resources").join("app");
+    let agy_dir = ide_app.join("extensions").join("agy");
+    let dist_ext = agy_dir.join("dist").join("extension.js");
+    let vscode_ext = agy_dir.join("vscode").join("extension.js");
+
+    fs::create_dir_all(desktop_asar.parent().unwrap()).unwrap();
+    fs::create_dir_all(dist_ext.parent().unwrap()).unwrap();
+    fs::create_dir_all(vscode_ext.parent().unwrap()).unwrap();
+    fs::write(&desktop_asar, build_mock_asar("const m=1;", "const p=1;", false)).unwrap();
+    fs::write(ide_app.join("product.json"), r#"{"nameShort":"Antigravity IDE"}"#).unwrap();
+    fs::write(agy_dir.join("package.json"), r#"{"name":"google-antigravity","version":"1.13.0","main":"./dist/extension.js"}"#).unwrap();
+    fs::write(
+        &dist_ext,
+        format!(
+            "(()=>{{module.exports=require('../vscode/extension.js');}})();\n{}\nconsole.log('stale');\n{}\n",
+            loader::IDE_PATCH_START,
+            loader::IDE_PATCH_END
+        ),
+    )
+    .unwrap();
+    fs::write(
+        &vscode_ext,
+        "var Jx={};Jx.BaseVsCodeWebviewDelegate=class{renderIframe(a,b,c){}};\n}.call(Object.assign(Object.create(globalThis), {}));",
+    )
+    .unwrap();
+
+    env::set_var("AG_SLIDER_PLUGIN_ROOT", &plugin_dir);
+    env::set_var("ANTIGRAVITY_ASAR_PATH", &desktop_asar);
+    env::set_var("ANTIGRAVITY_IDE_PATH", &ide_root);
+    env::set_var("AG_SLIDER_IDE_CACHED_DATA", tmp.join("CachedData"));
+
+    let detected = paths::find_ide_extension_files();
+    assert_eq!(detected.len(), 1);
+    assert!(detected[0].ends_with(Path::new("vscode").join("extension.js")));
+
+    let rep = patcher::install_all(None, None);
+    assert!(rep.ok, "2.9.0 布局安装应成功: {:?}", rep.errors);
+
+    let patched_vscode = fs::read_to_string(&vscode_ext).unwrap();
+    assert!(patched_vscode.contains(loader::IDE_PATCH_START));
+    assert!(patched_vscode.contains("Jx.BaseVsCodeWebviewDelegate.prototype.renderIframe"));
+    let cleaned_dist = fs::read_to_string(&dist_ext).unwrap();
+    assert!(!cleaned_dist.contains(loader::IDE_PATCH_START), "非目标 dist/extension.js 中残留的历史标记应被清理");
+
+    // 4. 模拟未来版本将 BaseVsCodeWebviewDelegate 迁入 dist/extension.js（且 vscode/extension.js 为不含特征的残留壳）
+    fs::write(&vscode_ext, "// legacy stub without webview delegate").unwrap();
+    fs::write(
+        &dist_ext,
+        "var Kz={};Kz.BaseVsCodeWebviewDelegate=class{renderIframe(a,b,c){}};\n}.call(Object.assign(Object.create(globalThis), {}));",
+    )
+    .unwrap();
+
+    let detected_future = paths::find_ide_extension_files();
+    assert_eq!(detected_future.len(), 1);
+    assert!(detected_future[0].ends_with(Path::new("dist").join("extension.js")));
+
+    let rep_future = patcher::install_all(None, None);
+    assert!(rep_future.ok, "未来 dist 主体布局安装应成功: {:?}", rep_future.errors);
+    let patched_dist = fs::read_to_string(&dist_ext).unwrap();
+    assert!(patched_dist.contains("Kz.BaseVsCodeWebviewDelegate.prototype.renderIframe"));
+
+    // 5. 卸载应清理全部候选文件中的本插件标记
+    let un = patcher::uninstall_all(None);
+    assert!(un.ok, "卸载应成功: {:?}", un.errors);
+    assert!(!fs::read_to_string(&dist_ext).unwrap().contains(loader::IDE_PATCH_START));
+    assert!(!fs::read_to_string(&vscode_ext).unwrap().contains(loader::IDE_PATCH_START));
+
+    env::remove_var("AG_SLIDER_PLUGIN_ROOT");
+    env::remove_var("ANTIGRAVITY_ASAR_PATH");
+    env::remove_var("ANTIGRAVITY_IDE_PATH");
+    env::remove_var("AG_SLIDER_IDE_CACHED_DATA");
     let _ = fs::remove_dir_all(&tmp);
 }

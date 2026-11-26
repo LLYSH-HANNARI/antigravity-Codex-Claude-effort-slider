@@ -7,8 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::paths;
 
-/// 当前动态引导器协议版本
-pub const LOADER_VERSION: u32 = 2;
+/// 当前动态引导器协议版本（v3：IDE 扩展支持按内容特征探测入口与动态解析 BaseVsCodeWebviewDelegate 混淆前缀）
+pub const LOADER_VERSION: u32 = 3;
 
 /// 当前二进制内置打包的客户端版本号
 pub const BUNDLED_VERSION: &str = env!("CARGO_PKG_VERSION");

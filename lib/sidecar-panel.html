@@ -467,7 +467,7 @@
         <img class="brand-logo" src="/assets/logo.svg" alt="Effort Slider Logo" />
         <div>
           <div class="brand-title" data-i18n="panelTitle">推理等级滑条</div>
-          <div class="brand-sub" id="headerSub">v1.5.0</div>
+          <div class="brand-sub" id="headerSub">v1.5.1</div>
         </div>
       </div>
       <button type="button" class="btn is-ghost sm" id="refreshBtn" data-i18n="refresh">刷新</button>
@@ -546,7 +546,7 @@
 
         <div class="row">
           <div class="row-info">
-            <div class="row-title"><span data-i18n="currentVersionPrefix">当前版本：</span><span id="currentVersionText">v1.5.0</span></div>
+            <div class="row-title"><span data-i18n="currentVersionPrefix">当前版本：</span><span id="currentVersionText">v1.5.1</span></div>
             <div class="row-desc" id="updateStatusDesc">...</div>
           </div>
           <button type="button" class="btn" id="checkUpdateBtn" data-i18n="checkUpdate">检查更新</button>
@@ -1199,7 +1199,7 @@
       }
 
       let state = {
-        version: "1.5.0",
+        version: "1.5.1",
         motion: "full",
         ticks: "highlight",
         autoUpdate: true,
@@ -1243,7 +1243,7 @@
 
       function renderAll() {
         renderTheme();
-        const ver = state.version || "1.5.0";
+        const ver = state.version || "1.5.1";
         $("headerSub").textContent = t("headerSub", { version: ver });
         $("currentVersionText").textContent = "v" + ver;
 
@@ -1446,7 +1446,7 @@
           } else if (result && result.status === "updated") {
             updateStatusHint = t("downloadedReady", { version: result.version });
           } else {
-            updateStatusHint = t("upToDate", { version: state.version || "1.5.0" });
+            updateStatusHint = t("upToDate", { version: state.version || "1.5.1" });
           }
         } catch (err) {
           updateStatusHint = t("checkFailed", { err: err && err.message ? err.message : t("networkError") });

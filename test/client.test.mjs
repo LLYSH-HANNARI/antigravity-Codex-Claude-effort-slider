@@ -3555,15 +3555,15 @@ test("22. v1.3.1 解法一/二/四：零 Layout GPU 定位、拖动回响节流�
   obs.stop();
 });
 
-await test("23. v1.5.0 单页右键菜单（外观 + 图二更新区 + 底部红色二次确认卸载）与双向热同步", async () => {
-  assert.equal(slider.PLUGIN_VERSION, "1.5.0");
+await test("23. v1.5.1 单页右键菜单（外观 + 图二更新区 + 底部红色二次确认卸载）与双向热同步", async () => {
+  assert.equal(slider.PLUGIN_VERSION, "1.5.1");
   const env = createPerfTestEnv();
   env.win.navigator = { language: "zh-CN", languages: ["zh-CN"] };
   assert.equal(slider.resolveHostBridge(env.win), null, "无桥接环境下应返回 null 静默降级");
 
   // 1. 构造模拟 Desktop 宿主桥接（含双向热同步与卸载回调）
   let hostState = {
-    version: "1.5.0",
+    version: "1.5.1",
     motion: "full",
     ticks: "highlight",
     autoUpdate: true,
@@ -3591,12 +3591,12 @@ await test("23. v1.5.0 单页右键菜单（外观 + 图二更新区 + 底部红
       return { ...hostState };
     },
     async checkUpdate() {
-      hostState.pendingUpdateVersion = "1.5.1";
+      hostState.pendingUpdateVersion = "1.5.2";
       hostState.lastCheckAt = Math.floor(Date.now() / 1000);
       return {
         ok: true,
         status: "updated",
-        version: "1.5.1",
+        version: "1.5.2",
         state: { ...hostState }
       };
     },
@@ -3643,7 +3643,7 @@ await test("23. v1.5.0 单页右键菜单（外观 + 图二更新区 + 底部红
   assert.ok(panel, "设置面板应当渲染");
   assert.equal(panel.querySelector(".ces-set-tabs"), null, "单页布局不应渲染旧版双 Tab 栏");
   assert.ok(panel.querySelector(".ces-set-logo"), "头部应渲染品牌 SVG 图标");
-  assert.equal(panel.querySelector(".ces-set-ver").textContent, "v1.5.0");
+  assert.equal(panel.querySelector(".ces-set-ver").textContent, "v1.5.1");
 
   const updateSec = panel.querySelector('[data-ces-section="update"]');
   const dangerSec = panel.querySelector('[data-ces-section="danger"]');
@@ -3674,7 +3674,7 @@ await test("23. v1.5.0 单页右键菜单（外观 + 图二更新区 + 底部红
 
   const toastAfterCheck = env.doc.querySelector(".ces-update-toast");
   assert.ok(toastAfterCheck, "检查到新版本后应弹出更新就绪 Toast");
-  assert.ok(toastAfterCheck.querySelector(".ces-update-toast-title").textContent.includes("1.5.1"));
+  assert.ok(toastAfterCheck.querySelector(".ces-update-toast-title").textContent.includes("1.5.2"));
   const restartBtn = toastAfterCheck.querySelectorAll(".ces-update-toast-btn").find((b) => b.classList.contains("is-primary"));
   assert.equal(restartBtn.textContent, "立即重启");
   restartBtn.dispatch("click", {});
@@ -3818,7 +3818,7 @@ await test("24. 7 语自动多语言识别、词典完整性与非支持语言�
       window: env.win,
       bridge: {
         platform: "desktop",
-        async getState() { return { version: "1.5.0", autoUpdate: true, mirrorPrefix: "" }; }
+        async getState() { return { version: "1.5.1", autoUpdate: true, mirrorPrefix: "" }; }
       },
       x: 20,
       y: 20

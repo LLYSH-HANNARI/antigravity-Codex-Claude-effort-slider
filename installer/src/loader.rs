@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use crate::state::LOADER_VERSION;
+use crate::state::{BUNDLED_VERSION, LOADER_VERSION};
 
 pub const MAIN_PATCH_START: &str = "/* __AG_CODEX_EFFORT_SLIDER_MAIN_START__ */";
 pub const MAIN_PATCH_END: &str = "/* __AG_CODEX_EFFORT_SLIDER_MAIN_END__ */";
@@ -17,6 +17,144 @@ pub const IDE_PATCH_START: &str = "/* __AG_CODEX_EFFORT_SLIDER_START__ */";
 pub const IDE_PATCH_END: &str = "/* __AG_CODEX_EFFORT_SLIDER_END__ */";
 
 pub const IDE_INSERT_ANCHOR: &str = "}.call(Object.assign(Object.create(globalThis)";
+pub const IDE_WEBVIEW_DELEGATE_PROP: &str = ".BaseVsCodeWebviewDelegate";
+
+fn is_js_ident_start(b: u8) -> bool {
+    b.is_ascii_alphabetic() || b == b'_' || b == b'$'
+}
+
+fn is_js_ident_part(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b'$'
+}
+
+fn is_js_keyword(ident: &str) -> bool {
+    matches!(
+        ident,
+        "break"
+            | "case"
+            | "catch"
+            | "class"
+            | "const"
+            | "continue"
+            | "debugger"
+            | "default"
+            | "delete"
+            | "do"
+            | "else"
+            | "export"
+            | "extends"
+            | "finally"
+            | "for"
+            | "function"
+            | "if"
+            | "import"
+            | "in"
+            | "instanceof"
+            | "new"
+            | "return"
+            | "super"
+            | "switch"
+            | "this"
+            | "throw"
+            | "try"
+            | "typeof"
+            | "var"
+            | "void"
+            | "while"
+            | "with"
+            | "yield"
+            | "let"
+            | "static"
+            | "await"
+            | "async"
+    )
+}
+
+/// 从给定字节偏移 `dot_idx`（即 `.BaseVsCodeWebviewDelegate` 中 `.` 的索引）向前提取合法 JS 命名空间表达式。
+/// 典型匹配：`sv.BaseVsCodeWebviewDelegate=class` -> `Some("sv")`，`Jx.BaseVsCodeWebviewDelegate=class` -> `Some("Jx")`。
+/// 若支持多级命名空间（如 `a.b.BaseVsCodeWebviewDelegate`），则校验每一段均为合法标识符且首段非关键字。
+fn extract_ident_chain_before_dot(bytes: &[u8], dot_idx: usize) -> Option<String> {
+    if dot_idx == 0 || dot_idx > bytes.len() {
+        return None;
+    }
+    let mut start = dot_idx;
+    while start > 0 {
+        let prev = bytes[start - 1];
+        if is_js_ident_part(prev) || prev == b'.' {
+            start -= 1;
+        } else {
+            break;
+        }
+    }
+    if start == dot_idx {
+        return None;
+    }
+
+    // 避免捕获字符串字面量内部的片段（如 "foo.BaseVsCodeWebviewDelegate"）
+    if start > 0 && matches!(bytes[start - 1], b'\'' | b'"' | b'`') {
+        return None;
+    }
+
+    let raw = std::str::from_utf8(&bytes[start..dot_idx]).ok()?;
+    let segments: Vec<&str> = raw.split('.').collect();
+    if segments.is_empty() {
+        return None;
+    }
+    for (idx, seg) in segments.iter().enumerate() {
+        let seg_bytes = seg.as_bytes();
+        if seg_bytes.is_empty() || !is_js_ident_start(seg_bytes[0]) {
+            return None;
+        }
+        if !seg_bytes.iter().all(|&b| is_js_ident_part(b)) {
+            return None;
+        }
+        if idx == 0 && is_js_keyword(seg) {
+            return None;
+        }
+    }
+    Some(raw.to_string())
+}
+
+/// 从 Antigravity IDE `extension.js` 源码中动态提取 `BaseVsCodeWebviewDelegate` 所属的混淆命名空间前缀。
+/// 原因：Google Closure Compiler 每次构建版本都会重新分配局部短名（如 2.6.0 为 `sv`，2.9.0 为 `Jx`）。
+/// 优先匹配赋值定义处（`<ns>.BaseVsCodeWebviewDelegate = ...`），再兜底匹配有效属性访问处。
+pub fn extract_ide_webview_delegate_namespace(source: &str) -> Option<String> {
+    let clean = strip_marker_block(source, IDE_PATCH_START, IDE_PATCH_END);
+    let bytes = clean.as_bytes();
+    let prop_len = IDE_WEBVIEW_DELEGATE_PROP.len();
+    let mut fallback_ident: Option<String> = None;
+
+    let mut search_from = 0usize;
+    while let Some(rel) = clean[search_from..].find(IDE_WEBVIEW_DELEGATE_PROP) {
+        let dot_idx = search_from + rel;
+        let after_idx = dot_idx + prop_len;
+        search_from = after_idx;
+
+        // 避免误命中更长的属性名（例如 BaseVsCodeWebviewDelegateHelper）
+        if after_idx < bytes.len() && is_js_ident_part(bytes[after_idx]) {
+            continue;
+        }
+
+        let Some(ns) = extract_ident_chain_before_dot(bytes, dot_idx) else {
+            continue;
+        };
+
+        // 跳过空白后检查是否为赋值定义（`=` 且不是 `==`）
+        let mut ws = after_idx;
+        while ws < bytes.len() && bytes[ws].is_ascii_whitespace() {
+            ws += 1;
+        }
+        if ws < bytes.len() && bytes[ws] == b'=' && bytes.get(ws + 1) != Some(&b'=') {
+            return Some(ns);
+        }
+
+        if fallback_ident.is_none() {
+            fallback_ident = Some(ns);
+        }
+    }
+
+    fallback_ident
+}
 
 /// 剥离标记区间内的旧补丁文本（同时兼容 v1.2/v1.3 遗留的 require('./antigravity-codex-effort-slider.js')）
 pub fn strip_marker_block(source: &str, start_marker: &str, end_marker: &str) -> String {
@@ -120,7 +258,7 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
         const motion = (parsed.motion === 'fast' || parsed.motion === 'quick') ? parsed.motion : 'full';
         const ticks = (parsed.ticks === 'dim' || parsed.ticks === 'hidden') ? parsed.ticks : 'highlight';
         return {{
-          version: parsed.version || '1.5.0',
+          version: parsed.version || '{pkg_ver}',
           loaderVersion: parsed.loaderVersion || {ver},
           motion,
           ticks,
@@ -136,7 +274,7 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
         }};
       }} catch {{
         return {{
-          version: '1.5.0',
+          version: '{pkg_ver}',
           loaderVersion: {ver},
           motion: 'full',
           ticks: 'highlight',
@@ -182,7 +320,7 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
           rawObj = JSON.parse(fs.readFileSync(statePath, 'utf8'));
         }} catch {{
           rawObj = {{
-            version: '1.5.0',
+            version: '{pkg_ver}',
             loaderVersion: {ver},
             motion: 'full',
             ticks: 'highlight',
@@ -387,6 +525,7 @@ pub fn build_desktop_main_patch(plugin_root: &Path, fallback_client_js: &str) ->
 "#,
         start = MAIN_PATCH_START,
         ver = LOADER_VERSION,
+        pkg_ver = BUNDLED_VERSION,
         root_lit = root_lit,
         fallback_lit = fallback_lit,
         end = MAIN_PATCH_END,
@@ -495,11 +634,20 @@ pub fn apply_desktop_preload_patch(original_preload: &str) -> String {
     format!("{clean}\n\n{snippet}")
 }
 
-/// 生成 Antigravity IDE `extension.js` 动态反向代理与原生通知引导器
-pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -> String {
+/// 生成 Antigravity IDE `extension.js` 动态反向代理与原生通知引导器。
+/// `delegate_namespace` 为从目标 `extension.js` 中实时解析出的混淆命名空间（如 `sv`、`Jx`）。
+pub fn build_ide_extension_patch(
+    plugin_root: &Path,
+    fallback_client_js: &str,
+    delegate_namespace: &str,
+) -> String {
     let root_lit = serde_json::to_string(&plugin_root.to_string_lossy().to_string())
         .unwrap_or_else(|_| "\"\"".to_string());
     let fallback_lit = serde_json::to_string(fallback_client_js).unwrap_or_else(|_| "\"\"".to_string());
+    let ns_root = delegate_namespace
+        .split('.')
+        .next()
+        .unwrap_or(delegate_namespace);
 
     format!(
         r#"{start}
@@ -543,7 +691,7 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
         const motion = (parsed.motion === 'fast' || parsed.motion === 'quick') ? parsed.motion : 'full';
         const ticks = (parsed.ticks === 'dim' || parsed.ticks === 'hidden') ? parsed.ticks : 'highlight';
         return {{
-          version: parsed.version || '1.5.0',
+          version: parsed.version || '{pkg_ver}',
           loaderVersion: parsed.loaderVersion || {ver},
           motion,
           ticks,
@@ -558,7 +706,7 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
         }};
       }} catch {{
         return {{
-          version: '1.5.0',
+          version: '{pkg_ver}',
           loaderVersion: {ver},
           motion: 'full',
           ticks: 'highlight',
@@ -601,7 +749,7 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
           rawObj = JSON.parse(fs.readFileSync(statePath, 'utf8'));
         }} catch {{
           rawObj = {{
-            version: '1.5.0',
+            version: '{pkg_ver}',
             loaderVersion: {ver},
             motion: 'full',
             ticks: 'highlight',
@@ -922,9 +1070,9 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
       }});
     }}
 
-    if (typeof sv !== 'undefined' && sv.BaseVsCodeWebviewDelegate) {{
-      const origRenderIframe = sv.BaseVsCodeWebviewDelegate.prototype.renderIframe;
-      sv.BaseVsCodeWebviewDelegate.prototype.renderIframe = async function (a, b, c) {{
+    if (typeof {ns_root} !== 'undefined' && {ns} && {ns}.BaseVsCodeWebviewDelegate) {{
+      const origRenderIframe = {ns}.BaseVsCodeWebviewDelegate.prototype.renderIframe;
+      {ns}.BaseVsCodeWebviewDelegate.prototype.renderIframe = async function (a, b, c) {{
         try {{
           const proxiedUrl = await ensureProxy(b);
           return origRenderIframe.call(this, a, proxiedUrl, c);
@@ -933,7 +1081,9 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
           return origRenderIframe.call(this, a, b, c);
         }}
       }};
-      console.log('[CodexSlider] Antigravity IDE webview delegate successfully hooked!');
+      console.log('[CodexSlider] Antigravity IDE webview delegate ({ns}) successfully hooked!');
+    }} else {{
+      console.warn('[CodexSlider] {ns}.BaseVsCodeWebviewDelegate not found in extension scope.');
     }}
 
     setTimeout(async () => {{
@@ -951,25 +1101,37 @@ pub fn build_ide_extension_patch(plugin_root: &Path, fallback_client_js: &str) -
 {end}"#,
         start = IDE_PATCH_START,
         ver = LOADER_VERSION,
+        pkg_ver = BUNDLED_VERSION,
+        ns_root = ns_root,
+        ns = delegate_namespace,
         root_lit = root_lit,
         fallback_lit = fallback_lit,
         end = IDE_PATCH_END,
     )
 }
 
-/// 将动态代理引导器注入到 IDE `extension.js`（插入在 Closure 闭合前）
+/// 将动态代理引导器注入到 IDE `extension.js`（动态解析混淆命名空间并插入在 Closure 闭合前）。
+/// 若目标文件中缺失 `BaseVsCodeWebviewDelegate` 定义或 Closure 闭合锚点，直接返回错误并中止写入，避免静默假成功。
 pub fn apply_ide_extension_patch(
     original_ext: &str,
     plugin_root: &Path,
     fallback_client_js: &str,
-) -> String {
+) -> Result<String, String> {
     let clean = strip_marker_block(original_ext, IDE_PATCH_START, IDE_PATCH_END);
-    let snippet = build_ide_extension_patch(plugin_root, fallback_client_js);
-    if let Some(idx) = clean.rfind(IDE_INSERT_ANCHOR) {
-        let before = &clean[..idx];
-        let after = &clean[idx..];
-        format!("{before}\n{snippet}\n\n{after}")
-    } else {
-        format!("{clean}\n\n{snippet}\n")
-    }
+    let Some(delegate_ns) = extract_ide_webview_delegate_namespace(&clean) else {
+        return Err(
+            "未在 IDE 扩展源码中定位到 BaseVsCodeWebviewDelegate 命名空间，当前 IDE 版本可能已变更 Webview 架构，已中止写入"
+                .to_string(),
+        );
+    };
+    let Some(idx) = clean.rfind(IDE_INSERT_ANCHOR) else {
+        return Err(
+            "未在 IDE 扩展源码中定位到 Closure 闭合锚点，当前 IDE 版本打包格式可能已变更，已中止写入"
+                .to_string(),
+        );
+    };
+    let snippet = build_ide_extension_patch(plugin_root, fallback_client_js, &delegate_ns);
+    let before = &clean[..idx];
+    let after = &clean[idx..];
+    Ok(format!("{before}\n{snippet}\n\n{after}"))
 }

@@ -236,24 +236,119 @@ pub fn find_ide_roots() -> Vec<PathBuf> {
     roots
 }
 
-/// 定位 Antigravity IDE 的核心扩展入口文件 (`extensions/agy/vscode/extension.js` 或 `dist/extension.js`)
+/// Antigravity IDE Webview 代理类名特征：用于在一众入口文件（vscode/extension.js、dist/extension.js、package.json.main）中
+/// 准确识别真正承载 Webview 渲染逻辑的目标模块，避免误打仅做 require 转发的外层封装壳。
+pub const IDE_WEBVIEW_DELEGATE_MARKER: &str = "BaseVsCodeWebviewDelegate";
+
+/// 解析 `extensions/agy/package.json` 中 `main` 字段指向的入口文件路径（兼容省略 `.js` 后缀写法）
+fn resolve_ide_package_main_entry(agy_dir: &Path) -> Option<PathBuf> {
+    let pkg_path = agy_dir.join("package.json");
+    let raw = fs::read_to_string(&pkg_path).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let main_rel = parsed.get("main").and_then(|v| v.as_str())?.trim();
+    if main_rel.is_empty() {
+        return None;
+    }
+
+    // 将 POSIX/Windows 混合分隔符归一化后拼接到 agy_dir 下
+    let mut target = agy_dir.to_path_buf();
+    for seg in main_rel.split(['/', '\\']) {
+        if seg.is_empty() || seg == "." {
+            continue;
+        }
+        if seg == ".." {
+            // 拒绝越出 extensions/agy 目录的异常路径
+            return None;
+        }
+        target.push(seg);
+    }
+
+    if target.is_file() {
+        return Some(target);
+    }
+    if target.extension().is_none() {
+        let with_js = target.with_extension("js");
+        if with_js.is_file() {
+            return Some(with_js);
+        }
+    }
+    None
+}
+
+/// 收集单个 IDE `resources/app` 目录下所有存在的 `extensions/agy` 扩展入口候选（去重）
+pub fn collect_ide_extension_candidates(app_dir: &Path) -> Vec<PathBuf> {
+    let agy_dir = app_dir.join("extensions").join("agy");
+    if !agy_dir.exists() {
+        return Vec::new();
+    }
+
+    let mut raw_candidates = Vec::new();
+    let ext_vscode = agy_dir.join("vscode").join("extension.js");
+    let ext_dist = agy_dir.join("dist").join("extension.js");
+    if ext_vscode.is_file() {
+        raw_candidates.push(ext_vscode);
+    }
+    if ext_dist.is_file() {
+        raw_candidates.push(ext_dist);
+    }
+    if let Some(pkg_main) = resolve_ide_package_main_entry(&agy_dir) {
+        raw_candidates.push(pkg_main);
+    }
+
+    let mut deduped = Vec::new();
+    let mut seen = HashSet::new();
+    for p in raw_candidates {
+        if seen.insert(canonical_key(&p)) {
+            deduped.push(p);
+        }
+    }
+    deduped
+}
+
+/// 定位所有 Antigravity IDE 扩展入口候选文件（供卸载全量剥离与安装清理非目标残留使用）
+pub fn find_all_ide_extension_candidates() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for app_dir in find_ide_roots() {
+        for cand in collect_ide_extension_candidates(&app_dir) {
+            if seen.insert(canonical_key(&cand)) {
+                out.push(cand);
+            }
+        }
+    }
+    out
+}
+
+/// 定位 Antigravity IDE 的核心扩展目标文件：
+/// 优先按内容特征选择真正包含 `BaseVsCodeWebviewDelegate` 的文件（兼容 2.6/2.8/2.9 的 dist 转发壳结构，
+/// 也兼容未来官方把主体迁入 dist/extension.js 或 package.json.main 的场景）；
+/// 若所有候选均不含该特征，则回退返回 package.json.main 或首个存在候选，以便修补器明确报错而不静默跳过。
 pub fn find_ide_extension_files() -> Vec<PathBuf> {
     let mut out = Vec::new();
     for app_dir in find_ide_roots() {
-        let ext_vscode = app_dir
-            .join("extensions")
-            .join("agy")
-            .join("vscode")
-            .join("extension.js");
-        let ext_dist = app_dir
-            .join("extensions")
-            .join("agy")
-            .join("dist")
-            .join("extension.js");
-        if ext_vscode.exists() {
-            out.push(ext_vscode);
-        } else if ext_dist.exists() {
-            out.push(ext_dist);
+        let candidates = collect_ide_extension_candidates(&app_dir);
+        if candidates.is_empty() {
+            continue;
+        }
+
+        // 1. 按内容特征精准匹配真正承载 BaseVsCodeWebviewDelegate 的模块
+        let matched = candidates.iter().find(|p| {
+            fs::read_to_string(p)
+                .map(|src| src.contains(IDE_WEBVIEW_DELEGATE_MARKER))
+                .unwrap_or(false)
+        });
+
+        if let Some(target) = matched {
+            out.push(target.clone());
+            continue;
+        }
+
+        // 2. 兜底回退：优先 package.json.main，其次首个候选（供上层 patcher 返回清晰的不兼容错误）
+        let agy_dir = app_dir.join("extensions").join("agy");
+        if let Some(pkg_main) = resolve_ide_package_main_entry(&agy_dir) {
+            out.push(pkg_main);
+        } else {
+            out.push(candidates[0].clone());
         }
     }
     out

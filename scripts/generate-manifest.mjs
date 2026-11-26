@@ -19,12 +19,24 @@ function getArg(name, fallback) {
   return idx >= 0 && args[idx + 1] ? args[idx + 1] : fallback;
 }
 
+/**
+ * 从 installer/src/state.rs 自动读取 LOADER_VERSION 常量，确保 Release manifest 与原生二进制始终同步。
+ */
+function readDefaultLoaderVersion() {
+  try {
+    const stateRs = fs.readFileSync(path.join(ROOT_DIR, "installer", "src", "state.rs"), "utf8");
+    const m = stateRs.match(/pub\s+const\s+LOADER_VERSION\s*:\s*u32\s*=\s*(\d+)\s*;/);
+    if (m) return m[1];
+  } catch {}
+  return "3";
+}
+
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, "package.json"), "utf8"));
 const version = getArg("--version", pkg.version).replace(/^v/i, "");
 const tag = `v${version}`;
 const repo = getArg("--repo", "LLYSH-HANNARI/antigravity-Codex-Claude-effort-slider");
 const distDir = path.resolve(getArg("--dir", path.join(ROOT_DIR, "release-assets")));
-const minLoaderVersion = Number(getArg("--min-loader", "2"));
+const minLoaderVersion = Number(getArg("--min-loader", readDefaultLoaderVersion()));
 
 function sha256File(filePath) {
   const buf = fs.readFileSync(filePath);

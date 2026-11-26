@@ -74,16 +74,123 @@ function findIdeRoots() {
   return roots;
 }
 
+const IDE_WEBVIEW_DELEGATE_MARKER = "BaseVsCodeWebviewDelegate";
+const IDE_INSERT_ANCHOR = "}.call(Object.assign(Object.create(globalThis)";
+const JS_KEYWORDS = new Set([
+  "break", "case", "catch", "class", "const", "continue", "debugger", "default",
+  "delete", "do", "else", "export", "extends", "finally", "for", "function",
+  "if", "import", "in", "instanceof", "new", "return", "super", "switch",
+  "this", "throw", "try", "typeof", "var", "void", "while", "with", "yield",
+  "let", "static", "await", "async"
+]);
+
+function normalizePathKey(p) {
+  try {
+    const real = fs.realpathSync(p);
+    return process.platform === "win32" ? real.toLowerCase() : real;
+  } catch {
+    const resolved = path.resolve(p);
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  }
+}
+
+function resolveIdePackageMainEntry(agyDir) {
+  try {
+    const pkgPath = path.join(agyDir, "package.json");
+    if (!fs.existsSync(pkgPath)) return null;
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+    const mainRel = typeof pkg.main === "string" ? pkg.main.trim() : "";
+    if (!mainRel) return null;
+    const segments = mainRel.split(/[\\/]/).filter((s) => s && s !== ".");
+    if (segments.includes("..")) return null;
+    const target = path.join(agyDir, ...segments);
+    if (fs.existsSync(target) && fs.statSync(target).isFile()) return target;
+    if (!path.extname(target)) {
+      const withJs = target + ".js";
+      if (fs.existsSync(withJs) && fs.statSync(withJs).isFile()) return withJs;
+    }
+  } catch {}
+  return null;
+}
+
+function collectIdeExtensionCandidates(appDir) {
+  const agyDir = path.join(appDir, "extensions", "agy");
+  if (!fs.existsSync(agyDir)) return [];
+  const raw = [];
+  const extVscode = path.join(agyDir, "vscode", "extension.js");
+  const extDist = path.join(agyDir, "dist", "extension.js");
+  if (fs.existsSync(extVscode) && fs.statSync(extVscode).isFile()) raw.push(extVscode);
+  if (fs.existsSync(extDist) && fs.statSync(extDist).isFile()) raw.push(extDist);
+  const pkgMain = resolveIdePackageMainEntry(agyDir);
+  if (pkgMain) raw.push(pkgMain);
+
+  const deduped = [];
+  const seen = new Set();
+  for (const p of raw) {
+    const key = normalizePathKey(p);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(p);
+  }
+  return deduped;
+}
+
+function findAllIdeExtensionCandidates() {
+  const roots = findIdeRoots();
+  const out = [];
+  const seen = new Set();
+  for (const appDir of roots) {
+    for (const cand of collectIdeExtensionCandidates(appDir)) {
+      const key = normalizePathKey(cand);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(cand);
+    }
+  }
+  return out;
+}
+
 function findIdeExtensionFiles() {
   const roots = findIdeRoots();
   const targets = [];
   for (const appDir of roots) {
-    const extVscode = path.join(appDir, "extensions", "agy", "vscode", "extension.js");
-    const extDist = path.join(appDir, "extensions", "agy", "dist", "extension.js");
-    if (fs.existsSync(extVscode)) targets.push(extVscode);
-    else if (fs.existsSync(extDist)) targets.push(extDist);
+    const candidates = collectIdeExtensionCandidates(appDir);
+    if (candidates.length === 0) continue;
+
+    // 优先按内容特征选择真正包含 BaseVsCodeWebviewDelegate 的模块，避免误打 dist 转发壳
+    let matched = null;
+    for (const cand of candidates) {
+      try {
+        if (fs.readFileSync(cand, "utf8").includes(IDE_WEBVIEW_DELEGATE_MARKER)) {
+          matched = cand;
+          break;
+        }
+      } catch {}
+    }
+
+    if (matched) {
+      targets.push(matched);
+    } else {
+      const agyDir = path.join(appDir, "extensions", "agy");
+      targets.push(resolveIdePackageMainEntry(agyDir) || candidates[0]);
+    }
   }
   return targets;
+}
+
+function extractIdeWebviewDelegateNamespace(source) {
+  const clean = stripExistingPreloadPatch(source);
+  const re = /(?<![A-Za-z0-9_$.'"`])([A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*)\.BaseVsCodeWebviewDelegate(?![A-Za-z0-9_$])(\s*=(?!=))?/g;
+  let fallback = null;
+  let m;
+  while ((m = re.exec(clean)) !== null) {
+    const ns = m[1];
+    const firstSeg = ns.split(".")[0];
+    if (JS_KEYWORDS.has(firstSeg)) continue;
+    if (m[2]) return ns;
+    if (!fallback) fallback = ns;
+  }
+  return fallback;
 }
 
 function findIdeLegacyFiles() {
@@ -396,8 +503,10 @@ function syncIdeProductChecksums(targetFilePath, isUninstall) {
   }
 }
 
-function buildIdeExtensionPatch(clientCode) {
+function buildIdeExtensionPatch(clientCode, delegateNamespace) {
   const inlinedClientLiteral = JSON.stringify(clientCode);
+  const ns = delegateNamespace;
+  const nsRoot = ns.split(".")[0];
   return [
     PATCH_START_MARKER,
     "(function () {",
@@ -563,9 +672,9 @@ function buildIdeExtensionPatch(clientCode) {
     "      });",
     "    }",
     "",
-    "    if (typeof sv !== 'undefined' && sv.BaseVsCodeWebviewDelegate) {",
-    "      const origRenderIframe = sv.BaseVsCodeWebviewDelegate.prototype.renderIframe;",
-    "      sv.BaseVsCodeWebviewDelegate.prototype.renderIframe = async function (a, b, c) {",
+    `    if (typeof ${nsRoot} !== 'undefined' && ${ns} && ${ns}.BaseVsCodeWebviewDelegate) {`,
+    `      const origRenderIframe = ${ns}.BaseVsCodeWebviewDelegate.prototype.renderIframe;`,
+    `      ${ns}.BaseVsCodeWebviewDelegate.prototype.renderIframe = async function (a, b, c) {`,
     "        try {",
     "          const proxiedUrl = await ensureProxy(b);",
     "          return origRenderIframe.call(this, a, proxiedUrl, c);",
@@ -574,9 +683,9 @@ function buildIdeExtensionPatch(clientCode) {
     "          return origRenderIframe.call(this, a, b, c);",
     "        }",
     "      };",
-    "      console.log('[CodexSlider] Antigravity IDE webview delegate successfully hooked!');",
+    `      console.log('[CodexSlider] Antigravity IDE webview delegate (${ns}) successfully hooked!');`,
     "    } else {",
-    "      console.warn('[CodexSlider] sv.BaseVsCodeWebviewDelegate not found in extension scope.');",
+    `      console.warn('[CodexSlider] ${ns}.BaseVsCodeWebviewDelegate not found in extension scope.');`,
     "    }",
     "  } catch (err) {",
     "    console.error('[CodexSlider] Error initializing IDE extension patch:', err);",
@@ -588,14 +697,20 @@ function buildIdeExtensionPatch(clientCode) {
 
 function applyIdeExtensionPatch(source, clientCode) {
   const cleanBase = stripExistingPreloadPatch(source);
-  const targetStr = "}.call(Object.assign(Object.create(globalThis)";
-  const insertIdx = cleanBase.lastIndexOf(targetStr);
-  const snippet = buildIdeExtensionPatch(clientCode);
-
-  if (insertIdx >= 0) {
-    return cleanBase.slice(0, insertIdx) + "\n" + snippet + "\n\n" + cleanBase.slice(insertIdx);
+  const delegateNs = extractIdeWebviewDelegateNamespace(cleanBase);
+  if (!delegateNs) {
+    throw new Error(
+      "未在 IDE 扩展源码中定位到 BaseVsCodeWebviewDelegate 命名空间，当前 IDE 版本可能已变更 Webview 架构，已中止写入"
+    );
   }
-  return cleanBase + "\n\n" + snippet + "\n";
+  const insertIdx = cleanBase.lastIndexOf(IDE_INSERT_ANCHOR);
+  if (insertIdx < 0) {
+    throw new Error(
+      "未在 IDE 扩展源码中定位到 Closure 闭合锚点，当前 IDE 版本打包格式可能已变更，已中止写入"
+    );
+  }
+  const snippet = buildIdeExtensionPatch(clientCode, delegateNs);
+  return cleanBase.slice(0, insertIdx) + "\n" + snippet + "\n\n" + cleanBase.slice(insertIdx);
 }
 
 function patchIdeFiles(clientCode, isUninstall) {
@@ -619,11 +734,11 @@ function patchIdeFiles(clientCode, isUninstall) {
   }
 
   // 2. 注入或精准移除 Antigravity IDE 扩展端反向代理与 Webview 挂钩（保留其他插件）
-  const extFiles = findIdeExtensionFiles();
-  for (const extPath of extFiles) {
-    const bakPath = extPath + ".codex.bak";
-    try {
-      if (isUninstall) {
+  if (isUninstall) {
+    const allCandidates = findAllIdeExtensionCandidates();
+    for (const extPath of allCandidates) {
+      const bakPath = extPath + ".codex.bak";
+      try {
         const cur = fs.readFileSync(extPath, "utf8");
         const cleaned = stripExistingPreloadPatch(cur);
         if (cleaned !== cur) {
@@ -633,14 +748,37 @@ function patchIdeFiles(clientCode, isUninstall) {
         if (fs.existsSync(bakPath)) {
           try { fs.unlinkSync(bakPath); } catch {}
         }
-      } else {
+      } catch (err) {
+        console.warn(`[CodexSlider IDE] 清理 ${extPath} 失败: ${err.message}`);
+      }
+    }
+  } else {
+    const extFiles = findIdeExtensionFiles();
+    const selectedKeys = new Set(extFiles.map(normalizePathKey));
+
+    // 先清理同目录下非目标候选文件中的历史本插件标记
+    for (const candPath of findAllIdeExtensionCandidates()) {
+      if (selectedKeys.has(normalizePathKey(candPath))) continue;
+      try {
+        const cur = fs.readFileSync(candPath, "utf8");
+        const cleaned = stripExistingPreloadPatch(cur);
+        if (cleaned !== cur) {
+          fs.writeFileSync(candPath, cleaned, "utf8");
+          console.log(`[CodexSlider IDE] 已清理非目标扩展入口中的历史本插件标记: ${candPath}`);
+        }
+      } catch {}
+    }
+
+    for (const extPath of extFiles) {
+      try {
         const cur = fs.readFileSync(extPath, "utf8");
         const patched = applyIdeExtensionPatch(cur, clientCode);
         fs.writeFileSync(extPath, patched, "utf8");
         console.log(`[CodexSlider IDE] 已为 Antigravity IDE 原地写入代理注入补丁: ${extPath}`);
+      } catch (err) {
+        console.error(`[CodexSlider IDE] 处理 ${extPath} 失败: ${err.message}`);
+        process.exitCode = 1;
       }
-    } catch (err) {
-      console.warn(`[CodexSlider IDE] 处理 ${extPath} 失败: ${err.message}`);
     }
   }
 
