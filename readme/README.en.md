@@ -54,8 +54,8 @@ Neon posted on 2026.11.18:
 
 > [!NOTE]
 > ### Native Plugin Hosting & Dual-Track Self-Healing Architecture
-> - **Verified Supported Versions**: Antigravity Desktop **2.34.0** (compatible with 2.32.1), Antigravity IDE **2.7.0**.
-> - **Install Once, Auto-Update**: The core plugin is hosted in the native plugin directory, while Desktop and IDE only receive a lightweight **external dynamic loader**. On startup, the client silently checks GitHub Releases every 6 hours, verifies SHA-256, writes the update to disk automatically, and prompts a one-click restart/reload via **Antigravity Native Notifications** (no need to repack `app.asar`).
+> - **Verified Supported Versions**: Antigravity Desktop **2.36.0** (compatible with 2.32.1), Antigravity IDE **2.9.0**.
+> - **Install Once, Auto-Update**: The core plugin is hosted in the native plugin directory, while Desktop and IDE only receive a lightweight **external dynamic loader**. On startup, the client silently checks GitHub Releases every 12 hours, verifies SHA-256, writes the update to disk automatically, and prompts a one-click restart/reload via **Antigravity Native Notifications** (no need to repack `app.asar`).
 > - **Auto-Repair After Official Updates**: Immune to being overwritten by Antigravity client auto-updates. If an Antigravity update wipes the bootstrapper, the built-in hook automatically re-injects the patch in the background at the start of a new conversation and prompts a restart to recover.
 > - **Configurable Settings**: Right-click the slider area to open the settings panel, where you can toggle "Auto Check", configure a "Mirror Prefix" (e.g., `https://gh-proxy.com/`), or click "Check for Updates Now".
 

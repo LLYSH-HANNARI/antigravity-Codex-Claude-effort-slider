@@ -54,8 +54,8 @@ Publié par Neon le 18/11/2026 :
 
 > [!NOTE]
 > ### Hébergement natif du plugin & Architecture auto-réparatrice à double voie
-> - **Versions vérifiées et prises en charge** : Antigravity Desktop **2.34.0** (compatible 2.32.1), Antigravity IDE **2.7.0**.
-> - **Installez une fois, mise à jour automatique** : Le cœur du plugin est hébergé dans le répertoire natif des plugins, tandis que Desktop et IDE ne reçoivent qu'un léger **chargeur dynamique externe**. Au démarrage, le client vérifie silencieusement GitHub Releases toutes les 6 heures, valide le SHA-256, écrit la mise à jour sur le disque automatiquement et propose un redémarrage/rechargement en un clic via les **notifications natives d'Antigravity** (sans recompiler `app.asar`).
+> - **Versions vérifiées et prises en charge** : Antigravity Desktop **2.36.0** (compatible 2.32.1), Antigravity IDE **2.9.0**.
+> - **Installez une fois, mise à jour automatique** : Le cœur du plugin est hébergé dans le répertoire natif des plugins, tandis que Desktop et IDE ne reçoivent qu'un léger **chargeur dynamique externe**. Au démarrage, le client vérifie silencieusement GitHub Releases toutes les 12 heures, valide le SHA-256, écrit la mise à jour sur le disque automatiquement et propose un redémarrage/rechargement en un clic via les **notifications natives d'Antigravity** (sans recompiler `app.asar`).
 > - **Auto-réparation après mise à jour officielle** : Protégé contre l'écrasement par les mises à jour automatiques d'Antigravity. Si une mise à jour efface le chargeur d'amorçage, le hook intégré réinjecte automatiquement le patch en arrière-plan au début d'une nouvelle conversation et propose un redémarrage pour restaurer l'extension.
 > - **Paramètres contrôlables** : Faites un clic droit sur la zone du curseur pour ouvrir le panneau des paramètres, activer/désactiver la « Vérification automatique », configurer un « Préfixe de miroir » (ex. `https://gh-proxy.com/`) ou cliquer sur « Vérifier les mises à jour maintenant ».
 
